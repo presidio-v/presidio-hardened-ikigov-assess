@@ -78,7 +78,7 @@ Gate Readiness
 
 ## Checklist
 
-25 items drawn from the five appendix sections of the IKI-Gov framework:
+25 items derived from the five appendix sections of the IKI-Gov framework:
 
 | Prefix | Section | M-Dimension |
 |--------|---------|-------------|
