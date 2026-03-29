@@ -11,6 +11,8 @@ Commands:
 
 from __future__ import annotations
 
+from typing import Optional
+
 import typer
 from rich.console import Console
 
@@ -77,8 +79,8 @@ def _run_dep_check_quietly() -> None:
 
 
 def _parse_answers(
-    affirm_raw: str | None,
-    skip_raw: str | None,
+    affirm_raw: Optional[str],
+    skip_raw: Optional[str],
     lang: str,
 ) -> tuple[frozenset[str], frozenset[str]]:
     """Parse and validate --affirm and --skip option strings."""
@@ -128,12 +130,12 @@ def assess(
         "-l",
         help="Output language: de | en.",
     ),
-    affirm: str | None = typer.Option(
+    affirm: Optional[str] = typer.Option(
         None,
         "--affirm",
         help="Comma-separated list of affirmed item IDs, e.g. S1,S2,D1.",
     ),
-    skip: str | None = typer.Option(
+    skip: Optional[str] = typer.Option(
         None,
         "--skip",
         help="Comma-separated list of skipped item IDs, e.g. I4,I5.",
@@ -209,17 +211,17 @@ def gate(
         "-l",
         help="Output language: de | en.",
     ),
-    affirm: str | None = typer.Option(
+    affirm: Optional[str] = typer.Option(
         None,
         "--affirm",
         help="Comma-separated list of affirmed item IDs.",
     ),
-    skip: str | None = typer.Option(
+    skip: Optional[str] = typer.Option(
         None,
         "--skip",
         help="Comma-separated list of skipped item IDs.",
     ),
-    assert_gate: str | None = typer.Option(
+    assert_gate: Optional[str] = typer.Option(
         None,
         "--assert-gate",
         help="Exit 1 if the specified gate is not OPEN (for CI pipelines).",
@@ -301,12 +303,12 @@ def report(
         "-l",
         help="Output language: de | en.",
     ),
-    affirm: str | None = typer.Option(
+    affirm: Optional[str] = typer.Option(
         None,
         "--affirm",
         help="Comma-separated list of affirmed item IDs.",
     ),
-    skip: str | None = typer.Option(
+    skip: Optional[str] = typer.Option(
         None,
         "--skip",
         help="Comma-separated list of skipped item IDs.",
