@@ -37,7 +37,7 @@ jobs:
           pytest --cov=src/presidio_ikigov_assess --cov-report=xml --cov-fail-under=80
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           file: ./coverage.xml
         continue-on-error: true
