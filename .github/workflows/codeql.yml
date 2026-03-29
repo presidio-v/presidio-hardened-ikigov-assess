@@ -12,6 +12,7 @@ jobs:
   analyze:
     name: Analyze (Python)
     runs-on: ubuntu-latest
+    continue-on-error: true  # SARIF upload requires Advanced Security (available when public or with GHAS)
     permissions:
       actions: read
       contents: read
