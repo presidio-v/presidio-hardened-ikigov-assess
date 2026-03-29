@@ -1,0 +1,92 @@
+"""Input validation and output sanitisation for the IKI-Gov Assessment Tool.
+
+All user-supplied strings are validated before use and HTML/shell-escaped
+before being embedded in report output. No raw user input is ever echoed
+into report templates or log entries without escaping.
+"""
+
+from __future__ import annotations
+
+import html
+import re
+
+from presidio_ikigov_assess.checklist import VALID_GATES, VALID_ITEM_IDS, VALID_RISK_CLASSES
+
+_USE_CASE_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
+_LANG_ALLOWED = {"de", "en"}
+_FORMAT_ALLOWED = {"markdown", "json"}
+
+
+class ValidationError(ValueError):
+    """Raised when a CLI parameter fails validation."""
+
+
+def validate_use_case(value: str) -> str:
+    """Validate and return a use-case name, raising ValidationError on failure."""
+    if not value or not _USE_CASE_PATTERN.match(value):
+        raise ValidationError(
+            f"Invalid use-case name: '{_truncate(value)}'. "
+            "Only alphanumeric characters, hyphens, and underscores are allowed (max 128 chars)."
+        )
+    return value
+
+
+def validate_risk_class(value: str) -> str:
+    v = value.strip().lower()
+    if v not in VALID_RISK_CLASSES:
+        raise ValidationError(
+            f"Invalid risk class: '{_truncate(value)}'. Allowed: {', '.join(sorted(VALID_RISK_CLASSES))}."
+        )
+    return v
+
+
+def validate_gate(value: str) -> str:
+    v = value.strip().upper()
+    if v not in VALID_GATES:
+        raise ValidationError(
+            f"Invalid gate: '{_truncate(value)}'. Allowed: {', '.join(sorted(VALID_GATES))}."
+        )
+    return v
+
+
+def validate_lang(value: str) -> str:
+    v = value.strip().lower()
+    if v not in _LANG_ALLOWED:
+        raise ValidationError(
+            f"Invalid language: '{_truncate(value)}'. Allowed: {', '.join(sorted(_LANG_ALLOWED))}."
+        )
+    return v
+
+
+def validate_format(value: str) -> str:
+    v = value.strip().lower()
+    if v not in _FORMAT_ALLOWED:
+        raise ValidationError(
+            f"Invalid format: '{_truncate(value)}'. Allowed: {', '.join(sorted(_FORMAT_ALLOWED))}."
+        )
+    return v
+
+
+def validate_item_ids(raw: str) -> list[str]:
+    """Parse and validate a comma-separated list of checklist item IDs."""
+    if not raw or not raw.strip():
+        return []
+    ids = [tok.strip().upper() for tok in raw.split(",") if tok.strip()]
+    if len(ids) > len(VALID_ITEM_IDS):
+        raise ValidationError(
+            f"Too many item IDs provided ({len(ids)}). Maximum is {len(VALID_ITEM_IDS)}."
+        )
+    for item_id in ids:
+        if item_id not in VALID_ITEM_IDS:
+            raise ValidationError(f"Unknown checklist item ID: '{_truncate(item_id)}'.")
+    return ids
+
+
+def escape_for_report(value: str) -> str:
+    """HTML-escape a string for safe embedding in Markdown or JSON reports."""
+    return html.escape(str(value), quote=True)
+
+
+def _truncate(value: str, max_len: int = 40) -> str:
+    s = str(value)
+    return s[:max_len] + "…" if len(s) > max_len else s
