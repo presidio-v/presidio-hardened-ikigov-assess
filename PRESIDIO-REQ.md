@@ -91,6 +91,7 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.4.0 | ISO/IEC 42001 clause-level gap mapping | Planned |
 | v0.5.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |
 | v0.6.0 | Maturity trending: delta between assessment runs, history view | Planned |
+| v0.7.0 | EU AI Act gate-to-article mapping for high-risk systems | Planned |
 
 ---
 
@@ -268,6 +269,53 @@ iga trend --use-case "fraud-scoring" --from 2026-01-15 --to 2026-03-28
 ```
 
 Output: per-dimension delta (▲/▼/=), gate status transitions (e.g. G2: BLOCKED → PARTIAL), overall maturity delta.
+
+---
+
+## v0.7.0 — EU AI Act Gate-to-Article Mapping (High-Risk Systems)
+
+**Deliberated:** 2026-03-30
+
+### Scope decision
+Map G0–G5 gate outputs to EU AI Act Title III Chapter 2 articles (Art. 9–17) for high-risk systems under Annex III. Only meaningful for `--risk-class high`. Mirrors the ISO 42001 clause mapping in v0.4.0 and is derived directly from Table `tab:framework-euaiact-gates` in the IKI-Gov book (chapter-framework).
+
+### Data model extension
+Each checklist item gains an `eu_ai_act_articles` field: list of article references applicable at that gate for high-risk systems (e.g. `["9", "10", "17"]`). Field is empty for non-high-risk items.
+
+Gate-to-article primary mapping (from book Table tab:framework-euaiact-gates):
+
+| Gate | Primary Articles |
+|---|---|
+| G0 | Art. 9 §1, Art. 17 §1 lit. a |
+| G1 | Art. 10 §2–3, Art. 9 §2 lit. a–b |
+| G2 | Art. 9 §2 lit. c–d, Art. 11 + Annex IV, Art. 15 §1–3 |
+| G3 | Art. 11 + Annex IV (complete), Art. 13 §1–2, Art. 14 §1–4, Art. 17 §1 |
+| G4 | Art. 9 §2 lit. d, Art. 12 §1–2, Art. 15 §4 |
+| G5 | Art. 11 §3, Art. 17 §1 lit. k |
+
+### New command
+```bash
+iga euaiact-gap --use-case "fraud-scoring" --affirm S1,S2,D1 --risk-class high --lang en
+```
+
+Output: per-article coverage table for high-risk obligations, showing which gate evidence covers each article and which gaps remain. Only available with `--risk-class high`; exits with warning if called for low/medium risk.
+
+### Output format
+```
+EU AI Act High-Risk Compliance Gap — fraud-scoring  [risk: HIGH]
+
+Article  Obligation                      Gate     Status
+Art. 9   Risk management system          G0–G4    PARTIAL — G2 risk controls not affirmed
+Art. 10  Data governance                 G1       OPEN
+Art. 11  Technical documentation         G2–G3    BLOCKED — G3 not reached
+Art. 13  Transparency / user info        G3       BLOCKED — G3 not reached
+Art. 14  Human oversight                 G3       BLOCKED — G3 not reached
+Art. 15  Accuracy, robustness            G2, G4   PARTIAL — G2 robustness test not affirmed
+Art. 17  Quality management system       G0, G3   PARTIAL — G3 QMS release not affirmed
+```
+
+### Dependency
+Requires v0.4.0 (ISO mapping) and v0.5.0 (persistence) as prerequisites; can be built independently if session-only mode is used.
 
 ---
 
