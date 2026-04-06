@@ -44,6 +44,8 @@ def evaluate_gate(
 
     Any item that is neither affirmed nor skipped is considered denied.
     """
+    if gate not in VALID_GATES:
+        raise ValueError(f"Unknown gate {gate!r}. Valid gates: {sorted(VALID_GATES)}")
     items = ITEMS_BY_GATE.get(gate, [])
 
     blocking: list[ChecklistItem] = []

@@ -12,6 +12,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,6 +21,7 @@ _SECURITY_LOG = _IGA_DIR / "security.log"
 
 _MAX_ASSESSMENTS: int = int(os.environ.get("IGA_MAX_ASSESSMENTS", "100"))
 _session_count: int = 0
+_session_lock = threading.Lock()
 
 
 def ensure_iga_dir() -> None:
@@ -87,8 +89,10 @@ def log_security_event(event: dict[str, object]) -> None:
 def increment_and_check_session_count() -> None:
     """Increment the per-session assessment counter and abort if limit exceeded."""
     global _session_count
-    _session_count += 1
-    if _session_count > _MAX_ASSESSMENTS:
+    with _session_lock:
+        _session_count += 1
+        count = _session_count
+    if count > _MAX_ASSESSMENTS:
         print(
             f"Session limit reached. Maximum {_MAX_ASSESSMENTS} assessments per session.",
             file=sys.stderr,
