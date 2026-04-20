@@ -8,18 +8,18 @@
 
 ## Reporting a Vulnerability
 
-Please **do not** open a public GitHub issue for security vulnerabilities.
-
-Report vulnerabilities via email to the repository maintainer or via
-[GitHub private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability)
-on this repository.
+Please report security vulnerabilities by opening a private GitHub Security Advisory
+(via the "Security" tab → "Report a vulnerability") rather than a public issue.
 
 Include:
-- A description of the vulnerability and its potential impact
-- Steps to reproduce
-- Any suggested remediation
 
-You will receive an acknowledgement within 72 hours and a resolution plan within 14 days.
+- Description of the vulnerability
+- Steps to reproduce
+- Potential impact
+- Suggested fix (if any)
+
+You will receive an acknowledgement within 5 business days. We aim to release a patch
+within 30 days of a confirmed vulnerability.
 
 ## Security Design
 
@@ -39,3 +39,9 @@ You will receive an acknowledgement within 72 hours and a resolution plan within
   session (`IGA_MAX_ASSESSMENTS` env var, default 100).
 - **Restricted file permissions** — `~/.iga/` is created with mode `700` and the security
   log file with mode `600`.
+
+## Software Development Lifecycle
+
+This repository is developed under the Presidio hardened-family SDLC. The public report
+— scope, standards mapping, threat-model gates, and supply-chain controls — is at
+<https://github.com/presidio-v/presidio-hardened-docs/blob/main/sdlc/sdlc-report.md>.

@@ -282,3 +282,8 @@ Output: per-dimension delta (▲/▼/=), gate status transitions (e.g. G2: BLOCK
 | Interactive before ISO mapping | Organizations need the base assessment before clause-level gaps are actionable |
 | No PDF export | Avoids heavy dependencies (weasyprint/reportlab) in early versions; Markdown→PDF is user's responsibility |
 | Gate exit codes 0/2/3 from v0.2 | Enables CI pipeline integration without string-parsing output |
+
+## SDLC
+
+These requirements are delivered under the family-wide Presidio SDLC:
+<https://github.com/presidio-v/presidio-hardened-docs/blob/main/sdlc/sdlc-report.md>.
