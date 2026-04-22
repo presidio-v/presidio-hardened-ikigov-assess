@@ -63,16 +63,6 @@ The checklist content is drawn directly from the five appendix sections of the I
 - LICENSE = MIT
 - Version = 0.1.0
 
-## Workflow Rules (always follow)
-
-1. First create or update PRESIDIO-REQ.md from this template (adapt for the specific toolkit).
-2. Manually remove or comment out the final "Deliver the complete working project ready for GitHub publish." line.
-3. Implement file-by-file in logical order: checklist data → scoring engine → gate engine → CLI commands (assess, gate, report) → i18n strings → interactive wizard → tests.
-4. After every major section run validation commands (`ruff format . && ruff check . --fix && pytest`) and fix all issues automatically.
-5. When complete, reply exactly: "BUILD COMPLETE – ready for publish"
-
-<!-- Deliver the complete working project ready for GitHub publish. -->
-
 ---
 
 # Version Registry & Deliberation Log
