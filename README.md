@@ -65,6 +65,7 @@ iga iso-gap --affirm S2,S3,I1,I2 --quiet   # machine-readable JSON
 iga assess --use-case "fraud-scoring" --risk-class high --affirm S1,S2,S3 --save
 iga list                                   # table of saved assessments
 iga portfolio                              # aggregated M1–M6 + blocked gates
+iga trend --use-case "fraud-scoring"       # delta vs the previous saved run
 iga delete --use-case "fraud-scoring"      # hard-delete
 
 # List saved assessments (persistence in v0.6.0)
@@ -202,6 +203,7 @@ commands then work across saved use cases:
 |---------|---------|
 | `iga list` | Table of all saved assessments (use case, risk, overall, timestamp) |
 | `iga portfolio` | Mean M1–M6 and overall maturity across the latest assessment per use case, plus a count of use cases with each gate BLOCKED |
+| `iga trend --use-case X` | Per-dimension delta (▲/▼/=), overall maturity change, and gate transitions between two saved runs (latest vs previous, or a `--from`/`--to` window) |
 | `iga delete --use-case X` | Hard-delete all saved assessments for a use case |
 
 `list` and `portfolio` support `--quiet` for JSON. Only what you provide is stored
@@ -274,8 +276,8 @@ Security controls built into the tool:
 | v0.3.0 | Gate readiness refinement, CI exit codes 0/2/3, `--strict` flag | Released |
 | v0.4.0 | Report export to file (`--output`) with per-item answers | Released |
 | v0.5.0 | ISO/IEC 42001 clause-level gap mapping (`iga iso-gap`) | Released |
-| v0.6.0 | Portfolio mode: persistence, `list`, `portfolio`, `delete` | Current |
-| v0.7.0 | Maturity trending: delta between assessment runs | Planned |
+| v0.6.0 | Portfolio mode: persistence, `list`, `portfolio`, `delete` | Released |
+| v0.7.0 | Maturity trending: delta between saved runs (`iga trend`) | Current |
 | v0.8.0 | EU AI Act gate-to-article mapping for high-risk systems | Planned |
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)

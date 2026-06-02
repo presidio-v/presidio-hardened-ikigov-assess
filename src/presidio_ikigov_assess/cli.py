@@ -9,6 +9,7 @@ Commands:
   iga iso-gap  — map results to ISO/IEC 42001 clause coverage
   iga list     — list saved assessments from the local store
   iga portfolio— aggregate saved assessments (M1–M6 + blocked gates)
+  iga trend    — maturity delta between two saved assessments
   iga delete   — hard-delete saved assessments for a use case
 """
 
@@ -30,15 +31,18 @@ from presidio_ikigov_assess.renderer import (
     print_iso_coverage,
     print_portfolio,
     print_saved_list,
+    print_trend,
     render_gate_json,
     render_iso_json,
     render_json,
     render_markdown,
     render_portfolio_json,
     render_saved_list_json,
+    render_trend_json,
 )
 from presidio_ikigov_assess.sanitize import (
     ValidationError,
+    validate_date,
     validate_format,
     validate_gate,
     validate_item_ids,
@@ -54,6 +58,7 @@ from presidio_ikigov_assess.security import (
     log_security_event,
     run_dep_check,
 )
+from presidio_ikigov_assess.trend import TrendError, compute_trend, select_trend_pair
 
 app = typer.Typer(
     name="iga",
@@ -81,7 +86,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.6.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.7.0."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 
@@ -580,3 +585,56 @@ def delete(
         console.print(f"[green]{t('delete_done', lang, count=removed, use_case=use_case)}[/green]")
     else:
         err_console.print(f"[yellow]{t('delete_none', lang, use_case=use_case)}[/yellow]")
+
+
+@app.command()
+def trend(
+    use_case: str = typer.Option(
+        ...,
+        "--use-case",
+        "-u",
+        help="Use case to trend (needs >=2 saved assessments).",
+    ),
+    from_date: Optional[str] = typer.Option(
+        None,
+        "--from",
+        help="Window start date YYYY-MM-DD (compare first vs last in window).",
+    ),
+    to_date: Optional[str] = typer.Option(
+        None,
+        "--to",
+        help="Window end date YYYY-MM-DD.",
+    ),
+    lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
+) -> None:
+    """Show the maturity delta between two saved assessments of a use case.
+
+    Without a date window, compares the two most recent runs. With --from/--to,
+    compares the first and last saved assessment in the inclusive date window.
+    """
+    lang = _validated(lang, validate_lang, lang)
+    use_case = _validated(use_case, validate_use_case, lang)
+    from_date = _validated(from_date, validate_date, lang) if from_date is not None else None
+    to_date = _validated(to_date, validate_date, lang) if to_date is not None else None
+
+    assessments = store.assessments_for_use_case(use_case)
+    try:
+        earlier, later = select_trend_pair(assessments, from_date, to_date)
+    except TrendError:
+        err_console.print(f"[yellow]{t('trend_insufficient', lang, use_case=use_case)}[/yellow]")
+        raise typer.Exit(1)
+
+    result = compute_trend(earlier, later)
+    log_security_event(
+        {
+            "event": "iga-trend",
+            "overall_delta": result.overall_delta,
+            "lang": lang,
+        }
+    )
+
+    if quiet:
+        print(render_trend_json(result, lang))
+    else:
+        print_trend(console, result, lang)

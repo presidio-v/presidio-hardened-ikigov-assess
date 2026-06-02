@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import html
 import re
+from datetime import datetime
 
 from presidio_ikigov_assess.checklist import VALID_GATES, VALID_ITEM_IDS, VALID_RISK_CLASSES
 
 _USE_CASE_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
+_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _LANG_ALLOWED = {"de", "en"}
 _FORMAT_ALLOWED = {"markdown", "json"}
 
@@ -88,6 +90,18 @@ def escape_for_report(value: str) -> str:
 
 
 _MAX_PATH_LEN = 4096
+
+
+def validate_date(value: str) -> str:
+    """Validate a YYYY-MM-DD date string (used for trend windows)."""
+    v = value.strip()
+    if not _DATE_PATTERN.match(v):
+        raise ValidationError(f"Invalid date: '{_truncate(value)}'. Use format YYYY-MM-DD.")
+    try:
+        datetime.strptime(v, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValidationError(f"Invalid date: '{_truncate(value)}'. {exc}") from exc
+    return v
 
 
 def validate_output_path(value: str) -> str:

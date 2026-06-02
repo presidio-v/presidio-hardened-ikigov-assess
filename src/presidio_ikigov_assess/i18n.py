@@ -233,6 +233,14 @@ STRINGS: dict[str, dict[str, str]] = {
         "de": "Keine gespeicherten Bewertungen — nichts zu aggregieren.",
         "en": "No saved assessments — nothing to aggregate.",
     },
+    # ── Maturity trend (v0.7.0) ──────────────────────────────────────────────
+    "trend_title": {"de": "Reifegrad-Trend", "en": "Maturity Trend"},
+    "trend_insufficient": {
+        "de": "Mindestens zwei gespeicherte Bewertungen für '{use_case}' erforderlich.",
+        "en": "At least two saved assessments are required for '{use_case}'.",
+    },
+    "trend_gates_header": {"de": "Gate-Übergänge", "en": "Gate Transitions"},
+    "trend_overall_delta": {"de": "Veränderung Gesamtreife", "en": "Overall maturity change"},
     "report_disclaimer": {
         "de": (
             "Erstellt mit dem IKI-Gov Assessment Tool. "

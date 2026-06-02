@@ -547,6 +547,42 @@ def test_portfolio_console_shows_dimensions():
     assert "M1" in result.output
 
 
+# ── trend command (v0.7.0) ──────────────────────────────────────────────────────
+
+
+def test_trend_needs_two_assessments():
+    invoke("assess", "--use-case", "solo", "--affirm", "S1", "--save")
+    result = invoke("trend", "--use-case", "solo")
+    assert result.exit_code == 1
+    assert "two saved assessments" in result.output
+
+
+def test_trend_latest_vs_previous_quiet():
+    invoke("assess", "--use-case", "growth", "--affirm", "S1", "--save")
+    invoke("assess", "--use-case", "growth", "--affirm", "S1,S2,S3,S4,S5", "--save")
+    result = invoke("trend", "--use-case", "growth", "--quiet")
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    # later run affirmed more → overall went up
+    assert data["overall"]["delta"] > 0
+    assert len(data["dimensions"]) == 6
+    assert len(data["gate_transitions"]) == 6
+
+
+def test_trend_console_output():
+    invoke("assess", "--use-case", "g2", "--affirm", "S1", "--save")
+    invoke("assess", "--use-case", "g2", "--affirm", "S1,S2,S3", "--save")
+    result = invoke("trend", "--use-case", "g2")
+    assert result.exit_code == 0
+    assert "Maturity Trend" in result.output
+    assert "Gate Transitions" in result.output
+
+
+def test_trend_invalid_date():
+    result = invoke("trend", "--use-case", "x", "--from", "2026/01/01")
+    assert result.exit_code == 1
+
+
 # ── global flags ──────────────────────────────────────────────────────────────
 
 

@@ -5,6 +5,7 @@ import pytest
 from presidio_ikigov_assess.sanitize import (
     ValidationError,
     escape_for_report,
+    validate_date,
     validate_format,
     validate_gate,
     validate_item_ids,
@@ -38,6 +39,23 @@ def test_output_path_rejects_null_byte():
 def test_output_path_rejects_too_long():
     with pytest.raises(ValidationError):
         validate_output_path("a" * 5000)
+
+
+# ── validate_date (v0.7.0) ──────────────────────────────────────────────────
+
+
+def test_date_valid():
+    assert validate_date("2026-03-15") == "2026-03-15"
+
+
+def test_date_rejects_wrong_format():
+    with pytest.raises(ValidationError):
+        validate_date("2026/03/15")
+
+
+def test_date_rejects_impossible_day():
+    with pytest.raises(ValidationError):
+        validate_date("2026-02-30")
 
 
 # ── validate_use_case ─────────────────────────────────────────────────────────

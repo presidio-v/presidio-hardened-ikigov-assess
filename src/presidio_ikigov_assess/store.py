@@ -126,6 +126,20 @@ def list_assessments() -> list[SavedAssessment]:
         conn.close()
 
 
+def assessments_for_use_case(use_case: str) -> list[SavedAssessment]:
+    """Return all saved assessments for *use_case*, newest first."""
+    conn = _connect()
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT * FROM assessments WHERE use_case = ? ORDER BY timestamp DESC, id DESC",
+            (use_case,),
+        ).fetchall()
+        return [_row_to_assessment(row) for row in rows]
+    finally:
+        conn.close()
+
+
 def delete_use_case(use_case: str) -> int:
     """Hard-delete all assessments for *use_case*; returns rows removed."""
     conn = _connect()

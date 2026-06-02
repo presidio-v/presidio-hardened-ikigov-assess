@@ -14,6 +14,7 @@ from presidio_ikigov_assess.i18n import RISK_LABEL_KEY, t
 from presidio_ikigov_assess.iso import ClauseCoverage, Coverage
 from presidio_ikigov_assess.sanitize import escape_for_report
 from presidio_ikigov_assess.scoring import AssessmentScores
+from presidio_ikigov_assess.trend import TrendResult
 
 _FILLED = "█"
 _EMPTY = "░"
@@ -428,6 +429,78 @@ def print_portfolio(console: Console, summary: dict, lang: str) -> None:
 def render_portfolio_json(summary: dict, lang: str) -> str:
     """Return the portfolio summary as a JSON string (for ``--quiet``)."""
     return json.dumps({**summary, "lang": lang}, indent=2, ensure_ascii=False)
+
+
+_TREND_SYMBOL = {"up": ("▲", "green"), "down": ("▼", "red"), "same": ("=", "dim")}
+
+
+def print_trend(console: Console, result: TrendResult, lang: str) -> None:
+    """Render a maturity-trend comparison between two assessments to *console*."""
+    console.print(f"\n[bold]{t('trend_title', lang)} — {result.use_case}[/bold]")
+    console.print(f"[dim]{result.earlier_timestamp}  →  {result.later_timestamp}[/dim]\n")
+
+    for d in result.dimensions:
+        sym, colour = _TREND_SYMBOL[d.direction]
+        console.print(
+            f"  {d.dimension}  {t(d.dimension, lang):<32} "
+            f"{d.earlier:5.1f} → {d.later:5.1f}   [{colour}]{sym} {d.delta:+.1f}[/{colour}]"
+        )
+
+    console.rule(style="dim")
+    overall_dir = (
+        "up" if result.overall_delta > 0 else "down" if result.overall_delta < 0 else "same"
+    )
+    sym, colour = _TREND_SYMBOL[overall_dir]
+    console.print(
+        f"  {'':>3}  {t('trend_overall_delta', lang):<32} "
+        f"{result.overall_earlier:5.1f} → {result.overall_later:5.1f}   "
+        f"[{colour}]{sym} {result.overall_delta:+.1f}[/{colour}]\n"
+    )
+
+    console.print(f"[bold]{t('trend_gates_header', lang)}[/bold]")
+    for tr in result.gate_transitions:
+        earlier = t(tr.earlier_status, lang)
+        later = t(tr.later_status, lang)
+        if tr.changed:
+            console.print(f"  {tr.gate}  [yellow]{earlier}  →  {later}[/yellow]")
+        else:
+            console.print(f"  [dim]{tr.gate}  {earlier}  →  {later}[/dim]")
+    console.print()
+
+
+def render_trend_json(result: TrendResult, lang: str) -> str:
+    """Return the trend comparison as a JSON string (for ``--quiet``)."""
+    data = {
+        "use_case": escape_for_report(result.use_case),
+        "lang": lang,
+        "earlier_timestamp": result.earlier_timestamp,
+        "later_timestamp": result.later_timestamp,
+        "overall": {
+            "earlier": result.overall_earlier,
+            "later": result.overall_later,
+            "delta": result.overall_delta,
+        },
+        "dimensions": [
+            {
+                "dimension": d.dimension,
+                "earlier": d.earlier,
+                "later": d.later,
+                "delta": d.delta,
+                "direction": d.direction,
+            }
+            for d in result.dimensions
+        ],
+        "gate_transitions": [
+            {
+                "gate": g.gate,
+                "earlier": g.earlier_status,
+                "later": g.later_status,
+                "changed": g.changed,
+            }
+            for g in result.gate_transitions
+        ],
+    }
+    return json.dumps(data, indent=2, ensure_ascii=False)
 
 
 def render_gate_json(

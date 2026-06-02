@@ -81,7 +81,7 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.4.0 | Report export: Markdown and JSON (`--output`) + per-item answers | Shipped |
 | v0.5.0 | ISO/IEC 42001 clause-level gap mapping (`iga iso-gap`) | Shipped |
 | v0.6.0 | Portfolio mode: SQLite persistence, `list` / `portfolio` / `delete` | Shipped |
-| v0.7.0 | Maturity trending: delta between assessment runs, history view | Planned |
+| v0.7.0 | Maturity trending: delta between runs (`iga trend`) | Shipped |
 | v0.8.0 | EU AI Act gate-to-article mapping for high-risk systems | Planned |
 
 ---
@@ -421,6 +421,28 @@ iga trend --use-case "fraud-scoring" --from 2026-01-15 --to 2026-03-28
 ```
 
 Output: per-dimension delta (▲/▼/=), gate status transitions (e.g. G2: BLOCKED → PARTIAL), overall maturity delta.
+
+### Implementation (2026-06-02)
+
+- **Engine.** New `trend.py`: `select_trend_pair` chooses (earlier, later) — by
+  default the previous vs latest saved run; with a `--from`/`--to` window, the
+  earliest and latest within it. `compute_trend` returns `TrendResult` with
+  per-dimension `DimensionDelta` (earlier, later, delta, direction up/down/same),
+  overall delta, and a `GateTransition` per gate (with a `changed` flag).
+- **Date window.** `--from`/`--to` are `YYYY-MM-DD` (`sanitize.validate_date`).
+  Because stored timestamps are ISO-8601, the window filter is a lexicographic
+  string compare on the date prefix — no datetime arithmetic. `store` gained
+  `assessments_for_use_case` (newest-first).
+- **Command.** `iga trend --use-case … [--from … --to …] [--quiet]`. Exits 1 with
+  a friendly message when fewer than two qualifying assessments exist. Console
+  shows ▲/▼/= per dimension and highlights changed gate transitions; `--quiet`
+  emits JSON.
+- **Scope note.** "History view" is satisfied by `iga list` (v0.6.0) plus `trend`;
+  no separate history command was added. Trend is CLI-only — not exposed over MCP,
+  since the MCP `iga_assess` tool does not persist (would need a save path first).
+
+Tests: 246 total, 96% coverage (`test_trend.py` for the engine; trend CLI cases
+and `validate_date` covered too).
 
 ---
 
