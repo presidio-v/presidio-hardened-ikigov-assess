@@ -22,3 +22,9 @@ htmlcov/
 
 .claude/
 .specify/
+
+# Private business/strategy material — MUST NEVER enter the public package repo.
+# Mirrors the presidio-hardened-x402 split (business docs live outside the public
+# package). Keep monetisation/GTM/pricing here, local-only or in a private repo.
+STRATEGY.md
+/private/

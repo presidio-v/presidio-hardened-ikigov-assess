@@ -83,6 +83,10 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.6.0 | Portfolio mode: SQLite persistence, `list` / `portfolio` / `delete` | Shipped |
 | v0.7.0 | Maturity trending: delta between runs (`iga trend`) | Shipped |
 | v0.8.0 | EU AI Act gate→article mapping (`iga euaiact-gap`) | Shipped |
+| v0.9.0 | Evidence-pack export: signed, audit-ready report bundle + manifest | Planned |
+| v0.10.0 | Pluggable regulatory-content provider interface (versioned content packs) | Planned |
+| v0.11.0 | NIST AI RMF mapping + framework-agnostic coverage core | Planned |
+| v0.12.0 | Remote MCP endpoint: HTTP/SSE transport, org context, auth | Planned |
 
 ---
 
@@ -524,7 +528,122 @@ field from the original deliberation was dropped in favour of a gate→article t
 
 Tests: 266 total, 96% coverage (`test_euaiact.py` for the engine, CLI + MCP cases).
 
-**Roadmap complete: v0.1.0–v0.8.0 all shipped.**
+**v0.1.0–v0.8.0 shipped.** Forward roadmap (v0.9.0+) below.
+
+---
+
+## v0.9.0 — Evidence-Pack Export: Signed, Audit-Ready Bundle
+
+**Deliberated:** 2026-06-03
+
+### Scope decision
+Produce a self-contained, tamper-evident evidence bundle from an assessment so it
+can be handed to an auditor/regulator as a versioned record. Builds on v0.4.0
+(report export). No heavy runtime deps in the core; PDF rendering stays an optional
+extra.
+
+### New command
+```bash
+iga export --use-case "fraud-scoring" --affirm S1,S2,D1 --risk-class high \
+    --bundle ./audit/fraud-scoring/        # writes a directory (or .zip with --zip)
+```
+
+### Bundle contents
+- `report.md` + `report.json` (existing renderers).
+- `manifest.json` — provenance: tool version, UTC timestamp, **content hashes**
+  (sha256) of each artifact, the checklist content hash, and the version of each
+  framework mapping used (ISO 42001, EU AI Act — see v0.10.0 content-pack versions).
+- Optional `report.pdf` (only with the PDF extra installed).
+- Optional detached signature over `manifest.json` (sigstore/minisign) — deferred;
+  the hash manifest is the baseline integrity mechanism.
+
+### Data-model surface
+Expose a stable content-version/hash API: `checklist` content hash + per-mapping
+versions, so any report can cite exactly which inputs produced it. Reproducible:
+the same answers + same content versions produce an identical manifest (modulo
+timestamp).
+
+---
+
+## v0.10.0 — Pluggable Regulatory-Content Provider Interface
+
+**Deliberated:** 2026-06-03
+
+### Scope decision
+Decouple the regulatory mapping *content* (ISO clause matrix, EU AI Act article
+table, future frameworks) from the engine so mappings can be shipped and updated
+as versioned **content packs** independently of an engine release. Backwards
+compatible: the built-in baseline packs reproduce current behaviour exactly.
+
+### Content-pack schema
+A pack (JSON/TOML) declares: `framework_id`, `version`, `languages`, target
+metadata (clause/article/control names + obligations per language), and the
+mapping (`item → targets` and/or `gate → targets`). Carries a `version` + content
+hash (consumed by the v0.9.0 manifest).
+
+### Provider interface
+- Engine loads **built-in packs** (current ISO/EU AI Act, bundled in-repo) plus
+  optional **external packs** from a configured location (`~/.iga/content/` or
+  `IGA_CONTENT_PATH`).
+- `iga content list` shows installed packs + versions; gap commands resolve their
+  mapping from the active pack.
+- Generalises `iso.py`/`euaiact.py` to read a pack rather than a hard-coded dict.
+
+### Decision
+Built-in baseline packs remain in-repo. The interface is a clean extensibility
+point; whether additional packs are distributed in-repo or out-of-band is an
+operational choice, not an engine concern.
+
+---
+
+## v0.11.0 — NIST AI RMF Mapping + Framework-Agnostic Core
+
+**Deliberated:** 2026-06-03
+
+### Scope decision
+Add **NIST AI RMF** (functions Govern/Map/Measure/Manage + categories) as a mapping
+target, proving the v0.10.0 content-pack core, and generalise the gap commands.
+
+### Changes
+- Refactor `iso.py` + `euaiact.py` into a single **generic coverage engine** over a
+  content pack (item→target or gate→target), parameterised by framework.
+- New command `iga framework-gap --framework {iso42001|euaiact|nist-ai-rmf}`; keep
+  `iso-gap` and `euaiact-gap` as thin compatibility aliases.
+- New `nist-ai-rmf` content pack mapping checklist items / M-dimensions to NIST
+  functions and categories (qualitative, mirroring the ISO matrix's relevance grading).
+
+### Dependency
+Requires v0.10.0 (content-pack interface). Establishes the pattern for adding
+further frameworks (UK, sectoral) as content packs with no engine change.
+
+---
+
+## v0.12.0 — Remote MCP Endpoint: Org Context and Auth
+
+**Deliberated:** 2026-06-03
+
+### Scope decision
+Run the MCP server over a network transport (HTTP/SSE) with multi-tenant org
+context and authentication, so AI platforms/agents can call governance tools
+against a persistent, org-scoped store — extending the stdio server (v0.2.0) and
+the local SQLite store (v0.6.0).
+
+### Changes
+- **Transport:** FastMCP streamable-HTTP / SSE (supported by the `mcp` SDK), behind
+  token/OAuth auth.
+- **Org-scoped persistence:** extend `store.py` from a single local SQLite file to
+  per-org isolation (separate DB/schema per tenant); `portfolio`/`trend` operate over
+  the org store.
+- **Tool surface:** same tools (`assess`, `check_gate`, `iso_gap`, `euaiact_gap`,
+  `framework_gap`) plus org-scoped `portfolio`/`trend`.
+
+### Security
+Authn/z per request; **per-org rate limiting** (generalises the per-session abuse
+guard); TLS required; structured audit logging (no use-case content). Deployable as
+a container; deferred network deps kept in an optional extra.
+
+### Dependency
+Builds on v0.2.0 (MCP), v0.6.0 (persistence), v0.10.0 (content packs).
 
 ---
 
