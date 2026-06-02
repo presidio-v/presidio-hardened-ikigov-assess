@@ -53,6 +53,16 @@ STRINGS: dict[str, dict[str, str]] = {
     "OPEN": {"de": "OFFEN", "en": "OPEN"},
     "PARTIAL": {"de": "TEILWEISE", "en": "PARTIAL"},
     "BLOCKED": {"de": "BLOCKIERT", "en": "BLOCKED"},
+    # ── Gate lifecycle transitions ───────────────────────────────────────────
+    "gate_G0": {"de": "Kontext → Konzeption", "en": "Context → Conception"},
+    "gate_G1": {"de": "Konzeption → Entwicklung", "en": "Conception → Development"},
+    "gate_G2": {"de": "Entwicklung → Freigabe", "en": "Development → Release"},
+    "gate_G3": {"de": "Freigabe → Betrieb", "en": "Release → Operation"},
+    "gate_G4": {"de": "Betrieb → Anpassung", "en": "Operation → Adaptation"},
+    "gate_G5": {
+        "de": "Anpassung → Außerbetriebnahme",
+        "en": "Adaptation → Decommissioning",
+    },
     # ── Risk classes ─────────────────────────────────────────────────────────
     "risk_low": {"de": "NIEDRIG", "en": "LOW"},
     "risk_medium": {"de": "MITTEL", "en": "MEDIUM"},
@@ -146,9 +156,9 @@ STRINGS: dict[str, dict[str, str]] = {
     "list_empty": {
         "de": (
             "Keine gespeicherten Bewertungen vorhanden.\n"
-            "(Persistenz wird in Version 0.5.0 hinzugefügt.)"
+            "(Persistenz wird in Version 0.6.0 hinzugefügt.)"
         ),
-        "en": ("No saved assessments found.\n(Persistence is added in version 0.5.0.)"),
+        "en": ("No saved assessments found.\n(Persistence is added in version 0.6.0.)"),
     },
     "report_disclaimer": {
         "de": (

@@ -46,7 +46,7 @@ The checklist content is drawn directly from the five appendix sections of the I
   - `iga assess` — assess a use case (parameter-driven or `--interactive`)
   - `iga gate` — check readiness for a specific gate G0–G5
   - `iga report` — export last or named assessment to Markdown or JSON
-  - `iga list` — list saved assessments (v0.5.0 portfolio feature prerequisite stub)
+  - `iga list` — list saved assessments (v0.6.0 portfolio feature prerequisite stub)
 - Checklist engine: 25 items from the five appendix sections, each with:
   - `id` (e.g. `S1`–`S5`, `D1`–`D5`, `T1`–`T5`, `O1`–`O5`, `I1`–`I5`)
   - text in both `de` and `en`
@@ -75,13 +75,14 @@ Every deliberation about future versions and roadmap is persisted here.
 
 | Version | Theme | Status |
 |---|---|---|
-| v0.1.0 | MVP — interactive + parameter-driven assessment, M1–M6 scoring, bilingual | Planned |
-| v0.2.0 | Gate readiness checks G0–G5, risk-class-aware thresholds, CI exit codes | Planned |
-| v0.3.0 | Report export: Markdown and JSON | Planned |
-| v0.4.0 | ISO/IEC 42001 clause-level gap mapping | Planned |
-| v0.5.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |
-| v0.6.0 | Maturity trending: delta between assessment runs, history view | Planned |
-| v0.7.0 | EU AI Act gate-to-article mapping for high-risk systems | Planned |
+| v0.1.0 | MVP — interactive + parameter-driven assessment, M1–M6 scoring, bilingual | Shipped |
+| v0.2.0 | MCP server — agent-accessible assessment engine (`iga-mcp`) | Shipped |
+| v0.3.0 | Gate readiness refinement, risk-class-aware thresholds, CI exit codes 0/2/3 | Planned |
+| v0.4.0 | Report export: Markdown and JSON | Planned |
+| v0.5.0 | ISO/IEC 42001 clause-level gap mapping | Planned |
+| v0.6.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |
+| v0.7.0 | Maturity trending: delta between assessment runs, history view | Planned |
+| v0.8.0 | EU AI Act gate-to-article mapping for high-risk systems | Planned |
 
 ---
 
@@ -90,7 +91,7 @@ Every deliberation about future versions and roadmap is persisted here.
 **Deliberated:** 2026-03-28
 
 ### Scope decision
-Single use-case assessment only. No persistence beyond session. Both interactive and parameter-driven mode. Languages: `de` and `en`. Console output only (no file export — deferred to v0.3.0).
+Single use-case assessment only. No persistence beyond session. Both interactive and parameter-driven mode. Languages: `de` and `en`. Console output only (no file export — deferred to v0.4.0).
 
 ### Core data model
 25 checklist items in five sections, each item carrying: `id`, `text_de`, `text_en`, `m_dimension` (M1–M6), `gates` (list of G0–G5 strings), `risk_weight` (dict: low→1.0, medium→1.5, high→2.0).
@@ -166,7 +167,56 @@ Gate Readiness
 
 ---
 
-## v0.2.0 — Gate Readiness Refinement & CI Hardening
+## v0.2.0 — MCP Server: Agent-Accessible Assessment Engine
+
+**Deliberated:** 2026-06-02
+
+### Scope decision
+Expose the existing v0.1.0 assessment engine over the **Model Context Protocol (MCP)**
+so MCP-capable LLM agents and clients (e.g. Claude Desktop) can run IKI-Gov
+assessments as tools. Built ahead of the original sequence because it depends only
+on the v0.1.0 engine, and because the book launch makes an agent-accessible
+governance tool especially valuable. The previously-planned v0.2.0–v0.7.0 themes
+are renumbered +1 (now v0.3.0–v0.8.0); their scope is unchanged.
+
+The MCP server is a **thin additional front-end**, peer to the Typer CLI: it reuses
+`sanitize` (validation), `scoring`, `gates`, and `renderer.build_payload` unchanged.
+No change to the scoring formula, gate logic, or checklist data model.
+
+### Implementation
+- New module `src/presidio_ikigov_assess/mcp_server.py` using the official MCP
+  Python SDK (FastMCP) over stdio.
+- New console script `iga-mcp` (entry point `mcp_server:main`).
+- New optional extra `[mcp]` requiring `mcp>=1.2.0; python_version >= '3.10'`. The
+  core CLI remains Python 3.9-compatible; the MCP extra is 3.10+ only.
+- Pure tool-logic functions (`framework_info`, `list_items`, `assess`, `gate_status`)
+  are independent of the `mcp` package and unit-tested directly, so they run on
+  every supported Python; only `build_server`/`main` import FastMCP.
+
+### Tools
+| Tool | Purpose |
+|---|---|
+| `iga_framework_info` | Lifecycle phases, dimensions M1–M6, gates G0–G5, sections, risk classes (de/en) |
+| `iga_list_checklist` | All 25 checklist items: id, text, dimension, gates, section |
+| `iga_assess` | Affirmed/skipped item IDs → M1–M6 scores, overall maturity, gate readiness |
+| `iga_check_gate` | Single-gate readiness with blocking/skipped items |
+
+### Security
+- All tools run the same input validation as the CLI; invalid input surfaces as an
+  MCP tool error (`ToolInputError`), never crashing the long-running server.
+- The per-session abuse guard is reused via a **non-fatal** counter
+  (`increment_session_count`), so an over-limit request returns a tool error instead
+  of calling `sys.exit` (which would kill the server).
+- Structured security events (`iga-mcp-assessment-complete`, `iga-mcp-gate-check`)
+  are logged with structural metadata only — no use-case content.
+- Tool output reuses the report payload's HTML-escaping of the use-case name.
+
+### Dependency
+Independent of v0.3.0–v0.8.0; depends only on the v0.1.0 engine.
+
+---
+
+## v0.3.0 — Gate Readiness Refinement & CI Hardening
 
 **Deliberated:** 2026-03-28
 
@@ -182,7 +232,7 @@ Introduce risk-class-aware gate thresholds (low risk: PARTIAL suffices to OPEN a
 
 ---
 
-## v0.3.0 — Report Export: Markdown and JSON
+## v0.4.0 — Report Export: Markdown and JSON
 
 **Deliberated:** 2026-03-28
 
@@ -201,7 +251,7 @@ All use-case names and free-text fields are HTML-escaped in Markdown export and 
 
 ---
 
-## v0.4.0 — ISO/IEC 42001 Clause-Level Gap Mapping
+## v0.5.0 — ISO/IEC 42001 Clause-Level Gap Mapping
 
 **Deliberated:** 2026-03-28
 
@@ -220,7 +270,7 @@ Each checklist item gains a `iso_clauses` field: list of clause references (e.g.
 
 ---
 
-## v0.5.0 — Portfolio Mode: Multiple Use Cases, SQLite Persistence
+## v0.6.0 — Portfolio Mode: Multiple Use Cases, SQLite Persistence
 
 **Deliberated:** 2026-03-28
 
@@ -245,7 +295,7 @@ Table `assessments`: `id`, `use_case`, `risk_class`, `timestamp`, `answers_json`
 
 ---
 
-## v0.6.0 — Maturity Trending: Delta Between Runs, History View
+## v0.7.0 — Maturity Trending: Delta Between Runs, History View
 
 **Deliberated:** 2026-03-28
 
@@ -262,12 +312,12 @@ Output: per-dimension delta (▲/▼/=), gate status transitions (e.g. G2: BLOCK
 
 ---
 
-## v0.7.0 — EU AI Act Gate-to-Article Mapping (High-Risk Systems)
+## v0.8.0 — EU AI Act Gate-to-Article Mapping (High-Risk Systems)
 
 **Deliberated:** 2026-03-30
 
 ### Scope decision
-Map G0–G5 gate outputs to EU AI Act Title III Chapter 2 articles (Art. 9–17) for high-risk systems under Annex III. Only meaningful for `--risk-class high`. Mirrors the ISO 42001 clause mapping in v0.4.0 and is derived directly from Table `tab:framework-euaiact-gates` in the IKI-Gov book (chapter-framework).
+Map G0–G5 gate outputs to EU AI Act Title III Chapter 2 articles (Art. 9–17) for high-risk systems under Annex III. Only meaningful for `--risk-class high`. Mirrors the ISO 42001 clause mapping in v0.5.0 and is derived directly from Table `tab:framework-euaiact-gates` in the IKI-Gov book (chapter-framework).
 
 ### Data model extension
 Each checklist item gains an `eu_ai_act_articles` field: list of article references applicable at that gate for high-risk systems (e.g. `["9", "10", "17"]`). Field is empty for non-high-risk items.
@@ -305,7 +355,7 @@ Art. 17  Quality management system       G0, G3   PARTIAL — G3 QMS release not
 ```
 
 ### Dependency
-Requires v0.4.0 (ISO mapping) and v0.5.0 (persistence) as prerequisites; can be built independently if session-only mode is used.
+Requires v0.5.0 (ISO mapping) and v0.6.0 (persistence) as prerequisites; can be built independently if session-only mode is used.
 
 ---
 

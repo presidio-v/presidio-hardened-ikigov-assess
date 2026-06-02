@@ -33,14 +33,13 @@ _HELP_TOKEN = "?"
 
 
 def _item_help(item: ChecklistItem, lang: str) -> str:
-    """Return inline help text explaining the item's governance context."""
+    """Return inline help text explaining the item's governance context.
+
+    The mapping (dimension + gates) is language-neutral, so the same line is
+    shown regardless of *lang*.
+    """
     gate_list = ", ".join(item.gates)
-    dim = item.m_dimension
-    return (
-        f"Dimension: {dim}  |  Gates: {gate_list}"
-        if lang == "en"
-        else f"Dimension: {dim}  |  Gates: {gate_list}"
-    )
+    return f"Dimension: {item.m_dimension}  |  Gates: {gate_list}"
 
 
 def run_wizard(

@@ -46,7 +46,7 @@ iga report --use-case "fraud-scoring" --risk-class high \
 # Export report to JSON
 iga report --use-case "fraud-scoring" --affirm S1,S2 --format json
 
-# List saved assessments (persistence in v0.5.0)
+# List saved assessments (persistence in v0.6.0)
 iga list
 ```
 
@@ -120,6 +120,46 @@ Status: **OPEN** (all affirmed) · **PARTIAL** (some skipped, none denied) · **
 
 ---
 
+## MCP Server
+
+The assessment engine is also available as a [Model Context Protocol](https://modelcontextprotocol.io)
+server, so MCP-capable LLM agents and clients can run IKI-Gov assessments as tools.
+
+```bash
+# Install with the MCP extra (requires Python 3.10+)
+pip install "presidio-hardened-ikigov-assess[mcp]"
+
+# Run the server over stdio
+iga-mcp
+```
+
+Register it with an MCP client (e.g. Claude Desktop) by adding to the client's config:
+
+```json
+{
+  "mcpServers": {
+    "iki-gov-assess": {
+      "command": "iga-mcp"
+    }
+  }
+}
+```
+
+### Tools
+
+| Tool | Purpose |
+|------|---------|
+| `iga_framework_info` | Describe the model: lifecycle phases, dimensions M1–M6, gates G0–G5, sections, risk classes (de/en) |
+| `iga_list_checklist` | Return all 25 checklist items with IDs, text, dimension, gates, and section |
+| `iga_assess` | Score a use case from affirmed/skipped item IDs → M1–M6 scores, overall maturity, gate readiness |
+| `iga_check_gate` | Evaluate readiness for a single gate G0–G5 with blocking/skipped items |
+
+All tools share the CLI's input validation and output sanitisation, return the same
+structured JSON schema as `iga report --format json`, and respect the per-session
+abuse guard (returning a tool error rather than terminating the server when exceeded).
+
+---
+
 ## Security
 
 See [SECURITY.md](SECURITY.md) for the full security policy.
@@ -137,12 +177,14 @@ Security controls built into the tool:
 
 | Version | Theme | Status |
 |---------|-------|--------|
-| v0.1.0 | MVP — interactive + parameter-driven assessment, M1–M6 scoring, bilingual | Current |
-| v0.2.0 | Gate readiness refinement, CI exit codes 0/2/3, `--strict` flag | Planned |
-| v0.3.0 | Report export to file (Markdown and JSON) | Planned |
-| v0.4.0 | ISO/IEC 42001 clause-level gap mapping | Planned |
-| v0.5.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |
-| v0.6.0 | Maturity trending: delta between assessment runs | Planned |
+| v0.1.0 | MVP — interactive + parameter-driven assessment, M1–M6 scoring, bilingual | Released |
+| v0.2.0 | MCP server — agent-accessible assessment engine (`iga-mcp`) | Current |
+| v0.3.0 | Gate readiness refinement, CI exit codes 0/2/3, `--strict` flag | Planned |
+| v0.4.0 | Report export to file (Markdown and JSON) | Planned |
+| v0.5.0 | ISO/IEC 42001 clause-level gap mapping | Planned |
+| v0.6.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |
+| v0.7.0 | Maturity trending: delta between assessment runs | Planned |
+| v0.8.0 | EU AI Act gate-to-article mapping for high-risk systems | Planned |
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

@@ -10,7 +10,7 @@ Gate status definitions:
 In parameter mode unmentioned items are treated as denied.
 
 In CI mode, --assert-gate Gn exits with code 1 if the gate is PARTIAL or BLOCKED
-(v0.2.0 will introduce distinct exit codes 2/3 for PARTIAL/BLOCKED).
+(v0.3.0 will introduce distinct exit codes 2/3 for PARTIAL/BLOCKED).
 """
 
 from __future__ import annotations

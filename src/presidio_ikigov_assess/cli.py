@@ -6,7 +6,7 @@ Commands:
   iga assess   — run an assessment (parameter-driven or --interactive wizard)
   iga gate     — check readiness for a specific gate G0–G5
   iga report   — render an assessment to Markdown or JSON (stdout)
-  iga list     — list saved assessments (stub; persistence added in v0.5.0)
+  iga list     — list saved assessments (stub; persistence added in v0.6.0)
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.1.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.2.0."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 
@@ -102,7 +102,7 @@ def _parse_answers(
     return affirmed, skipped
 
 
-def _validated(value: str, validator, lang: str, error_key: str = "") -> str:
+def _validated(value: str, validator, lang: str) -> str:
     try:
         return validator(value)
     except ValidationError as exc:
@@ -322,7 +322,7 @@ def report(
 ) -> None:
     """Render an assessment report to stdout (Markdown or JSON).
 
-    In v0.1.0 output goes to stdout only; file export is added in v0.3.0.
+    Output goes to stdout only; file export to disk is added in v0.4.0.
     """
     lang = _validated(lang, validate_lang, lang)
     use_case = _validated(use_case, validate_use_case, lang)
@@ -366,7 +366,7 @@ def list_assessments(
 ) -> None:
     """List saved assessments.
 
-    Persistence is introduced in v0.5.0; this command is a prerequisite stub.
+    Persistence is introduced in v0.6.0; this command is a prerequisite stub.
     """
     lang = _validated(lang, validate_lang, lang)
     console.print(f"[dim]{t('list_empty', lang)}[/dim]")

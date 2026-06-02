@@ -155,7 +155,7 @@ def render_markdown(
     return "\n".join(lines)
 
 
-def render_json(
+def build_payload(
     use_case: str,
     risk_class: str,
     scores: AssessmentScores,
@@ -163,12 +163,16 @@ def render_json(
     affirmed: frozenset[str],
     skipped: frozenset[str],
     lang: str,
-) -> str:
-    """Return the assessment report as a JSON string."""
+) -> dict[str, object]:
+    """Build the structured (JSON-serialisable) assessment payload.
+
+    Shared by the CLI JSON report and the MCP server so both front-ends emit
+    an identical schema. The use-case name is output-sanitised before inclusion.
+    """
     safe_use_case = escape_for_report(use_case)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    data: dict[str, object] = {
+    return {
         "use_case": safe_use_case,
         "risk_class": risk_class,
         "lang": lang,
@@ -200,4 +204,16 @@ def render_json(
         "disclaimer": t("report_disclaimer", lang),
     }
 
+
+def render_json(
+    use_case: str,
+    risk_class: str,
+    scores: AssessmentScores,
+    gate_results: dict[str, GateResult],
+    affirmed: frozenset[str],
+    skipped: frozenset[str],
+    lang: str,
+) -> str:
+    """Return the assessment report as a JSON string."""
+    data = build_payload(use_case, risk_class, scores, gate_results, affirmed, skipped, lang)
     return json.dumps(data, indent=2, ensure_ascii=False)

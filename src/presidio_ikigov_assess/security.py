@@ -32,28 +32,34 @@ def ensure_iga_dir() -> None:
 def run_dep_check(verbose: bool = False) -> bool:
     """Run pip-audit to check for known vulnerabilities in installed packages.
 
-    Returns True if the check passed (no vulnerabilities or tool unavailable).
-    Returns False if vulnerabilities were found.
-    Prints a brief status line to stderr.
+    Returns True if the check passed (no vulnerabilities, tool unavailable, or a
+    tool/usage error — the check is advisory and fails open). Returns False only
+    when pip-audit positively reports vulnerabilities. Prints a brief status line
+    to stderr when *verbose*.
+
+    pip-audit exit codes: 0 = no vulnerabilities, 1 = vulnerabilities found; any
+    other code is a usage/internal error and is treated as inconclusive so the
+    check never blocks or warns spuriously.
     """
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "pip_audit", "--format", "json", "-q", "--disable-pip"],
+            [sys.executable, "-m", "pip_audit", "--format", "json", "--progress-spinner", "off"],
             capture_output=True,
             text=True,
             timeout=45,
         )
-        if result.returncode == 0:
-            return True
-        # pip-audit exits non-zero when vulnerabilities are found
-        if verbose and result.stdout:
-            print(result.stdout, file=sys.stderr, end="")
-        return False
     except subprocess.TimeoutExpired:
         return True  # timed out — non-blocking, assume OK
     except FileNotFoundError:
-        # pip_audit module not available
-        return True
+        return True  # pip_audit module not available
+
+    if result.returncode == 1:
+        # Vulnerabilities found.
+        if verbose and result.stdout:
+            print(result.stdout, file=sys.stderr, end="")
+        return False
+    # returncode 0 (clean) or anything else (tool/usage error) → fail open.
+    return True
 
 
 def dep_check_available() -> bool:
@@ -86,12 +92,30 @@ def log_security_event(event: dict[str, object]) -> None:
         pass  # logging must never crash the main flow
 
 
-def increment_and_check_session_count() -> None:
-    """Increment the per-session assessment counter and abort if limit exceeded."""
+def increment_session_count() -> int:
+    """Increment the per-session assessment counter and return the new count.
+
+    Non-fatal: the caller decides how to react when the limit is exceeded.
+    Used by long-running front-ends (e.g. the MCP server) that must not abort
+    the whole process on a single over-limit request.
+    """
     global _session_count
     with _session_lock:
         _session_count += 1
-        count = _session_count
+        return _session_count
+
+
+def session_limit() -> int:
+    """Return the configured maximum assessments per session."""
+    return _MAX_ASSESSMENTS
+
+
+def increment_and_check_session_count() -> None:
+    """Increment the per-session assessment counter and abort if limit exceeded.
+
+    Fatal variant used by the CLI: a one-shot command may exit the process.
+    """
+    count = increment_session_count()
     if count > _MAX_ASSESSMENTS:
         print(
             f"Session limit reached. Maximum {_MAX_ASSESSMENTS} assessments per session.",
