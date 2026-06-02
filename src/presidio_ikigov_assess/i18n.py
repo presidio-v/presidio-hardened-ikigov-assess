@@ -97,6 +97,21 @@ STRINGS: dict[str, dict[str, str]] = {
         "de": "blockierend (Skips nicht erlaubt)",
         "en": "blocking (skips not permitted)",
     },
+    # ── Per-item answers (report export, v0.4.0) ─────────────────────────────
+    "answers_header": {
+        "de": "Antworten je Element",
+        "en": "Per-Item Answers",
+    },
+    "answer_affirmed": {"de": "bestätigt", "en": "affirmed"},
+    "answer_denied": {"de": "nicht bestätigt", "en": "not affirmed"},
+    "answer_skipped": {"de": "übersprungen", "en": "skipped"},
+    "col_item": {"de": "Element", "en": "Item"},
+    "col_status": {"de": "Status", "en": "Status"},
+    "col_dimension": {"de": "Dimension", "en": "Dimension"},
+    "report_written": {
+        "de": "Bericht geschrieben nach: {path}",
+        "en": "Report written to: {path}",
+    },
     "no_items_affirmed": {
         "de": "Keine Elemente bestätigt.",
         "en": "No items affirmed.",

@@ -313,6 +313,75 @@ def test_report_invalid_format():
     assert result.exit_code == 1
 
 
+# ── v0.4.0: per-item answers & file export ──────────────────────────────────────
+
+
+def test_report_markdown_per_item_section():
+    result = invoke("report", "--affirm", "S1,S2", "--skip", "I5", "--format", "markdown")
+    assert result.exit_code == 0
+    assert "Per-Item Answers" in result.output
+    # All 25 item IDs should appear in the answers table.
+    for item_id in ("S1", "S3", "D1", "T4", "O5", "I5"):
+        assert item_id in result.output
+    assert "affirmed" in result.output and "not affirmed" in result.output
+
+
+def test_report_json_per_item_detail():
+    result = invoke("report", "--affirm", "S1", "--skip", "S2", "--format", "json")
+    data = json.loads(result.output)
+    items = data["answers"]["items"]
+    assert len(items) == 25
+    by_id = {row["id"]: row for row in items}
+    assert by_id["S1"]["status"] == "affirmed"
+    assert by_id["S2"]["status"] == "skipped"
+    assert by_id["S3"]["status"] == "denied"
+    assert "text" in by_id["S1"] and by_id["S1"]["dimension"] == "M1"
+
+
+def test_report_writes_markdown_file(tmp_path):
+    out = tmp_path / "report.md"
+    result = invoke(
+        "report", "--use-case", "fraud-scoring", "--affirm", "S1,S2", "--output", str(out)
+    )
+    assert result.exit_code == 0
+    assert out.is_file()
+    content = out.read_text(encoding="utf-8")
+    assert "# IKI-Gov Assessment" in content
+    assert "fraud-scoring" in content
+    assert "Per-Item Answers" in content
+    # Report goes to the file, not stdout.
+    assert "# IKI-Gov Assessment" not in result.output
+
+
+def test_report_writes_json_file(tmp_path):
+    out = tmp_path / "report.json"
+    result = invoke("report", "--affirm", "S1,S2", "--format", "json", "-o", str(out))
+    assert result.exit_code == 0
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["overall"] >= 0
+    assert len(data["answers"]["items"]) == 25
+
+
+def test_report_output_confirmation_message(tmp_path):
+    out = tmp_path / "r.md"
+    result = invoke("report", "--affirm", "S1", "--output", str(out))
+    assert result.exit_code == 0
+    assert str(out) in result.output  # confirmation names the path
+
+
+def test_report_output_unwritable_path_exits_1(tmp_path):
+    # Parent directory does not exist → OSError → exit 1.
+    bad = tmp_path / "missing-dir" / "report.md"
+    result = invoke("report", "--affirm", "S1", "--output", str(bad))
+    assert result.exit_code == 1
+    assert not bad.exists()
+
+
+def test_report_empty_output_path_exits_1():
+    result = invoke("report", "--affirm", "S1", "--output", "   ")
+    assert result.exit_code == 1
+
+
 def test_report_html_escaped_use_case():
     result = invoke(
         "report",

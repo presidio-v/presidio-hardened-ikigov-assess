@@ -11,6 +11,7 @@ Commands:
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -31,6 +32,7 @@ from presidio_ikigov_assess.sanitize import (
     validate_gate,
     validate_item_ids,
     validate_lang,
+    validate_output_path,
     validate_risk_class,
     validate_use_case,
 )
@@ -68,7 +70,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.3.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.4.0."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 
@@ -361,15 +363,24 @@ def report(
         "--strict",
         help="Treat skipped gate-critical items as blocking (implied at --risk-class high).",
     ),
+    output: Optional[str] = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Write the report to this file instead of stdout.",
+    ),
 ) -> None:
-    """Render an assessment report to stdout (Markdown or JSON).
+    """Render an assessment report (Markdown or JSON) to stdout or a file.
 
-    Output goes to stdout only; file export to disk is added in v0.4.0.
+    With --output the report is written to the given path; otherwise it is
+    printed to stdout. The report includes use-case metadata, M1–M6 scores,
+    gate readiness, and a per-item answers table.
     """
     lang = _validated(lang, validate_lang, lang)
     use_case = _validated(use_case, validate_use_case, lang)
     risk_class = _validated(risk_class, validate_risk_class, lang)
     fmt = _validated(fmt, validate_format, lang)
+    out_path = _validated(output, validate_output_path, lang) if output is not None else None
 
     affirmed, skipped_set = _parse_answers(affirm, skip, lang)
 
@@ -382,19 +393,32 @@ def report(
             "risk_class": risk_class,
             "format": fmt,
             "lang": lang,
+            "to_file": out_path is not None,
         }
     )
 
     if fmt == "json":
-        output = render_json(
+        report_text = render_json(
             use_case, risk_class, scores, gate_results, affirmed, skipped_set, lang
         )
     else:
-        output = render_markdown(
+        report_text = render_markdown(
             use_case, risk_class, scores, gate_results, affirmed, skipped_set, lang
         )
 
-    print(output)
+    if out_path is None:
+        print(report_text)
+        return
+
+    try:
+        Path(out_path).write_text(report_text + "\n", encoding="utf-8")
+    except OSError as exc:
+        err_console.print(f"[red]Error:[/red] could not write report: {exc}")
+        raise typer.Exit(1) from exc
+
+    # typer.echo (not rich): avoids Rich markup interpretation of the user-supplied
+    # path and line-wrapping that would split a long path across lines.
+    typer.echo(t("report_written", lang, path=out_path), err=True)
 
 
 @app.command(name="list")

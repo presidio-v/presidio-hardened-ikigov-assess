@@ -9,9 +9,36 @@ from presidio_ikigov_assess.sanitize import (
     validate_gate,
     validate_item_ids,
     validate_lang,
+    validate_output_path,
     validate_risk_class,
     validate_use_case,
 )
+
+# ── validate_output_path (v0.4.0) ───────────────────────────────────────────
+
+
+def test_output_path_valid():
+    assert validate_output_path("/tmp/report.md") == "/tmp/report.md"
+
+
+def test_output_path_strips_whitespace():
+    assert validate_output_path("  report.json  ") == "report.json"
+
+
+def test_output_path_rejects_empty():
+    with pytest.raises(ValidationError):
+        validate_output_path("   ")
+
+
+def test_output_path_rejects_null_byte():
+    with pytest.raises(ValidationError):
+        validate_output_path("report\x00.md")
+
+
+def test_output_path_rejects_too_long():
+    with pytest.raises(ValidationError):
+        validate_output_path("a" * 5000)
+
 
 # ── validate_use_case ─────────────────────────────────────────────────────────
 

@@ -78,7 +78,7 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.1.0 | MVP — interactive + parameter-driven assessment, M1–M6 scoring, bilingual | Shipped |
 | v0.2.0 | MCP server — agent-accessible assessment engine (`iga-mcp`) | Shipped |
 | v0.3.0 | Gate readiness refinement, risk-class-aware thresholds, CI exit codes 0/2/3 | Shipped |
-| v0.4.0 | Report export: Markdown and JSON | Planned |
+| v0.4.0 | Report export: Markdown and JSON (`--output`) + per-item answers | Shipped |
 | v0.5.0 | ISO/IEC 42001 clause-level gap mapping | Planned |
 | v0.6.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |
 | v0.7.0 | Maturity trending: delta between assessment runs, history view | Planned |
@@ -278,6 +278,32 @@ codes / strict / quiet in `test_cli.py`, strict threading in `test_mcp_server.py
 
 ### Output sanitization
 All use-case names and free-text fields are HTML-escaped in Markdown export and JSON-escaped in JSON export before writing. No raw user input echoed verbatim without escaping.
+
+### Implementation (2026-06-02)
+
+- **File export.** `iga report` gained `--output/-o PATH`; without it the report
+  still prints to stdout (unchanged). The file gets exactly the rendered Markdown
+  or JSON; a confirmation (`Report written to: …`) goes to **stderr** via
+  `typer.echo(err=True)` — deliberately not Rich, to avoid markup interpretation
+  and line-wrapping of a user-supplied path. Write failures (e.g. missing parent
+  dir) exit 1.
+- **Path validation.** New `sanitize.validate_output_path` bounds length (4096)
+  and rejects empty/null-byte paths; no location allow-list is imposed since the
+  user writes to their own chosen path.
+- **Per-item answers.** New `renderer.item_answers()` (+ `classify_answer`) yields
+  all 25 items in order with status (affirmed / not affirmed / skipped),
+  dimension, gates, and localised text. Surfaced as a Markdown table ("Per-Item
+  Answers") and as `answers.items[]` in the JSON payload (alongside the existing
+  `answers.affirmed`/`answers.skipped` id-lists). Because the JSON shape is shared
+  via `build_payload`, the MCP `iga_assess` tool now returns per-item detail too.
+- **Escaping.** Markdown item text is HTML-escaped and table-breaking `|`
+  neutralised; JSON escaping is handled by `json.dumps`.
+
+Decision note: PDF export remains deferred (heavy dependency), per the original
+scope. Security log records `to_file` (boolean) only — never the output path.
+
+Tests: 184 total, 94% coverage (file export + per-item in `test_cli.py`,
+`validate_output_path` in `test_sanitize.py`).
 
 ---
 

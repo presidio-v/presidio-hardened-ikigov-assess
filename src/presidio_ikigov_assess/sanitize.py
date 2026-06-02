@@ -87,6 +87,25 @@ def escape_for_report(value: str) -> str:
     return html.escape(str(value), quote=True)
 
 
+_MAX_PATH_LEN = 4096
+
+
+def validate_output_path(value: str) -> str:
+    """Validate a report output file path, raising ValidationError on failure.
+
+    Bounds the length and rejects null bytes; the caller writes exactly where the
+    user asks (their own CLI invocation), so no allow-list of locations is imposed.
+    """
+    v = value.strip()
+    if not v:
+        raise ValidationError("Output path must not be empty.")
+    if "\x00" in v:
+        raise ValidationError("Output path must not contain null bytes.")
+    if len(v) > _MAX_PATH_LEN:
+        raise ValidationError(f"Output path too long (max {_MAX_PATH_LEN} characters).")
+    return v
+
+
 def _truncate(value: str, max_len: int = 40) -> str:
     s = str(value)
     return s[:max_len] + "…" if len(s) > max_len else s

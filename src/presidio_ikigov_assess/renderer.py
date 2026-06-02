@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from rich.console import Console
 
 from presidio_ikigov_assess.__init__ import __version__
-from presidio_ikigov_assess.checklist import VALID_DIMENSIONS
+from presidio_ikigov_assess.checklist import CHECKLIST, VALID_DIMENSIONS
 from presidio_ikigov_assess.gates import GateResult, GateStatus
 from presidio_ikigov_assess.i18n import RISK_LABEL_KEY, t
 from presidio_ikigov_assess.sanitize import escape_for_report
@@ -29,6 +29,37 @@ def _bar(score: float) -> str:
     filled = round(score / 10)
     filled = max(0, min(_BAR_WIDTH, filled))
     return _FILLED * filled + _EMPTY * (_BAR_WIDTH - filled)
+
+
+def classify_answer(item_id: str, affirmed: frozenset[str], skipped: frozenset[str]) -> str:
+    """Return the answer status for an item: affirmed | skipped | denied."""
+    if item_id in affirmed:
+        return "affirmed"
+    if item_id in skipped:
+        return "skipped"
+    return "denied"
+
+
+def item_answers(
+    affirmed: frozenset[str],
+    skipped: frozenset[str],
+    lang: str,
+) -> list[dict[str, object]]:
+    """Build the per-item answer detail for every checklist item, in order."""
+    rows: list[dict[str, object]] = []
+    for item in CHECKLIST:
+        status = classify_answer(item.id, affirmed, skipped)
+        rows.append(
+            {
+                "id": item.id,
+                "status": status,
+                "status_label": t(f"answer_{status}", lang),
+                "dimension": item.m_dimension,
+                "gates": list(item.gates),
+                "text": item.text(lang),
+            }
+        )
+    return rows
 
 
 def gate_detail_segments(result: GateResult, lang: str, text_width: int = 0) -> list[str]:
@@ -159,6 +190,19 @@ def render_markdown(
         detail = escape_for_report(" · ".join(gate_detail_segments(result, lang, text_width=60)))
         lines.append(f"| {gate_id} | {status_str} | {detail} |")
 
+    # ── Per-Item Answers ─────────────────────────────────────────────────────
+    lines += [
+        "",
+        f"## {t('answers_header', lang)}",
+        "",
+        f"| ID | {t('col_dimension', lang)} | {t('col_status', lang)} | {t('col_item', lang)} |",
+        "|---|---|---|---|",
+    ]
+    for row in item_answers(affirmed, skipped, lang):
+        # Escape item text and neutralise table-breaking pipes before embedding.
+        text = escape_for_report(str(row["text"])).replace("|", "\\|")
+        lines.append(f"| {row['id']} | {row['dimension']} | {row['status_label']} | {text} |")
+
     lines += [
         "",
         "---",
@@ -216,6 +260,7 @@ def build_payload(
         "answers": {
             "affirmed": sorted(affirmed),
             "skipped": sorted(skipped),
+            "items": item_answers(affirmed, skipped, lang),
         },
         "disclaimer": t("report_disclaimer", lang),
     }

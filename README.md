@@ -53,6 +53,10 @@ iga report --use-case "fraud-scoring" --risk-class high \
 # Export report to JSON
 iga report --use-case "fraud-scoring" --affirm S1,S2 --format json
 
+# Write the report to a file (Markdown or JSON)
+iga report --use-case "fraud-scoring" --affirm S1,S2,T4 --output audit/fraud-scoring.md
+iga report --use-case "fraud-scoring" --affirm S1,S2 -f json -o fraud-scoring.json
+
 # List saved assessments (persistence in v0.6.0)
 iga list
 ```
@@ -214,8 +218,8 @@ Security controls built into the tool:
 |---------|-------|--------|
 | v0.1.0 | MVP — interactive + parameter-driven assessment, M1–M6 scoring, bilingual | Released |
 | v0.2.0 | MCP server — agent-accessible assessment engine (`iga-mcp`) | Released |
-| v0.3.0 | Gate readiness refinement, CI exit codes 0/2/3, `--strict` flag | Current |
-| v0.4.0 | Report export to file (Markdown and JSON) | Planned |
+| v0.3.0 | Gate readiness refinement, CI exit codes 0/2/3, `--strict` flag | Released |
+| v0.4.0 | Report export to file (`--output`) with per-item answers | Current |
 | v0.5.0 | ISO/IEC 42001 clause-level gap mapping | Planned |
 | v0.6.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |
 | v0.7.0 | Maturity trending: delta between assessment runs | Planned |
