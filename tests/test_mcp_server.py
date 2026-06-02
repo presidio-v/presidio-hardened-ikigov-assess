@@ -183,6 +183,25 @@ def test_assess_strict_reflected_in_gates():
     assert payload["gates"]["G0"]["blocking_skips"] == ["S3"]
 
 
+# ── iso_gap ──────────────────────────────────────────────────────────────────
+
+
+def test_iso_gap_payload_shape():
+    from presidio_ikigov_assess.mcp_server import iso_gap
+
+    payload = iso_gap(affirmed=["S2", "S3", "I1", "I2"], use_case="demo")
+    assert payload["iso_coverage"]["5"]["status"] == "covered"
+    assert "disclaimer" in payload
+    assert set(payload["iso_coverage"]) == {"4", "5", "6", "7", "8", "9", "10", "A"}
+
+
+def test_iso_gap_rejects_bad_lang():
+    from presidio_ikigov_assess.mcp_server import iso_gap
+
+    with pytest.raises(ToolInputError):
+        iso_gap(affirmed=["S1"], lang="fr")
+
+
 # ── FastMCP wiring (only when the optional mcp package is installed) ──────────
 
 
@@ -198,4 +217,5 @@ def test_build_server_registers_tools():
         "iga_list_checklist",
         "iga_assess",
         "iga_check_gate",
+        "iga_iso_gap",
     }

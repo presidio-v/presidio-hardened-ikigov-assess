@@ -57,6 +57,10 @@ iga report --use-case "fraud-scoring" --affirm S1,S2 --format json
 iga report --use-case "fraud-scoring" --affirm S1,S2,T4 --output audit/fraud-scoring.md
 iga report --use-case "fraud-scoring" --affirm S1,S2 -f json -o fraud-scoring.json
 
+# ISO/IEC 42001 clause-level coverage gap analysis
+iga iso-gap --use-case "fraud-scoring" --risk-class high --affirm S1,S2,S3,I1,I2
+iga iso-gap --affirm S2,S3,I1,I2 --quiet   # machine-readable JSON
+
 # List saved assessments (persistence in v0.6.0)
 iga list
 ```
@@ -159,6 +163,29 @@ parsing output:
 
 ---
 
+## ISO/IEC 42001 Coverage
+
+`iga iso-gap` maps the assessment to ISO/IEC 42001 clause-level coverage. Each
+clause group (clauses 4–10 and Annex A controls) is reported as **covered** (all
+mapped checklist items affirmed), **partial**, or **gap**, with the outstanding
+items listed per incompletely-covered clause:
+
+```
+ISO/IEC 42001 Coverage Gap Analysis — fraud-scoring  [risk: HIGH]
+
+  4   Context of the organization      PARTIAL    (1/2)  — Outstanding items: S4
+  5   Leadership                       COVERED    (4/4)
+  8   Operation                        GAP        (0/13) — Outstanding items: D1, D2, …
+  A   Annex A (Controls)               GAP        (0/12) — Outstanding items: …
+```
+
+Skipped and denied items count as *not affirmed* (no coverage credit). The
+item→clause matrix is derived from the IKI-Gov orientation table
+(`tab:framework-iso42001-matrix`) and centralised in `checklist.ISO_CLAUSES_BY_ITEM`.
+Use `--quiet` for machine-readable JSON.
+
+---
+
 ## MCP Server
 
 The assessment engine is also available as a [Model Context Protocol](https://modelcontextprotocol.io)
@@ -192,6 +219,7 @@ Register it with an MCP client (e.g. Claude Desktop) by adding to the client's c
 | `iga_list_checklist` | Return all 25 checklist items with IDs, text, dimension, gates, and section |
 | `iga_assess` | Score a use case from affirmed/skipped item IDs → M1–M6 scores, overall maturity, gate readiness |
 | `iga_check_gate` | Evaluate readiness for a single gate G0–G5 with blocking/skipped items |
+| `iga_iso_gap` | Map affirmed items to ISO/IEC 42001 clause coverage (covered / partial / gap) |
 
 All tools share the CLI's input validation and output sanitisation, return the same
 structured JSON schema as `iga report --format json`, and respect the per-session
@@ -219,8 +247,8 @@ Security controls built into the tool:
 | v0.1.0 | MVP — interactive + parameter-driven assessment, M1–M6 scoring, bilingual | Released |
 | v0.2.0 | MCP server — agent-accessible assessment engine (`iga-mcp`) | Released |
 | v0.3.0 | Gate readiness refinement, CI exit codes 0/2/3, `--strict` flag | Released |
-| v0.4.0 | Report export to file (`--output`) with per-item answers | Current |
-| v0.5.0 | ISO/IEC 42001 clause-level gap mapping | Planned |
+| v0.4.0 | Report export to file (`--output`) with per-item answers | Released |
+| v0.5.0 | ISO/IEC 42001 clause-level gap mapping (`iga iso-gap`) | Current |
 | v0.6.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |
 | v0.7.0 | Maturity trending: delta between assessment runs | Planned |
 | v0.8.0 | EU AI Act gate-to-article mapping for high-risk systems | Planned |

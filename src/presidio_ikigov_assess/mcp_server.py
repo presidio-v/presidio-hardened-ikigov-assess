@@ -40,7 +40,8 @@ from presidio_ikigov_assess.i18n import (
     section_name,
     t,
 )
-from presidio_ikigov_assess.renderer import build_payload
+from presidio_ikigov_assess.iso import evaluate_iso_coverage
+from presidio_ikigov_assess.renderer import build_iso_payload, build_payload
 from presidio_ikigov_assess.sanitize import (
     ValidationError,
     validate_gate,
@@ -83,9 +84,10 @@ _SERVER_INSTRUCTIONS = (
     "(dimensions M1–M6, gates G0–G5, sections, risk classes), `iga_list_checklist` "
     "to retrieve the 25 checklist items with their IDs, then `iga_assess` with the "
     "IDs the organisation affirms (and optionally skips) to obtain M1–M6 maturity "
-    "scores and gate readiness. Use `iga_check_gate` to evaluate a single gate. "
-    "Risk class is one of low|medium|high; language is de|en. This tool does not "
-    "constitute legal advice or certification."
+    "scores and gate readiness. Use `iga_check_gate` to evaluate a single gate, and "
+    "`iga_iso_gap` for ISO/IEC 42001 clause-level coverage. Risk class is one of "
+    "low|medium|high; language is de|en. This tool does not constitute legal advice "
+    "or certification."
 )
 
 
@@ -245,6 +247,32 @@ def gate_status(
     }
 
 
+def iso_gap(
+    affirmed: Optional[list[str]] = None,
+    skipped: Optional[list[str]] = None,
+    risk_class: str = "medium",
+    lang: str = "en",
+    use_case: str = "unnamed",
+) -> dict:
+    """Map affirmed items to ISO/IEC 42001 clause-level coverage."""
+    lang = _validated(lang, validate_lang)
+    risk_class = _validated(risk_class, validate_risk_class)
+    use_case = _validated(use_case, validate_use_case)
+    affirm_ids, _skip_ids = _prepare_answers(affirmed, skipped)
+
+    coverage = evaluate_iso_coverage(affirm_ids)
+    gaps = [clause for clause, cov in coverage.items() if cov.status.value != "covered"]
+    log_security_event(
+        {
+            "event": "iga-mcp-iso-gap",
+            "risk_class": risk_class,
+            "lang": lang,
+            "gaps": gaps,
+        }
+    )
+    return build_iso_payload(use_case, risk_class, coverage, lang)
+
+
 # ── FastMCP server wiring ────────────────────────────────────────────────────
 
 
@@ -320,6 +348,23 @@ def build_server():
         ``blocking_skips`` lists skips that block the gate under strict policy.
         """
         return gate_status(gate, affirmed, skipped, risk_class, lang, strict)
+
+    @server.tool()
+    def iga_iso_gap(
+        affirmed: Optional[list[str]] = None,
+        skipped: Optional[list[str]] = None,
+        risk_class: str = "medium",
+        lang: str = "en",
+        use_case: str = "unnamed",
+    ) -> dict:
+        """Map an assessment to ISO/IEC 42001 clause-level coverage.
+
+        Returns each ISO/IEC 42001 clause group (4–10 + Annex A) as covered /
+        partial / gap based on the affirmed checklist items, with the count of
+        affirmed-vs-total mapped items and the outstanding item IDs per clause.
+        Skipped and denied items count as not affirmed (no coverage credit).
+        """
+        return iso_gap(affirmed, skipped, risk_class, lang, use_case)
 
     return server
 

@@ -11,6 +11,7 @@ from presidio_ikigov_assess.__init__ import __version__
 from presidio_ikigov_assess.checklist import CHECKLIST, VALID_DIMENSIONS
 from presidio_ikigov_assess.gates import GateResult, GateStatus
 from presidio_ikigov_assess.i18n import RISK_LABEL_KEY, t
+from presidio_ikigov_assess.iso import ClauseCoverage, Coverage
 from presidio_ikigov_assess.sanitize import escape_for_report
 from presidio_ikigov_assess.scoring import AssessmentScores
 
@@ -56,6 +57,7 @@ def item_answers(
                 "status_label": t(f"answer_{status}", lang),
                 "dimension": item.m_dimension,
                 "gates": list(item.gates),
+                "iso_clauses": list(item.iso_clauses),
                 "text": item.text(lang),
             }
         )
@@ -278,6 +280,85 @@ def render_json(
     """Return the assessment report as a JSON string."""
     data = build_payload(use_case, risk_class, scores, gate_results, affirmed, skipped, lang)
     return json.dumps(data, indent=2, ensure_ascii=False)
+
+
+_ISO_COVERAGE_COLOUR = {
+    Coverage.COVERED: "green",
+    Coverage.PARTIAL: "yellow",
+    Coverage.GAP: "red",
+}
+
+
+def print_iso_coverage(
+    console: Console,
+    use_case: str,
+    risk_class: str,
+    coverage: dict[str, ClauseCoverage],
+    lang: str,
+) -> None:
+    """Render the ISO/IEC 42001 clause coverage analysis to *console*."""
+    risk_label = t(RISK_LABEL_KEY[risk_class], lang)
+    title = t("iso_gap_title", lang)
+    risk_key = t("risk_label", lang)
+
+    console.print(f"\n[bold]{title} — {use_case}[/bold]  [dim][{risk_key}: {risk_label}][/dim]\n")
+
+    for clause, cov in coverage.items():
+        colour = _ISO_COVERAGE_COLOUR[cov.status]
+        status_str = t(f"iso_{cov.status.value}", lang)
+        name = t(f"iso_clause_{clause}", lang)
+        line = (
+            f"  {clause:<3} {name:<32} "
+            f"[{colour}]{status_str:<9}[/{colour}]  ({cov.affirmed}/{cov.total})"
+        )
+        if cov.status is not Coverage.COVERED and cov.outstanding:
+            ids = ", ".join(item.id for item in cov.outstanding)
+            line += f"  — {t('iso_col_outstanding', lang)}: {ids}"
+        console.print(line)
+
+    console.print()
+
+
+def build_iso_payload(
+    use_case: str,
+    risk_class: str,
+    coverage: dict[str, ClauseCoverage],
+    lang: str,
+) -> dict[str, object]:
+    """Build the structured ISO/IEC 42001 coverage payload."""
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {
+        "use_case": escape_for_report(use_case),
+        "risk_class": risk_class,
+        "lang": lang,
+        "timestamp": ts,
+        "tool_version": __version__,
+        "iso_coverage": {
+            clause: {
+                "name": t(f"iso_clause_{clause}", lang),
+                "status": cov.status.value,
+                "total": cov.total,
+                "affirmed": cov.affirmed,
+                "outstanding": [item.id for item in cov.outstanding],
+            }
+            for clause, cov in coverage.items()
+        },
+        "disclaimer": t("report_disclaimer", lang),
+    }
+
+
+def render_iso_json(
+    use_case: str,
+    risk_class: str,
+    coverage: dict[str, ClauseCoverage],
+    lang: str,
+) -> str:
+    """Return the ISO/IEC 42001 coverage analysis as a JSON string."""
+    return json.dumps(
+        build_iso_payload(use_case, risk_class, coverage, lang),
+        indent=2,
+        ensure_ascii=False,
+    )
 
 
 def render_gate_json(

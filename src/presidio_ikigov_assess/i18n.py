@@ -112,6 +112,32 @@ STRINGS: dict[str, dict[str, str]] = {
         "de": "Bericht geschrieben nach: {path}",
         "en": "Report written to: {path}",
     },
+    # ── ISO/IEC 42001 gap mapping (v0.5.0) ───────────────────────────────────
+    "iso_gap_title": {
+        "de": "ISO/IEC 42001 Abdeckungsanalyse",
+        "en": "ISO/IEC 42001 Coverage Gap Analysis",
+    },
+    "iso_covered": {"de": "ABGEDECKT", "en": "COVERED"},
+    "iso_partial": {"de": "TEILWEISE", "en": "PARTIAL"},
+    "iso_gap": {"de": "LÜCKE", "en": "GAP"},
+    "iso_col_clause": {"de": "Abschnitt", "en": "Clause"},
+    "iso_col_coverage": {"de": "Abdeckung", "en": "Coverage"},
+    "iso_col_outstanding": {"de": "Offene Elemente", "en": "Outstanding items"},
+    "iso_suggestion": {
+        "de": "Empfehlung: folgende Elemente bestätigen",
+        "en": "Suggestion: affirm the following items",
+    },
+    "iso_clause_4": {
+        "de": "Kontext der Organisation",
+        "en": "Context of the organization",
+    },
+    "iso_clause_5": {"de": "Führung", "en": "Leadership"},
+    "iso_clause_6": {"de": "Planung", "en": "Planning"},
+    "iso_clause_7": {"de": "Unterstützung", "en": "Support"},
+    "iso_clause_8": {"de": "Betrieb", "en": "Operation"},
+    "iso_clause_9": {"de": "Bewertung der Leistung", "en": "Performance evaluation"},
+    "iso_clause_10": {"de": "Verbesserung", "en": "Improvement"},
+    "iso_clause_A": {"de": "Anhang A (Kontrollen)", "en": "Annex A (Controls)"},
     "no_items_affirmed": {
         "de": "Keine Elemente bestätigt.",
         "en": "No items affirmed.",

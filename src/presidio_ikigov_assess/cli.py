@@ -5,7 +5,8 @@ Entry point: iga  (registered in pyproject.toml)
 Commands:
   iga assess   — run an assessment (parameter-driven or --interactive wizard)
   iga gate     — check readiness for a specific gate G0–G5
-  iga report   — render an assessment to Markdown or JSON (stdout)
+  iga report   — render an assessment to Markdown or JSON (stdout or --output file)
+  iga iso-gap  — map results to ISO/IEC 42001 clause coverage
   iga list     — list saved assessments (stub; persistence added in v0.6.0)
 """
 
@@ -19,10 +20,13 @@ from rich.console import Console
 
 from presidio_ikigov_assess.gates import evaluate_all_gates, evaluate_gate
 from presidio_ikigov_assess.i18n import t
+from presidio_ikigov_assess.iso import evaluate_iso_coverage
 from presidio_ikigov_assess.renderer import (
     gate_detail_segments,
     print_assessment,
+    print_iso_coverage,
     render_gate_json,
+    render_iso_json,
     render_json,
     render_markdown,
 )
@@ -70,7 +74,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.4.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.5.0."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 
@@ -419,6 +423,73 @@ def report(
     # typer.echo (not rich): avoids Rich markup interpretation of the user-supplied
     # path and line-wrapping that would split a long path across lines.
     typer.echo(t("report_written", lang, path=out_path), err=True)
+
+
+@app.command(name="iso-gap")
+def iso_gap(
+    use_case: str = typer.Option(
+        "unnamed",
+        "--use-case",
+        "-u",
+        help="AI use-case identifier.",
+    ),
+    risk_class: str = typer.Option(
+        "medium",
+        "--risk-class",
+        "-r",
+        help="Risk class: low | medium | high.",
+    ),
+    lang: str = typer.Option(
+        "en",
+        "--lang",
+        "-l",
+        help="Output language: de | en.",
+    ),
+    affirm: Optional[str] = typer.Option(
+        None,
+        "--affirm",
+        help="Comma-separated list of affirmed item IDs.",
+    ),
+    skip: Optional[str] = typer.Option(
+        None,
+        "--skip",
+        help="Comma-separated list of skipped item IDs.",
+    ),
+    quiet: bool = typer.Option(
+        False,
+        "--quiet",
+        "-q",
+        help="Emit machine-readable JSON only.",
+    ),
+) -> None:
+    """Map assessment results to ISO/IEC 42001 clause-level coverage.
+
+    Shows each ISO/IEC 42001 clause group (4–10 + Annex A) as covered, partial,
+    or gap based on the affirmed checklist items, with the outstanding items per
+    incompletely-covered clause. Skipped and denied items count as not affirmed.
+    """
+    lang = _validated(lang, validate_lang, lang)
+    use_case = _validated(use_case, validate_use_case, lang)
+    risk_class = _validated(risk_class, validate_risk_class, lang)
+
+    affirmed, _skipped_set = _parse_answers(affirm, skip, lang)
+
+    coverage = evaluate_iso_coverage(affirmed)
+    gaps = [clause for clause, cov in coverage.items() if cov.status.value != "covered"]
+
+    log_security_event(
+        {
+            "event": "iga-iso-gap",
+            "risk_class": risk_class,
+            "lang": lang,
+            "gaps": gaps,
+        }
+    )
+
+    if quiet:
+        print(render_iso_json(use_case, risk_class, coverage, lang))
+    else:
+        print_iso_coverage(console, use_case, risk_class, coverage, lang)
 
 
 @app.command(name="list")

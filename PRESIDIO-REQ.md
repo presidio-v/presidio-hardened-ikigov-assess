@@ -79,7 +79,7 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.2.0 | MCP server — agent-accessible assessment engine (`iga-mcp`) | Shipped |
 | v0.3.0 | Gate readiness refinement, risk-class-aware thresholds, CI exit codes 0/2/3 | Shipped |
 | v0.4.0 | Report export: Markdown and JSON (`--output`) + per-item answers | Shipped |
-| v0.5.0 | ISO/IEC 42001 clause-level gap mapping | Planned |
+| v0.5.0 | ISO/IEC 42001 clause-level gap mapping (`iga iso-gap`) | Shipped |
 | v0.6.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |
 | v0.7.0 | Maturity trending: delta between assessment runs, history view | Planned |
 | v0.8.0 | EU AI Act gate-to-article mapping for high-risk systems | Planned |
@@ -323,6 +323,33 @@ Output: table of ISO 42001 clause groups × coverage status (covered / partial /
 
 ### Data model extension
 Each checklist item gains a `iso_clauses` field: list of clause references (e.g. `["6", "8", "A"]`) from the orientation matrix.
+
+### Implementation (2026-06-02)
+
+- **Orientation matrix.** `checklist.ISO_CLAUSES_BY_ITEM` maps every item to its
+  ISO/IEC 42001 clause groups (`ISO_CLAUSE_ORDER = 4,5,6,7,8,9,10,A`), exposed as
+  an `item.iso_clauses` property (mirroring `item.text()`/`item.weight()`).
+  `ITEMS_BY_ISO_CLAUSE` indexes the reverse direction.
+- **Coverage engine.** New `iso.py`: `evaluate_iso_coverage(affirmed)` returns a
+  `ClauseCoverage` per clause — covered (all mapped items affirmed) / partial /
+  gap (none affirmed) — plus the outstanding (not-affirmed) items. Skipped and
+  denied items count as not affirmed (no coverage credit), consistent with the
+  conservative "skip ≠ evidence" stance.
+- **Command.** `iga iso-gap` renders a console table (clause · name · status ·
+  affirmed/total · outstanding items) or `--quiet` JSON (`render_iso_json` /
+  `build_iso_payload`). Accepts the usual `--affirm/--skip/--risk-class/--lang`;
+  risk class is recorded but does not change coverage.
+- **MCP + reports.** New `iga_iso_gap` MCP tool returns the same payload; the
+  per-item answers in reports/`build_payload` gained an `iso_clauses` field.
+
+⚠️ **Mapping is a derived approximation.** The values in `ISO_CLAUSES_BY_ITEM`
+were inferred from each item's content (the I-items cite their clauses directly;
+the rest mapped by theme), not transcribed from the book's authoritative
+`tab:framework-iso42001-matrix`. Reconcile that table against the dict — it is the
+single edit point and the engine is generic over it.
+
+Tests: 209 total, 95% coverage (`test_iso.py` for the engine, `iso-gap` in
+`test_cli.py`, matrix integrity in `test_checklist.py`, tool in `test_mcp_server.py`).
 
 ---
 

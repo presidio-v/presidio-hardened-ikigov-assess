@@ -2,14 +2,28 @@
 
 from presidio_ikigov_assess.checklist import (
     CHECKLIST,
+    ISO_CLAUSES_BY_ITEM,
     ITEM_BY_ID,
     ITEMS_BY_DIMENSION,
     ITEMS_BY_GATE,
     RISK_WEIGHTS,
     VALID_DIMENSIONS,
     VALID_GATES,
+    VALID_ISO_CLAUSES,
     VALID_ITEM_IDS,
 )
+
+
+def test_every_item_has_valid_iso_clauses():
+    for item in CHECKLIST:
+        clauses = item.iso_clauses
+        assert clauses, f"{item.id} has no ISO clauses"
+        for clause in clauses:
+            assert clause in VALID_ISO_CLAUSES, f"{item.id} maps to invalid clause {clause}"
+
+
+def test_iso_matrix_covers_every_item():
+    assert set(ISO_CLAUSES_BY_ITEM) == VALID_ITEM_IDS
 
 
 def test_checklist_has_25_items():

@@ -53,6 +53,10 @@ VALID_DIMENSIONS = {"M1", "M2", "M3", "M4", "M5", "M6"}
 VALID_GATES = {"G0", "G1", "G2", "G3", "G4", "G5"}
 VALID_RISK_CLASSES = {"low", "medium", "high"}
 
+# ISO/IEC 42001 clause groups (clauses 4–10 + Annex A controls), in report order.
+ISO_CLAUSE_ORDER: tuple[str, ...] = ("4", "5", "6", "7", "8", "9", "10", "A")
+VALID_ISO_CLAUSES = set(ISO_CLAUSE_ORDER)
+
 RISK_WEIGHTS: dict[str, float] = {"low": 1.0, "medium": 1.5, "high": 2.0}
 
 
@@ -70,6 +74,15 @@ class ChecklistItem:
 
     def weight(self, risk_class: str) -> float:
         return self.risk_weight.get(risk_class, 1.0)
+
+    @property
+    def iso_clauses(self) -> tuple[str, ...]:
+        """ISO/IEC 42001 clause groups this item provides evidence for.
+
+        Sourced from the central ISO_CLAUSES_BY_ITEM orientation matrix so the
+        mapping can be reconciled with the IKI-Gov book in one place.
+        """
+        return ISO_CLAUSES_BY_ITEM.get(self.id, ())
 
 
 CHECKLIST: tuple[ChecklistItem, ...] = (
@@ -438,3 +451,48 @@ ITEMS_BY_GATE: dict[str, list[ChecklistItem]] = {gate: [] for gate in VALID_GATE
 for _item in CHECKLIST:
     for _gate in _item.gates:
         ITEMS_BY_GATE[_gate].append(_item)
+
+# ── ISO/IEC 42001 orientation matrix ────────────────────────────────────────
+# Maps each checklist item to the ISO/IEC 42001 clause groups (clauses 4–10 and
+# Annex A controls) it provides evidence for. Derived from the IKI-Gov book's
+# orientation matrix (Table tab:framework-iso42001-matrix); the I-items cite
+# their clauses directly, the remainder are mapped by theme. Edit here to
+# reconcile with the authoritative table — the iso-gap engine is generic over it.
+ISO_CLAUSES_BY_ITEM: dict[str, tuple[str, ...]] = {
+    # Strategy & business case
+    "S1": ("4", "6"),
+    "S2": ("5",),
+    "S3": ("5",),
+    "S4": ("4",),
+    "S5": ("6",),
+    # Data, law & ethics
+    "D1": ("7", "8", "A"),
+    "D2": ("8", "A"),
+    "D3": ("8", "A"),
+    "D4": ("6", "8"),
+    "D5": ("6", "8", "A"),
+    # Model, security & technology
+    "T1": ("8", "A"),
+    "T2": ("8", "A"),
+    "T3": ("8", "A"),
+    "T4": ("8", "A"),
+    "T5": ("8", "A"),
+    # Operations, monitoring & oversight
+    "O1": ("9", "A"),
+    "O2": ("9", "10"),
+    "O3": ("8", "A"),
+    "O4": ("8", "10"),
+    "O5": ("9", "A"),
+    # ISO/IEC 42001 alignment (clauses cited in the item text)
+    "I1": ("5", "7"),
+    "I2": ("5",),
+    "I3": ("6",),
+    "I4": ("8",),
+    "I5": ("9",),
+}
+
+# Items grouped by ISO clause group (in report order)
+ITEMS_BY_ISO_CLAUSE: dict[str, list[ChecklistItem]] = {clause: [] for clause in ISO_CLAUSE_ORDER}
+for _item in CHECKLIST:
+    for _clause in _item.iso_clauses:
+        ITEMS_BY_ISO_CLAUSE[_clause].append(_item)

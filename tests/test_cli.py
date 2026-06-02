@@ -409,6 +409,49 @@ def test_report_german():
     assert "IKI-Gov" in result.output
 
 
+# ── iso-gap command (v0.5.0) ────────────────────────────────────────────────────
+
+
+def test_iso_gap_console():
+    result = invoke("iso-gap", "--use-case", "demo", "--affirm", "S1,S2")
+    assert result.exit_code == 0
+    assert "ISO/IEC 42001" in result.output
+
+
+def test_iso_gap_quiet_json_clause_covered():
+    # Clause 5 (Leadership) maps to exactly S2, S3, I1, I2.
+    result = invoke("iso-gap", "--affirm", "S2,S3,I1,I2", "--quiet")
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert "iso_coverage" in data
+    assert data["iso_coverage"]["5"]["status"] == "covered"
+    assert data["iso_coverage"]["5"]["outstanding"] == []
+
+
+def test_iso_gap_all_gap_when_none_affirmed():
+    result = invoke("iso-gap", "--quiet")
+    data = json.loads(result.output)
+    assert all(c["status"] == "gap" for c in data["iso_coverage"].values())
+
+
+def test_iso_gap_partial_lists_outstanding():
+    result = invoke("iso-gap", "--affirm", "S2", "--quiet")
+    data = json.loads(result.output)
+    assert data["iso_coverage"]["5"]["status"] == "partial"
+    assert set(data["iso_coverage"]["5"]["outstanding"]) == {"S3", "I1", "I2"}
+
+
+def test_iso_gap_invalid_risk_class():
+    result = invoke("iso-gap", "--risk-class", "extreme")
+    assert result.exit_code == 1
+
+
+def test_iso_gap_german():
+    result = invoke("iso-gap", "--affirm", "S1", "--lang", "de")
+    assert result.exit_code == 0
+    assert "ISO/IEC 42001" in result.output
+
+
 # ── list command ──────────────────────────────────────────────────────────────
 
 
