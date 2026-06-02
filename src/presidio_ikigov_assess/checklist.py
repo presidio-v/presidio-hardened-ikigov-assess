@@ -454,40 +454,42 @@ for _item in CHECKLIST:
 
 # ── ISO/IEC 42001 orientation matrix ────────────────────────────────────────
 # Maps each checklist item to the ISO/IEC 42001 clause groups (clauses 4–10 and
-# Annex A controls) it provides evidence for. Derived from the IKI-Gov book's
-# orientation matrix (Table tab:framework-iso42001-matrix); the I-items cite
-# their clauses directly, the remainder are mapped by theme. Edit here to
-# reconcile with the authoritative table — the iso-gap engine is generic over it.
+# Annex A controls) it provides evidence for. Reconciled (v0.5.1) against the
+# IKI-Gov book's orientation matrix (Table tab:framework-iso42001-matrix): the
+# union of each M-dimension's item clauses covers that dimension's high-relevance
+# (•) cells in the book. The book matrix is qualitative and dimension-level; this
+# item-level table refines it. Edit here to adjust — the engine is generic over it.
 ISO_CLAUSES_BY_ITEM: dict[str, tuple[str, ...]] = {
-    # Strategy & business case
-    "S1": ("4", "6"),
+    # Strategy & business case (M1)
+    "S1": ("4", "6", "9"),
     "S2": ("5",),
     "S3": ("5",),
     "S4": ("4",),
     "S5": ("6",),
-    # Data, law & ethics
+    # Data, law & ethics (M2)
     "D1": ("7", "8", "A"),
     "D2": ("8", "A"),
     "D3": ("8", "A"),
     "D4": ("6", "8"),
     "D5": ("6", "8", "A"),
-    # Model, security & technology
-    "T1": ("8", "A"),
+    # Model, validation & fairness (M3: T1–T3)
+    "T1": ("6", "8", "9", "A"),
     "T2": ("8", "A"),
     "T3": ("8", "A"),
-    "T4": ("8", "A"),
-    "T5": ("8", "A"),
-    # Operations, monitoring & oversight
+    # Model, security & robustness (M4: T4–T5)
+    "T4": ("6", "8", "A"),
+    "T5": ("4", "7", "8", "A"),
+    # Operations, monitoring & oversight (M6)
     "O1": ("9", "A"),
     "O2": ("9", "10"),
     "O3": ("8", "A"),
     "O4": ("8", "10"),
     "O5": ("9", "A"),
-    # ISO/IEC 42001 alignment (clauses cited in the item text)
-    "I1": ("5", "7"),
+    # ISO/IEC 42001 alignment (M5; clauses cited in the item text)
+    "I1": ("4", "5", "7"),
     "I2": ("5",),
     "I3": ("6",),
-    "I4": ("8",),
+    "I4": ("8", "A"),
     "I5": ("9",),
 }
 

@@ -342,11 +342,17 @@ Each checklist item gains a `iso_clauses` field: list of clause references (e.g.
 - **MCP + reports.** New `iga_iso_gap` MCP tool returns the same payload; the
   per-item answers in reports/`build_payload` gained an `iso_clauses` field.
 
-⚠️ **Mapping is a derived approximation.** The values in `ISO_CLAUSES_BY_ITEM`
-were inferred from each item's content (the I-items cite their clauses directly;
-the rest mapped by theme), not transcribed from the book's authoritative
-`tab:framework-iso42001-matrix`. Reconcile that table against the dict — it is the
-single edit point and the engine is generic over it.
+**Mapping reconciled with the book (v0.5.1).** The `ISO_CLAUSES_BY_ITEM` values
+were initially inferred from item content, then reconciled against the book's
+`tab:framework-iso42001-matrix`. That table is qualitative and at M-dimension
+granularity (M1–M6 × clauses 4–10/Annex A, with •=high / ○=supporting relevance);
+this item-level table refines it. Comparison found no contradictions (every mapped
+clause is at least ○ in the book) but 8 high-relevance (•) cells were initially
+under-mapped — chiefly the management-system clauses (4 Context, 6 Planning,
+7 Support, 9 Performance evaluation) for the technical/strategy dimensions. v0.5.1
+adds those (S1+9; T1+6,9; T4+6; T5+4,7; I1+4; I4+A) so each dimension's item-clause
+union covers the book's • cells. `test_iso.test_mapping_covers_book_high_relevance_cells`
+locks this in against future drift.
 
 Tests: 209 total, 95% coverage (`test_iso.py` for the engine, `iso-gap` in
 `test_cli.py`, matrix integrity in `test_checklist.py`, tool in `test_mcp_server.py`).

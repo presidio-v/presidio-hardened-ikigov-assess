@@ -77,3 +77,27 @@ def test_clause_coverage_type():
     result = evaluate_clause("8", frozenset())
     assert isinstance(result, ClauseCoverage)
     assert isinstance(result.status, Coverage)
+
+
+# High-relevance (•) cells of the book orientation matrix
+# (Table tab:framework-iso42001-matrix; M-dimension → ISO clause groups).
+# Locked in here so the item→clause mapping cannot silently drift from the book.
+_BOOK_HIGH_RELEVANCE = {
+    "M1": {"4", "5", "6", "9"},
+    "M2": {"6", "7", "8", "A"},
+    "M3": {"6", "8", "9", "A"},
+    "M4": {"4", "6", "7", "8", "A"},
+    "M5": {"4", "6", "8", "9", "A"},
+    "M6": {"8", "9", "10"},
+}
+
+
+def test_mapping_covers_book_high_relevance_cells():
+    from presidio_ikigov_assess.checklist import ISO_CLAUSES_BY_ITEM, ITEMS_BY_DIMENSION
+
+    for dim, high_cells in _BOOK_HIGH_RELEVANCE.items():
+        covered = set()
+        for item in ITEMS_BY_DIMENSION[dim]:
+            covered |= set(ISO_CLAUSES_BY_ITEM[item.id])
+        missing = high_cells - covered
+        assert not missing, f"{dim} fails to cover book high-relevance clauses {sorted(missing)}"
