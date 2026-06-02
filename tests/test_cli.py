@@ -459,6 +459,37 @@ def test_iso_gap_german():
     assert "ISO/IEC 42001" in result.output
 
 
+# ── euaiact-gap command (v0.8.0) ────────────────────────────────────────────────
+
+
+def test_euaiact_gap_console():
+    result = invoke("euaiact-gap", "--use-case", "fraud-scoring", "--affirm", "S1,S2")
+    assert result.exit_code == 0
+    assert "EU AI Act" in result.output
+    assert "Art. 9" in result.output
+
+
+def test_euaiact_gap_requires_high_risk():
+    result = invoke("euaiact-gap", "--risk-class", "medium", "--affirm", "S1")
+    assert result.exit_code == 1
+    assert "high-risk" in result.output
+
+
+def test_euaiact_gap_quiet_json():
+    result = invoke("euaiact-gap", "--affirm", "S1", "--quiet")
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert set(data["articles"]) == {"9", "10", "11", "12", "13", "14", "15", "17"}
+    # nothing meaningful affirmed at high/strict → articles blocked
+    assert data["articles"]["13"]["status"] == "BLOCKED"
+
+
+def test_euaiact_gap_german():
+    result = invoke("euaiact-gap", "--affirm", "S1", "--lang", "de")
+    assert result.exit_code == 0
+    assert "EU-KI-VO" in result.output
+
+
 # ── persistence: list / portfolio / delete / --save (v0.6.0) ────────────────────
 
 

@@ -218,4 +218,23 @@ def test_build_server_registers_tools():
         "iga_assess",
         "iga_check_gate",
         "iga_iso_gap",
+        "iga_euaiact_gap",
     }
+
+
+def test_euaiact_gap_payload_shape():
+    # All gate-G1 items affirmed → Art. 10 (G1 only) should be OPEN.
+    from presidio_ikigov_assess.checklist import ITEMS_BY_GATE
+    from presidio_ikigov_assess.mcp_server import euaiact_gap
+
+    g1 = [item.id for item in ITEMS_BY_GATE["G1"]]
+    payload = euaiact_gap(affirmed=g1)
+    assert payload["articles"]["10"]["status"] == "OPEN"
+    assert set(payload["articles"]) == {"9", "10", "11", "12", "13", "14", "15", "17"}
+
+
+def test_euaiact_gap_all_blocked_when_nothing_affirmed():
+    from presidio_ikigov_assess.mcp_server import euaiact_gap
+
+    payload = euaiact_gap()
+    assert all(a["status"] == "BLOCKED" for a in payload["articles"].values())

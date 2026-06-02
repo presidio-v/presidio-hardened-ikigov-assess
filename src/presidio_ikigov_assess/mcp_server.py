@@ -33,6 +33,7 @@ from presidio_ikigov_assess.checklist import (
     VALID_GATES,
     VALID_RISK_CLASSES,
 )
+from presidio_ikigov_assess.euaiact import evaluate_euaiact
 from presidio_ikigov_assess.gates import evaluate_all_gates, evaluate_gate
 from presidio_ikigov_assess.i18n import (
     RISK_LABEL_KEY,
@@ -41,7 +42,11 @@ from presidio_ikigov_assess.i18n import (
     t,
 )
 from presidio_ikigov_assess.iso import evaluate_iso_coverage
-from presidio_ikigov_assess.renderer import build_iso_payload, build_payload
+from presidio_ikigov_assess.renderer import (
+    build_euaiact_payload,
+    build_iso_payload,
+    build_payload,
+)
 from presidio_ikigov_assess.sanitize import (
     ValidationError,
     validate_gate,
@@ -85,7 +90,8 @@ _SERVER_INSTRUCTIONS = (
     "to retrieve the 25 checklist items with their IDs, then `iga_assess` with the "
     "IDs the organisation affirms (and optionally skips) to obtain M1–M6 maturity "
     "scores and gate readiness. Use `iga_check_gate` to evaluate a single gate, and "
-    "`iga_iso_gap` for ISO/IEC 42001 clause-level coverage. Risk class is one of "
+    "`iga_iso_gap` for ISO/IEC 42001 clause-level coverage, and `iga_euaiact_gap` "
+    "for EU AI Act high-risk obligations (Art. 9–17). Risk class is one of "
     "low|medium|high; language is de|en. This tool does not constitute legal advice "
     "or certification."
 )
@@ -273,6 +279,28 @@ def iso_gap(
     return build_iso_payload(use_case, risk_class, coverage, lang)
 
 
+def euaiact_gap(
+    affirmed: Optional[list[str]] = None,
+    skipped: Optional[list[str]] = None,
+    lang: str = "en",
+    use_case: str = "unnamed",
+    strict: bool = False,
+) -> dict:
+    """Map gate readiness to EU AI Act high-risk obligations (Art. 9–17).
+
+    High-risk only: gates are evaluated at ``risk_class="high"`` (strict).
+    """
+    lang = _validated(lang, validate_lang)
+    use_case = _validated(use_case, validate_use_case)
+    affirm_ids, skip_ids = _prepare_answers(affirmed, skipped)
+
+    gate_results = evaluate_all_gates(affirm_ids, skip_ids, "high", strict)
+    coverage = evaluate_euaiact(gate_results)
+    blocked = [a for a, cov in coverage.items() if cov.status == "BLOCKED"]
+    log_security_event({"event": "iga-mcp-euaiact-gap", "lang": lang, "articles_blocked": blocked})
+    return build_euaiact_payload(use_case, "high", coverage, lang)
+
+
 # ── FastMCP server wiring ────────────────────────────────────────────────────
 
 
@@ -365,6 +393,23 @@ def build_server():
         Skipped and denied items count as not affirmed (no coverage credit).
         """
         return iso_gap(affirmed, skipped, risk_class, lang, use_case)
+
+    @server.tool()
+    def iga_euaiact_gap(
+        affirmed: Optional[list[str]] = None,
+        skipped: Optional[list[str]] = None,
+        lang: str = "en",
+        use_case: str = "unnamed",
+        strict: bool = False,
+    ) -> dict:
+        """Map an assessment to EU AI Act high-risk obligations (Art. 9–17).
+
+        For high-risk systems only: returns each article (9, 10, 11, 12, 13, 14,
+        15, 17) as OPEN / PARTIAL / BLOCKED based on the readiness of the gates
+        that generate its evidence, with the per-article gate statuses and the
+        outstanding (non-OPEN) gates. Gates are evaluated at high risk (strict).
+        """
+        return euaiact_gap(affirmed, skipped, lang, use_case, strict)
 
     return server
 

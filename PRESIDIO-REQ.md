@@ -82,7 +82,7 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.5.0 | ISO/IEC 42001 clause-level gap mapping (`iga iso-gap`) | Shipped |
 | v0.6.0 | Portfolio mode: SQLite persistence, `list` / `portfolio` / `delete` | Shipped |
 | v0.7.0 | Maturity trending: delta between runs (`iga trend`) | Shipped |
-| v0.8.0 | EU AI Act gate-to-article mapping for high-risk systems | Planned |
+| v0.8.0 | EU AI Act gate→article mapping (`iga euaiact-gap`) | Shipped |
 
 ---
 
@@ -502,6 +502,29 @@ Art. 17  Quality management system       G0, G3   PARTIAL — G3 QMS release not
 
 ### Dependency
 Requires v0.5.0 (ISO mapping) and v0.6.0 (persistence) as prerequisites; can be built independently if session-only mode is used.
+
+### Implementation (2026-06-03)
+
+Built session-only (no persistence dependency needed). **Data model decision:**
+the book maps articles to *gates*, not items, so the per-item `eu_ai_act_articles`
+field from the original deliberation was dropped in favour of a gate→article table.
+
+- **`euaiact.py`.** `EU_AI_ACT_ARTICLE_GATES` is the book's `tab:framework-euaiact-gates`
+  table *inverted* to article→gates (Art. 9: G0,G1,G2,G4; 10: G1; 11: G2,G3,G5;
+  12: G4; 13: G3; 14: G3; 15: G2,G4; 17: G0,G3,G5), transcribed verbatim and
+  verified. `evaluate_euaiact(gate_results)` derives each article's status from
+  its gates: OPEN (all gates OPEN), BLOCKED (all BLOCKED), else PARTIAL, with the
+  non-OPEN gates listed.
+- **EU AI Act coverage is a *view* over gate readiness** — no new evaluation; it
+  consumes `evaluate_all_gates` output. High-risk only: gates are evaluated at
+  `risk_class="high"` (strict implied).
+- **Command.** `iga euaiact-gap` (console table or `--quiet` JSON); exits 1 with a
+  warning for non-high risk. New MCP tool `iga_euaiact_gap` (6 tools total).
+- No `checklist.py` change (gate-level, not per-item).
+
+Tests: 266 total, 96% coverage (`test_euaiact.py` for the engine, CLI + MCP cases).
+
+**Roadmap complete: v0.1.0–v0.8.0 all shipped.**
 
 ---
 

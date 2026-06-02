@@ -9,6 +9,7 @@ from rich.console import Console
 
 from presidio_ikigov_assess.__init__ import __version__
 from presidio_ikigov_assess.checklist import CHECKLIST, VALID_DIMENSIONS
+from presidio_ikigov_assess.euaiact import ArticleCoverage
 from presidio_ikigov_assess.gates import GateResult, GateStatus
 from presidio_ikigov_assess.i18n import RISK_LABEL_KEY, t
 from presidio_ikigov_assess.iso import ClauseCoverage, Coverage
@@ -501,6 +502,79 @@ def render_trend_json(result: TrendResult, lang: str) -> str:
         ],
     }
     return json.dumps(data, indent=2, ensure_ascii=False)
+
+
+_ARTICLE_STATUS_COLOUR = {"OPEN": "green", "PARTIAL": "yellow", "BLOCKED": "red"}
+
+
+def print_euaiact(
+    console: Console,
+    use_case: str,
+    risk_class: str,
+    coverage: dict[str, ArticleCoverage],
+    lang: str,
+) -> None:
+    """Render the EU AI Act high-risk article coverage to *console*."""
+    risk_label = t(RISK_LABEL_KEY[risk_class], lang)
+    title = t("euaiact_title", lang)
+    risk_key = t("risk_label", lang)
+
+    console.print(f"\n[bold]{title} — {use_case}[/bold]  [dim][{risk_key}: {risk_label}][/dim]\n")
+
+    for article, cov in coverage.items():
+        colour = _ARTICLE_STATUS_COLOUR[cov.status]
+        status_str = t(cov.status, lang)
+        obligation = t(f"euaiact_art_{article}", lang)
+        gates = ", ".join(g for g, _ in cov.gate_statuses)
+        line = f"  Art. {article:<3} {obligation:<44} {gates:<14} [{colour}]{status_str}[/{colour}]"
+        if cov.blocking:
+            detail = ", ".join(f"{g} {t(s, lang)}" for g, s in cov.blocking)
+            line += f"  — {detail}"
+        console.print(line)
+
+    console.print()
+
+
+def build_euaiact_payload(
+    use_case: str,
+    risk_class: str,
+    coverage: dict[str, ArticleCoverage],
+    lang: str,
+) -> dict[str, object]:
+    """Build the structured EU AI Act coverage payload."""
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {
+        "use_case": escape_for_report(use_case),
+        "risk_class": risk_class,
+        "lang": lang,
+        "timestamp": ts,
+        "tool_version": __version__,
+        "articles": {
+            article: {
+                "obligation": t(f"euaiact_art_{article}", lang),
+                "status": cov.status,
+                "gates": [g for g, _ in cov.gate_statuses],
+                "gate_statuses": {g: s for g, s in cov.gate_statuses},
+                "blocking": {g: s for g, s in cov.blocking},
+            }
+            for article, cov in coverage.items()
+        },
+        "disclaimer": t("report_disclaimer", lang),
+    }
+
+
+def render_euaiact_json(
+    use_case: str,
+    risk_class: str,
+    coverage: dict[str, ArticleCoverage],
+    lang: str,
+) -> str:
+    """Return the EU AI Act coverage analysis as a JSON string."""
+    return json.dumps(
+        build_euaiact_payload(use_case, risk_class, coverage, lang),
+        indent=2,
+        ensure_ascii=False,
+    )
 
 
 def render_gate_json(

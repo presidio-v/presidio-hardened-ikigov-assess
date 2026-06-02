@@ -241,6 +241,42 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "trend_gates_header": {"de": "Gate-Übergänge", "en": "Gate Transitions"},
     "trend_overall_delta": {"de": "Veränderung Gesamtreife", "en": "Overall maturity change"},
+    # ── EU AI Act gate-to-article mapping (v0.8.0) ───────────────────────────
+    "euaiact_title": {
+        "de": "EU-KI-VO Hochrisiko-Compliance-Lücke",
+        "en": "EU AI Act High-Risk Compliance Gap",
+    },
+    "euaiact_high_risk_only": {
+        "de": (
+            "EU-KI-VO-Pflichten gelten nur für Hochrisiko-Systeme. "
+            "Bitte mit '--risk-class high' aufrufen."
+        ),
+        "en": (
+            "EU AI Act obligations apply only to high-risk systems. "
+            "Re-run with '--risk-class high'."
+        ),
+    },
+    "euaiact_col_article": {"de": "Artikel", "en": "Article"},
+    "euaiact_col_obligation": {"de": "Pflicht", "en": "Obligation"},
+    "euaiact_col_gates": {"de": "Gates", "en": "Gates"},
+    "euaiact_col_status": {"de": "Status", "en": "Status"},
+    "euaiact_art_9": {"de": "Risikomanagementsystem", "en": "Risk management system"},
+    "euaiact_art_10": {"de": "Daten und Daten-Governance", "en": "Data and data governance"},
+    "euaiact_art_11": {"de": "Technische Dokumentation", "en": "Technical documentation"},
+    "euaiact_art_12": {
+        "de": "Aufzeichnungspflichten (Protokollierung)",
+        "en": "Record-keeping (logging)",
+    },
+    "euaiact_art_13": {
+        "de": "Transparenz und Bereitstellung von Informationen",
+        "en": "Transparency and information to deployers",
+    },
+    "euaiact_art_14": {"de": "Menschliche Aufsicht", "en": "Human oversight"},
+    "euaiact_art_15": {
+        "de": "Genauigkeit, Robustheit und Cybersicherheit",
+        "en": "Accuracy, robustness and cybersecurity",
+    },
+    "euaiact_art_17": {"de": "Qualitätsmanagementsystem", "en": "Quality management system"},
     "report_disclaimer": {
         "de": (
             "Erstellt mit dem IKI-Gov Assessment Tool. "

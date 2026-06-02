@@ -7,6 +7,7 @@ Commands:
   iga gate     — check readiness for a specific gate G0–G5
   iga report   — render an assessment to Markdown or JSON (stdout or --output file)
   iga iso-gap  — map results to ISO/IEC 42001 clause coverage
+  iga euaiact-gap — map results to EU AI Act high-risk obligations (Art. 9–17)
   iga list     — list saved assessments from the local store
   iga portfolio— aggregate saved assessments (M1–M6 + blocked gates)
   iga trend    — maturity delta between two saved assessments
@@ -22,16 +23,19 @@ import typer
 from rich.console import Console
 
 from presidio_ikigov_assess import store
+from presidio_ikigov_assess.euaiact import evaluate_euaiact
 from presidio_ikigov_assess.gates import evaluate_all_gates, evaluate_gate
 from presidio_ikigov_assess.i18n import t
 from presidio_ikigov_assess.iso import evaluate_iso_coverage
 from presidio_ikigov_assess.renderer import (
     gate_detail_segments,
     print_assessment,
+    print_euaiact,
     print_iso_coverage,
     print_portfolio,
     print_saved_list,
     print_trend,
+    render_euaiact_json,
     render_gate_json,
     render_iso_json,
     render_json,
@@ -86,7 +90,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.7.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.8.0."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 
@@ -525,6 +529,68 @@ def iso_gap(
         print(render_iso_json(use_case, risk_class, coverage, lang))
     else:
         print_iso_coverage(console, use_case, risk_class, coverage, lang)
+
+
+@app.command(name="euaiact-gap")
+def euaiact_gap(
+    use_case: str = typer.Option(
+        "unnamed",
+        "--use-case",
+        "-u",
+        help="AI use-case identifier.",
+    ),
+    risk_class: str = typer.Option(
+        "high",
+        "--risk-class",
+        "-r",
+        help="Risk class (EU AI Act obligations apply only to high-risk systems).",
+    ),
+    lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
+    affirm: Optional[str] = typer.Option(
+        None, "--affirm", help="Comma-separated list of affirmed item IDs."
+    ),
+    skip: Optional[str] = typer.Option(
+        None, "--skip", help="Comma-separated list of skipped item IDs."
+    ),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="Treat skipped gate-critical items as blocking (implied at high risk).",
+    ),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
+) -> None:
+    """Map gate readiness to EU AI Act high-risk obligations (Art. 9–17).
+
+    Each article (Art. 9–17) is shown OPEN / PARTIAL / BLOCKED based on the
+    readiness of the gates that generate its evidence. Only meaningful for
+    high-risk systems; exits with a warning for low/medium risk.
+    """
+    lang = _validated(lang, validate_lang, lang)
+    use_case = _validated(use_case, validate_use_case, lang)
+    risk_class = _validated(risk_class, validate_risk_class, lang)
+
+    if risk_class != "high":
+        err_console.print(f"[yellow]{t('euaiact_high_risk_only', lang)}[/yellow]")
+        raise typer.Exit(1)
+
+    affirmed, skipped_set = _parse_answers(affirm, skip, lang)
+    gate_results = evaluate_all_gates(affirmed, skipped_set, risk_class, strict)
+    coverage = evaluate_euaiact(gate_results)
+
+    blocked = [a for a, cov in coverage.items() if cov.status == "BLOCKED"]
+    log_security_event(
+        {
+            "event": "iga-euaiact-gap",
+            "risk_class": risk_class,
+            "lang": lang,
+            "articles_blocked": blocked,
+        }
+    )
+
+    if quiet:
+        print(render_euaiact_json(use_case, risk_class, coverage, lang))
+    else:
+        print_euaiact(console, use_case, risk_class, coverage, lang)
 
 
 @app.command(name="list")
