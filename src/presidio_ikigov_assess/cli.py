@@ -7,7 +7,9 @@ Commands:
   iga gate     — check readiness for a specific gate G0–G5
   iga report   — render an assessment to Markdown or JSON (stdout or --output file)
   iga iso-gap  — map results to ISO/IEC 42001 clause coverage
-  iga list     — list saved assessments (stub; persistence added in v0.6.0)
+  iga list     — list saved assessments from the local store
+  iga portfolio— aggregate saved assessments (M1–M6 + blocked gates)
+  iga delete   — hard-delete saved assessments for a use case
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
+from presidio_ikigov_assess import store
 from presidio_ikigov_assess.gates import evaluate_all_gates, evaluate_gate
 from presidio_ikigov_assess.i18n import t
 from presidio_ikigov_assess.iso import evaluate_iso_coverage
@@ -25,10 +28,14 @@ from presidio_ikigov_assess.renderer import (
     gate_detail_segments,
     print_assessment,
     print_iso_coverage,
+    print_portfolio,
+    print_saved_list,
     render_gate_json,
     render_iso_json,
     render_json,
     render_markdown,
+    render_portfolio_json,
+    render_saved_list_json,
 )
 from presidio_ikigov_assess.sanitize import (
     ValidationError,
@@ -74,7 +81,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.5.1."""
+    """IKI-Gov Assessment Tool (iga) — v0.6.0."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 
@@ -173,6 +180,11 @@ def assess(
         "-q",
         help="Emit machine-readable JSON only (no progress bars or tables).",
     ),
+    save: bool = typer.Option(
+        False,
+        "--save",
+        help="Persist this assessment to the local store (~/.iga/assessments.db).",
+    ),
 ) -> None:
     """Assess an AI use case against the IKI-Gov checklist."""
     lang = _validated(lang, validate_lang, lang)
@@ -206,6 +218,24 @@ def assess(
             "overall_score": scores.overall,
         }
     )
+
+    if save:
+        store.save_assessment(
+            use_case=use_case,
+            risk_class=risk_class,
+            lang=lang,
+            answers={"affirmed": sorted(affirmed), "skipped": sorted(skipped_set)},
+            scores={
+                **{dim: ds.score for dim, ds in scores.dimensions.items()},
+                "overall": scores.overall,
+            },
+            gates={g: r.status.value for g, r in gate_results.items()},
+        )
+        log_security_event(
+            {"event": "iga-assessment-saved", "risk_class": risk_class, "lang": lang}
+        )
+        if not quiet:
+            err_console.print(f"[green]{t('assessment_saved', lang, use_case=use_case)}[/green]")
 
     if quiet:
         print(render_json(use_case, risk_class, scores, gate_results, affirmed, skipped_set, lang))
@@ -494,16 +524,59 @@ def iso_gap(
 
 @app.command(name="list")
 def list_assessments(
-    lang: str = typer.Option(
-        "en",
-        "--lang",
-        "-l",
-        help="Output language: de | en.",
-    ),
+    lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
 ) -> None:
-    """List saved assessments.
+    """List saved assessments from the local store (~/.iga/assessments.db)."""
+    lang = _validated(lang, validate_lang, lang)
+    assessments = store.list_assessments()
+    log_security_event({"event": "iga-list", "count": len(assessments), "lang": lang})
 
-    Persistence is introduced in v0.6.0; this command is a prerequisite stub.
+    if quiet:
+        print(render_saved_list_json(assessments))
+    else:
+        print_saved_list(console, assessments, lang)
+
+
+@app.command()
+def portfolio(
+    lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
+) -> None:
+    """Aggregate saved assessments into a portfolio view (M1–M6 + blocked gates).
+
+    Uses the most recent saved assessment per use case.
     """
     lang = _validated(lang, validate_lang, lang)
-    console.print(f"[dim]{t('list_empty', lang)}[/dim]")
+    summary = store.portfolio_summary()
+    log_security_event(
+        {"event": "iga-portfolio", "use_case_count": summary["use_case_count"], "lang": lang}
+    )
+
+    if quiet:
+        print(render_portfolio_json(summary, lang))
+    else:
+        print_portfolio(console, summary, lang)
+
+
+@app.command()
+def delete(
+    use_case: str = typer.Option(
+        ...,
+        "--use-case",
+        "-u",
+        help="Use case whose saved assessments will be hard-deleted.",
+    ),
+    lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
+) -> None:
+    """Hard-delete all saved assessments for a use case (no soft-delete log)."""
+    lang = _validated(lang, validate_lang, lang)
+    use_case = _validated(use_case, validate_use_case, lang)
+
+    removed = store.delete_use_case(use_case)
+    log_security_event({"event": "iga-delete", "removed": removed, "lang": lang})
+
+    if removed:
+        console.print(f"[green]{t('delete_done', lang, count=removed, use_case=use_case)}[/green]")
+    else:
+        err_console.print(f"[yellow]{t('delete_none', lang, use_case=use_case)}[/yellow]")

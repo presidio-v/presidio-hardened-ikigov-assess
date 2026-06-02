@@ -199,11 +199,39 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Session limit reached. Maximum {limit} assessments per session allowed.",
     },
     "list_empty": {
-        "de": (
-            "Keine gespeicherten Bewertungen vorhanden.\n"
-            "(Persistenz wird in Version 0.6.0 hinzugefügt.)"
-        ),
-        "en": ("No saved assessments found.\n(Persistence is added in version 0.6.0.)"),
+        "de": "Keine gespeicherten Bewertungen vorhanden. Mit 'iga assess --save' speichern.",
+        "en": "No saved assessments yet. Save one with 'iga assess --save'.",
+    },
+    # ── Persistence / portfolio (v0.6.0) ─────────────────────────────────────
+    "saved_title": {"de": "Gespeicherte Bewertungen", "en": "Saved Assessments"},
+    "col_use_case": {"de": "Anwendungsfall", "en": "Use Case"},
+    "col_risk": {"de": "Risiko", "en": "Risk"},
+    "col_overall": {"de": "Gesamt", "en": "Overall"},
+    "col_time": {"de": "Zeitstempel", "en": "Timestamp"},
+    "assessment_saved": {
+        "de": "Bewertung für '{use_case}' gespeichert.",
+        "en": "Assessment saved for '{use_case}'.",
+    },
+    "delete_done": {
+        "de": "{count} Bewertung(en) für '{use_case}' gelöscht.",
+        "en": "Deleted {count} assessment(s) for '{use_case}'.",
+    },
+    "delete_none": {
+        "de": "Keine Bewertungen für '{use_case}' gefunden.",
+        "en": "No assessments found for '{use_case}'.",
+    },
+    "portfolio_title": {"de": "Portfolio-Übersicht", "en": "Portfolio Overview"},
+    "portfolio_use_cases": {
+        "de": "Bewertete Anwendungsfälle: {count}",
+        "en": "Use cases assessed: {count}",
+    },
+    "portfolio_blocked_gates": {
+        "de": "Blockierte Gates im Portfolio",
+        "en": "Blocked gates across portfolio",
+    },
+    "portfolio_empty": {
+        "de": "Keine gespeicherten Bewertungen — nichts zu aggregieren.",
+        "en": "No saved assessments — nothing to aggregate.",
     },
     "report_disclaimer": {
         "de": (

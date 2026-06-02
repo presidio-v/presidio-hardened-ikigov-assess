@@ -361,6 +361,75 @@ def render_iso_json(
     )
 
 
+def print_saved_list(console: Console, assessments: list, lang: str) -> None:
+    """Render the table of saved assessments to *console*."""
+    if not assessments:
+        console.print(f"[dim]{t('list_empty', lang)}[/dim]")
+        return
+
+    console.print(f"\n[bold]{t('saved_title', lang)}[/bold]\n")
+    header = (
+        f"  {t('col_use_case', lang):<24} {t('col_risk', lang):<8} "
+        f"{t('col_overall', lang):>8}  {t('col_time', lang)}"
+    )
+    console.print(f"[dim]{header}[/dim]")
+    for a in assessments:
+        risk = t(RISK_LABEL_KEY.get(a.risk_class, "risk_medium"), lang)
+        overall = float(a.scores.get("overall", 0.0))
+        console.print(f"  {a.use_case[:24]:<24} {risk:<8} {overall:>6.1f} %  {a.timestamp}")
+    console.print()
+
+
+def render_saved_list_json(assessments: list) -> str:
+    """Return the saved assessments as a JSON string (for ``--quiet``)."""
+    data = [
+        {
+            "id": a.id,
+            "use_case": escape_for_report(a.use_case),
+            "risk_class": a.risk_class,
+            "timestamp": a.timestamp,
+            "lang": a.lang,
+            "overall": a.scores.get("overall", 0.0),
+            "scores": a.scores,
+            "gates": a.gates,
+            "answers": a.answers,
+        }
+        for a in assessments
+    ]
+    return json.dumps(data, indent=2, ensure_ascii=False)
+
+
+def print_portfolio(console: Console, summary: dict, lang: str) -> None:
+    """Render the aggregated portfolio view to *console*."""
+    if summary["use_case_count"] == 0:
+        console.print(f"[dim]{t('portfolio_empty', lang)}[/dim]")
+        return
+
+    console.print(f"\n[bold]{t('portfolio_title', lang)}[/bold]\n")
+    console.print(f"  {t('portfolio_use_cases', lang, count=summary['use_case_count'])}\n")
+
+    dimensions: dict = summary["dimensions"]
+    for dim in sorted(dimensions):
+        score = dimensions[dim]
+        console.print(f"  {dim}  {t(dim, lang):<36} {_bar(score)}  {score:5.1f} %")
+
+    console.rule(style="dim")
+    overall = summary["overall"]
+    console.print(f"  {'':>3}  {t('overall_label', lang):<36} {_bar(overall)}  {overall:5.1f} %\n")
+
+    gates_blocked: dict = summary["gates_blocked"]
+    if gates_blocked:
+        console.print(f"[bold]{t('portfolio_blocked_gates', lang)}[/bold]")
+        for gate in sorted(gates_blocked):
+            console.print(f"  {gate}  ({gates_blocked[gate]})")
+        console.print()
+
+
+def render_portfolio_json(summary: dict, lang: str) -> str:
+    """Return the portfolio summary as a JSON string (for ``--quiet``)."""
+    return json.dumps({**summary, "lang": lang}, indent=2, ensure_ascii=False)
+
+
 def render_gate_json(
     result: GateResult,
     risk_class: str,

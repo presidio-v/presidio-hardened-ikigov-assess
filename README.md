@@ -61,6 +61,12 @@ iga report --use-case "fraud-scoring" --affirm S1,S2 -f json -o fraud-scoring.js
 iga iso-gap --use-case "fraud-scoring" --risk-class high --affirm S1,S2,S3,I1,I2
 iga iso-gap --affirm S2,S3,I1,I2 --quiet   # machine-readable JSON
 
+# Persist assessments and view the portfolio (SQLite at ~/.iga/assessments.db)
+iga assess --use-case "fraud-scoring" --risk-class high --affirm S1,S2,S3 --save
+iga list                                   # table of saved assessments
+iga portfolio                              # aggregated M1–M6 + blocked gates
+iga delete --use-case "fraud-scoring"      # hard-delete
+
 # List saved assessments (persistence in v0.6.0)
 iga list
 ```
@@ -186,6 +192,25 @@ Use `--quiet` for machine-readable JSON.
 
 ---
 
+## Persistence & Portfolio
+
+`iga assess --save` persists an assessment to a local SQLite database at
+`~/.iga/assessments.db` (override with the `IGA_DB_PATH` env var). The portfolio
+commands then work across saved use cases:
+
+| Command | Purpose |
+|---------|---------|
+| `iga list` | Table of all saved assessments (use case, risk, overall, timestamp) |
+| `iga portfolio` | Mean M1–M6 and overall maturity across the latest assessment per use case, plus a count of use cases with each gate BLOCKED |
+| `iga delete --use-case X` | Hard-delete all saved assessments for a use case |
+
+`list` and `portfolio` support `--quiet` for JSON. Only what you provide is stored
+(use-case name, risk class, language, answers/scores/gates); the database file is
+created with `0600` permissions and the `~/.iga` directory with `0700`. `delete` is
+a hard delete — no soft-delete log is retained.
+
+---
+
 ## MCP Server
 
 The assessment engine is also available as a [Model Context Protocol](https://modelcontextprotocol.io)
@@ -248,8 +273,8 @@ Security controls built into the tool:
 | v0.2.0 | MCP server — agent-accessible assessment engine (`iga-mcp`) | Released |
 | v0.3.0 | Gate readiness refinement, CI exit codes 0/2/3, `--strict` flag | Released |
 | v0.4.0 | Report export to file (`--output`) with per-item answers | Released |
-| v0.5.0 | ISO/IEC 42001 clause-level gap mapping (`iga iso-gap`) | Current |
-| v0.6.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |
+| v0.5.0 | ISO/IEC 42001 clause-level gap mapping (`iga iso-gap`) | Released |
+| v0.6.0 | Portfolio mode: persistence, `list`, `portfolio`, `delete` | Current |
 | v0.7.0 | Maturity trending: delta between assessment runs | Planned |
 | v0.8.0 | EU AI Act gate-to-article mapping for high-risk systems | Planned |
 

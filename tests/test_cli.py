@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from typer.testing import CliRunner
 
 from presidio_ikigov_assess.cli import app
 
 runner = CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def _isolated_db(tmp_path, monkeypatch):
+    """Point persistence at a per-test temp DB so the real ~/.iga is untouched."""
+    monkeypatch.setenv("IGA_DB_PATH", str(tmp_path / "assessments.db"))
 
 
 def invoke(*args: str) -> object:
@@ -452,20 +459,92 @@ def test_iso_gap_german():
     assert "ISO/IEC 42001" in result.output
 
 
-# ── list command ──────────────────────────────────────────────────────────────
+# ── persistence: list / portfolio / delete / --save (v0.6.0) ────────────────────
 
 
-def test_list_shows_stub_message():
+def test_list_empty_shows_hint():
     result = invoke("list")
     assert result.exit_code == 0
-    assert (
-        "0.5.0" in result.output or "Persistence" in result.output or "persistence" in result.output
-    )
+    assert "No saved assessments" in result.output
 
 
-def test_list_german():
+def test_list_german_empty():
     result = invoke("list", "--lang", "de")
     assert result.exit_code == 0
+
+
+def test_assess_save_then_list():
+    save = invoke("assess", "--use-case", "fraud-scoring", "--affirm", "S1,S2,S3", "--save")
+    assert save.exit_code == 0
+    assert "saved" in save.output.lower()
+    listed = invoke("list", "--quiet")
+    data = json.loads(listed.output)
+    assert len(data) == 1
+    assert data[0]["use_case"] == "fraud-scoring"
+    assert "overall" in data[0]
+
+
+def test_save_quiet_emits_only_json():
+    # --save with --quiet must keep stdout pure JSON (confirmation goes to stderr).
+    result = invoke("assess", "--use-case", "uc1", "--affirm", "S1", "--quiet", "--save")
+    assert result.exit_code == 0
+    data = json.loads(result.output)  # would raise if stdout were polluted
+    assert "scores" in data
+
+
+def test_portfolio_aggregates_saved():
+    invoke("assess", "--use-case", "uc-a", "--affirm", "S1,S2,S3,S4,S5", "--save")
+    invoke("assess", "--use-case", "uc-b", "--save")  # nothing affirmed → low scores
+    result = invoke("portfolio", "--quiet")
+    data = json.loads(result.output)
+    assert data["use_case_count"] == 2
+    assert "M1" in data["dimensions"]
+    # uc-b has no affirmations → some gates BLOCKED across the portfolio
+    assert data["gates_blocked"]
+
+
+def test_portfolio_latest_per_use_case():
+    # Two saves for the same use case → counts once (latest only).
+    invoke("assess", "--use-case", "uc-x", "--affirm", "S1", "--save")
+    invoke("assess", "--use-case", "uc-x", "--affirm", "S1,S2,S3", "--save")
+    result = invoke("portfolio", "--quiet")
+    assert json.loads(result.output)["use_case_count"] == 1
+
+
+def test_portfolio_empty():
+    result = invoke("portfolio")
+    assert result.exit_code == 0
+    assert "nothing to aggregate" in result.output.lower()
+
+
+def test_delete_removes_use_case():
+    invoke("assess", "--use-case", "to-del", "--affirm", "S1", "--save")
+    deleted = invoke("delete", "--use-case", "to-del")
+    assert deleted.exit_code == 0
+    assert "Deleted 1" in deleted.output
+    assert json.loads(invoke("list", "--quiet").output) == []
+
+
+def test_delete_missing_use_case():
+    result = invoke("delete", "--use-case", "never-saved")
+    assert result.exit_code == 0
+    assert "No assessments found" in result.output
+
+
+def test_list_console_table_shows_saved():
+    invoke("assess", "--use-case", "fraud-scoring", "--affirm", "S1,S2", "--save")
+    result = invoke("list")
+    assert result.exit_code == 0
+    assert "Saved Assessments" in result.output
+    assert "fraud-scoring" in result.output
+
+
+def test_portfolio_console_shows_dimensions():
+    invoke("assess", "--use-case", "uc-a", "--affirm", "S1,S2,S3", "--save")
+    result = invoke("portfolio")
+    assert result.exit_code == 0
+    assert "Portfolio Overview" in result.output
+    assert "M1" in result.output
 
 
 # ── global flags ──────────────────────────────────────────────────────────────

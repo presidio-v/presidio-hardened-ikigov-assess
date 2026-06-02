@@ -80,7 +80,7 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.3.0 | Gate readiness refinement, risk-class-aware thresholds, CI exit codes 0/2/3 | Shipped |
 | v0.4.0 | Report export: Markdown and JSON (`--output`) + per-item answers | Shipped |
 | v0.5.0 | ISO/IEC 42001 clause-level gap mapping (`iga iso-gap`) | Shipped |
-| v0.6.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |
+| v0.6.0 | Portfolio mode: SQLite persistence, `list` / `portfolio` / `delete` | Shipped |
 | v0.7.0 | Maturity trending: delta between assessment runs, history view | Planned |
 | v0.8.0 | EU AI Act gate-to-article mapping for high-risk systems | Planned |
 
@@ -382,6 +382,29 @@ Table `assessments`: `id`, `use_case`, `risk_class`, `timestamp`, `answers_json`
 - No organizational metadata stored beyond what the user explicitly provides
 - `iga delete` performs hard delete (no soft-delete log retained locally)
 
+### Implementation (2026-06-02)
+
+- **Store.** New `store.py`: SQLite at `~/.iga/assessments.db`, path resolved via
+  `db_path()` (`IGA_DB_PATH` env override, primarily for tests). `_connect()`
+  creates the dir 0o700, the file 0o600, and the `assessments` table on every
+  open. API: `save_assessment`, `list_assessments` (newest first),
+  `delete_use_case` (hard delete, returns rowcount), `latest_per_use_case`,
+  `portfolio_summary`.
+- **Schema** as specified: `id, use_case, risk_class, timestamp, lang,
+  answers_json, scores_json, gates_json`. Scores stored as `{M1..M6, overall}`,
+  gates as `{Gn: status}`, answers as `{affirmed[], skipped[]}`.
+- **Commands.** `iga assess --save` persists after assessing (confirmation to
+  stderr, so `--quiet` stdout stays pure JSON). `iga list` (table or `--quiet`
+  JSON), `iga portfolio` (mean M1–M6 + overall across the latest assessment per
+  use case, plus a count of use cases with each gate BLOCKED), `iga delete
+  --use-case` (hard delete). The v0.1 `list` stub is replaced.
+- **Portfolio aggregation** uses the most recent assessment per use case
+  (`latest_per_use_case`); means are simple arithmetic over those.
+
+Tests: 230 total, 95% coverage. CLI tests use an autouse fixture pointing
+`IGA_DB_PATH` at a temp file so the real `~/.iga` is never touched;
+`test_store.py` covers the store directly incl. the 0o600 file-permission check.
+
 ---
 
 ## v0.7.0 — Maturity Trending: Delta Between Runs, History View
@@ -411,16 +434,28 @@ Map G0–G5 gate outputs to EU AI Act Title III Chapter 2 articles (Art. 9–17)
 ### Data model extension
 Each checklist item gains an `eu_ai_act_articles` field: list of article references applicable at that gate for high-risk systems (e.g. `["9", "10", "17"]`). Field is empty for non-high-risk items.
 
-Gate-to-article primary mapping (from book Table tab:framework-euaiact-gates):
+**Gate-to-article mapping — transcribed verbatim from the book (verified 2026-06-02
+against `tab:framework-euaiact-gates` in `chapter-framework.tex`; EN and DE editions
+identical). Use this as the authoritative source for the v0.8.0 data model — do NOT
+re-derive it.** Legend in the book: the listed articles are the *primary* evidence
+obligation typically due at that gate (the matrix also notes supporting/preparatory
+relevance, ○, which is not enumerated here).
 
-| Gate | Primary Articles |
-|---|---|
-| G0 | Art. 9 §1, Art. 17 §1 lit. a |
-| G1 | Art. 10 §2–3, Art. 9 §2 lit. a–b |
-| G2 | Art. 9 §2 lit. c–d, Art. 11 + Annex IV, Art. 15 §1–3 |
-| G3 | Art. 11 + Annex IV (complete), Art. 13 §1–2, Art. 14 §1–4, Art. 17 §1 |
-| G4 | Art. 9 §2 lit. d, Art. 12 §1–2, Art. 15 §4 |
-| G5 | Art. 11 §3, Art. 17 §1 lit. k |
+| Gate | Phase | Primary Articles (high risk) | Typical evidence at gate |
+|---|---|---|---|
+| G0 | Project start | Art. 9 §1 (risk management system — establishment); Art. 17 §1 lit. a (QMS — compliance strategy) | Risk classification per Annex III; ownership document; business case with high-risk designation |
+| G1 | Data/concept approval | Art. 10 §2–3 (data governance, quality criteria for training/validation data); Art. 9 §2 lit. a–b (risk identification) | Data documentation; provenance and purpose-limitation evidence; risk register v1 |
+| G2 | Model approval | Art. 9 §2 lit. c–d (risk assessment, risk control measures); Art. 11 + Annex IV (technical documentation, ongoing); Art. 15 §1–3 (accuracy, robustness, cybersecurity) | Model card; segmented validation records; fairness/robustness tests; updated risk register |
+| G3 | Production approval | Art. 11 + Annex IV (complete, *before* placing on market); Art. 13 §1–2 (transparency, usage information); Art. 14 §1–4 (human oversight: measures and training); Art. 17 §1 (QMS operational) | Complete technical documentation; user information sheet; oversight concept + training evidence; QMS approval |
+| G4 | Operations review | Art. 9 §2 lit. d (monitoring of risk control measures); Art. 12 §1–2 (logging, automatic records); Art. 15 §4 (accuracy and robustness in operation) | Monitoring reports; drift analysis; incident records; log archive |
+| G5 | Decommissioning | Art. 11 §3 (documentation retention: 10 years after decommissioning); Art. 17 §1 lit. k (QMS — closure procedure) | Archiving evidence; deletion and disposal record; closed risk file |
+
+For the v0.8.0 data model, encode this as a gate→articles table (e.g.
+`EU_AI_ACT_ARTICLES_BY_GATE`) keyed G0–G5, mirroring `ISO_CLAUSES_BY_ITEM`. Because
+the book maps articles to **gates** (not to individual checklist items), the
+`eu_ai_act_articles` per-item field is optional — the cleaner implementation drives
+the `euaiact-gap` command directly from the gate→article table plus the existing
+gate-readiness engine, no per-item field required.
 
 ### New command
 ```bash
