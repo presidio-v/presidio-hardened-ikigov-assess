@@ -18,7 +18,13 @@ from rich.console import Console
 
 from presidio_ikigov_assess.gates import evaluate_all_gates, evaluate_gate
 from presidio_ikigov_assess.i18n import t
-from presidio_ikigov_assess.renderer import print_assessment, render_json, render_markdown
+from presidio_ikigov_assess.renderer import (
+    gate_detail_segments,
+    print_assessment,
+    render_gate_json,
+    render_json,
+    render_markdown,
+)
 from presidio_ikigov_assess.sanitize import (
     ValidationError,
     validate_format,
@@ -48,6 +54,10 @@ err_console = Console(stderr=True)
 
 _NO_DEP_CHECK: bool = False
 
+# CI exit codes for --assert-gate (v0.3.0): distinct from the general error
+# code 1, so pipelines can branch on gate status without parsing output.
+GATE_EXIT_CODES: dict[str, int] = {"OPEN": 0, "PARTIAL": 2, "BLOCKED": 3}
+
 
 @app.callback()
 def main_callback(
@@ -58,7 +68,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.2.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.3.0."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 
@@ -146,6 +156,17 @@ def assess(
         "-i",
         help="Run the step-by-step interactive wizard.",
     ),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="Treat skipped gate-critical items as blocking (implied at --risk-class high).",
+    ),
+    quiet: bool = typer.Option(
+        False,
+        "--quiet",
+        "-q",
+        help="Emit machine-readable JSON only (no progress bars or tables).",
+    ),
 ) -> None:
     """Assess an AI use case against the IKI-Gov checklist."""
     lang = _validated(lang, validate_lang, lang)
@@ -166,7 +187,7 @@ def assess(
         affirmed, skipped_set = _parse_answers(affirm, skip, lang)
 
     scores = compute_scores(affirmed, skipped_set, risk_class)
-    gate_results = evaluate_all_gates(affirmed, skipped_set)
+    gate_results = evaluate_all_gates(affirmed, skipped_set, risk_class, strict)
 
     gates_open = [g for g, r in gate_results.items() if r.status.value == "OPEN"]
 
@@ -179,6 +200,10 @@ def assess(
             "overall_score": scores.overall,
         }
     )
+
+    if quiet:
+        print(render_json(use_case, risk_class, scores, gate_results, affirmed, skipped_set, lang))
+        return
 
     print_assessment(
         console=console,
@@ -221,10 +246,21 @@ def gate(
         "--skip",
         help="Comma-separated list of skipped item IDs.",
     ),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="Treat skipped gate-critical items as blocking (implied at --risk-class high).",
+    ),
     assert_gate: Optional[str] = typer.Option(
         None,
         "--assert-gate",
-        help="Exit 1 if the specified gate is not OPEN (for CI pipelines).",
+        help="Exit with the gate's CI code (0 OPEN / 2 PARTIAL / 3 BLOCKED). Must match --gate.",
+    ),
+    quiet: bool = typer.Option(
+        False,
+        "--quiet",
+        "-q",
+        help="Emit machine-readable JSON only (no progress bars).",
     ),
 ) -> None:
     """Check readiness for a specific IKI-Gov lifecycle gate."""
@@ -234,27 +270,8 @@ def gate(
 
     affirmed, skipped_set = _parse_answers(affirm, skip, lang)
 
-    result = evaluate_gate(gate_id, affirmed, skipped_set)
-
+    result = evaluate_gate(gate_id, affirmed, skipped_set, risk_class, strict)
     status_str = t(result.status.value, lang)
-
-    colour_map = {"OPEN": "green", "PARTIAL": "yellow", "BLOCKED": "red"}
-    colour = colour_map.get(result.status.value, "white")
-
-    console.print(f"\n[bold]{gate_id}[/bold]  [{colour}]{status_str}[/{colour}]", end="")
-
-    if result.blocking_items:
-        blocking_label = t("blocking_label", lang)
-        items_str = ", ".join(
-            f"{item.id} ({item.text(lang)[:50]})" for item in result.blocking_items
-        )
-        console.print(f"  — {blocking_label}: {items_str}", end="")
-    elif result.skipped_items:
-        skip_label = t("skipped_label", lang)
-        items_str = ", ".join(item.id for item in result.skipped_items)
-        console.print(f"  [{skip_label}: {items_str}]", end="")
-
-    console.print()
 
     log_security_event(
         {
@@ -262,25 +279,45 @@ def gate(
             "gate": gate_id,
             "status": result.status.value,
             "risk_class": risk_class,
+            "strict": strict or risk_class == "high",
             "lang": lang,
         }
     )
 
-    if assert_gate:
+    if quiet:
+        print(render_gate_json(result, risk_class, strict, lang))
+    else:
+        colour_map = {"OPEN": "green", "PARTIAL": "yellow", "BLOCKED": "red"}
+        colour = colour_map.get(result.status.value, "white")
+        line = f"\n[bold]{gate_id}[/bold]  [{colour}]{status_str}[/{colour}]"
+        details = gate_detail_segments(result, lang, text_width=50)
+        if details:
+            line += "  — " + " · ".join(details)
+        console.print(line)
+
+    if assert_gate is not None:
         try:
             assert_gate_id = validate_gate(assert_gate)
         except ValidationError as exc:
             err_console.print(f"[red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
 
-        if assert_gate_id == gate_id:
-            if result.status.value != "OPEN":
+        if assert_gate_id != gate_id:
+            err_console.print(
+                f"[red]Error:[/red] --assert-gate {assert_gate_id} does not match --gate {gate_id}."
+            )
+            raise typer.Exit(1)
+
+        code = GATE_EXIT_CODES.get(result.status.value, 1)
+        if code == 0:
+            if not quiet:
+                console.print(f"[green]{t('gate_assert_pass', lang, gate=gate_id)}[/green]")
+        else:
+            if not quiet:
                 err_console.print(
                     f"[red]{t('gate_assert_fail', lang, gate=gate_id, status=status_str)}[/red]"
                 )
-                raise typer.Exit(1)
-            else:
-                console.print(f"[green]{t('gate_assert_pass', lang, gate=gate_id)}[/green]")
+            raise typer.Exit(code)
 
 
 @app.command()
@@ -319,6 +356,11 @@ def report(
         "-f",
         help="Output format: markdown | json.",
     ),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="Treat skipped gate-critical items as blocking (implied at --risk-class high).",
+    ),
 ) -> None:
     """Render an assessment report to stdout (Markdown or JSON).
 
@@ -332,7 +374,7 @@ def report(
     affirmed, skipped_set = _parse_answers(affirm, skip, lang)
 
     scores = compute_scores(affirmed, skipped_set, risk_class)
-    gate_results = evaluate_all_gates(affirmed, skipped_set)
+    gate_results = evaluate_all_gates(affirmed, skipped_set, risk_class, strict)
 
     log_security_event(
         {

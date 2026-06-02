@@ -151,17 +151,102 @@ def test_gate_assert_open_exits_0():
     assert result.exit_code == 0
 
 
-def test_gate_assert_blocked_exits_1():
+def test_gate_assert_blocked_exits_3():
+    # v0.3.0 CI exit codes: BLOCKED -> 3 (distinct from general error 1).
+    result = invoke("gate", "--gate", "G0", "--affirm", "S1", "--assert-gate", "G0")
+    assert result.exit_code == 3
+
+
+def test_gate_assert_partial_exits_2():
+    # PARTIAL (only gaps are skips, at default medium risk) -> exit 2.
+    result = invoke(
+        "gate", "--gate", "G0", "--affirm", "S1,S2", "--skip", "S3", "--assert-gate", "G0"
+    )
+    assert result.exit_code == 2
+
+
+def test_gate_assert_mismatch_exits_1():
+    # --assert-gate must match --gate; mismatch is a usage error -> 1.
+    result = invoke("gate", "--gate", "G0", "--affirm", "S1,S2,S3", "--assert-gate", "G1")
+    assert result.exit_code == 1
+
+
+# ── v0.3.0: risk-class-aware thresholds & --strict ──────────────────────────────
+
+
+def test_gate_low_risk_forgives_skips():
+    # At low risk a gate with only skips (no denials) is OPEN, not PARTIAL.
+    result = invoke(
+        "gate", "--gate", "G0", "--affirm", "S1,S2", "--skip", "S3", "--risk-class", "low"
+    )
+    assert result.exit_code == 0
+    assert "OPEN" in result.output
+
+
+def test_gate_strict_blocks_skips():
+    # --strict turns an otherwise-PARTIAL (skipped) gate into BLOCKED.
+    result = invoke("gate", "--gate", "G0", "--affirm", "S1,S2", "--skip", "S3", "--strict")
+    assert "BLOCKED" in result.output
+
+
+def test_gate_high_risk_implies_strict():
+    # high risk implies strict: a skipped gate item blocks the gate.
+    result = invoke(
+        "gate", "--gate", "G0", "--affirm", "S1,S2", "--skip", "S3", "--risk-class", "high"
+    )
+    assert "BLOCKED" in result.output
+
+
+def test_gate_strict_assert_exits_3():
     result = invoke(
         "gate",
         "--gate",
         "G0",
         "--affirm",
-        "S1",
+        "S1,S2",
+        "--skip",
+        "S3",
+        "--strict",
         "--assert-gate",
         "G0",
     )
-    assert result.exit_code == 1
+    assert result.exit_code == 3
+
+
+# ── v0.3.0: --quiet machine-readable output ─────────────────────────────────────
+
+
+def test_gate_quiet_emits_json():
+    result = invoke("gate", "--gate", "G0", "--affirm", "S1,S2", "--skip", "S3", "--quiet")
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["gate"] == "G0"
+    assert data["status"] == "PARTIAL"
+    assert data["skipped"] == ["S3"]
+
+
+def test_gate_quiet_strict_reports_blocking_skips():
+    result = invoke(
+        "gate", "--gate", "G0", "--affirm", "S1,S2", "--skip", "S3", "--strict", "--quiet"
+    )
+    data = json.loads(result.output)
+    assert data["status"] == "BLOCKED"
+    assert data["blocking_skips"] == ["S3"]
+    assert data["strict"] is True
+
+
+def test_assess_quiet_emits_json():
+    result = invoke("assess", "--affirm", "S1,S2,S3", "--quiet")
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert "scores" in data and "gates" in data and "overall" in data
+
+
+def test_assess_strict_reflected_in_gate_json():
+    result = invoke("assess", "--affirm", "S1,S2", "--skip", "S3", "--strict", "--quiet")
+    data = json.loads(result.output)
+    assert data["gates"]["G0"]["status"] == "BLOCKED"
+    assert data["gates"]["G0"]["blocking_skips"] == ["S3"]
 
 
 def test_gate_german_output():

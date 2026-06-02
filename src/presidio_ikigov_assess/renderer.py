@@ -31,6 +31,35 @@ def _bar(score: float) -> str:
     return _FILLED * filled + _EMPTY * (_BAR_WIDTH - filled)
 
 
+def gate_detail_segments(result: GateResult, lang: str, text_width: int = 0) -> list[str]:
+    """Build the human-readable detail segments for a gate result.
+
+    Lists denied items as blocking, skips that block under strict/high-risk
+    policy separately (so the reason for a BLOCKED-not-PARTIAL gate is visible),
+    and otherwise lists informational skips. *text_width* > 0 appends a truncated
+    item text after each blocking item id.
+    """
+    segments: list[str] = []
+
+    if result.blocking_items:
+        if text_width > 0:
+            items = ", ".join(
+                f"{item.id} ({item.text(lang)[:text_width]})" for item in result.blocking_items
+            )
+        else:
+            items = ", ".join(item.id for item in result.blocking_items)
+        segments.append(f"{t('blocking_label', lang)}: {items}")
+
+    if result.blocking_skips:
+        items = ", ".join(item.id for item in result.blocking_skips)
+        segments.append(f"{t('strict_blocking_label', lang)}: {items}")
+    elif result.skipped_items:
+        items = ", ".join(item.id for item in result.skipped_items)
+        segments.append(f"{t('skipped_label', lang)}: {items}")
+
+    return segments
+
+
 def print_assessment(
     console: Console,
     use_case: str,
@@ -70,16 +99,9 @@ def print_assessment(
         status_str = t(result.status.value, lang)
         line = f"  {gate_id}  [{colour}]{status_str}[/{colour}]"
 
-        if result.blocking_items:
-            blocking_label = t("blocking_label", lang)
-            items_str = ", ".join(
-                f"{item.id} ({item.text(lang)[:40]})" for item in result.blocking_items
-            )
-            line += f"  — {blocking_label}: {items_str}"
-        elif result.skipped_items:
-            skip_label = t("skipped_label", lang)
-            items_str = ", ".join(item.id for item in result.skipped_items)
-            line += f"  [{skip_label}: {items_str}]"
+        details = gate_detail_segments(result, lang, text_width=40)
+        if details:
+            line += "  — " + " · ".join(details)
 
         console.print(line)
 
@@ -134,14 +156,7 @@ def render_markdown(
 
     for gate_id, result in sorted(gate_results.items()):
         status_str = t(result.status.value, lang)
-        detail = ""
-        if result.blocking_items:
-            detail = "; ".join(
-                f"{escape_for_report(item.id)} ({escape_for_report(item.text(lang)[:60])})"
-                for item in result.blocking_items
-            )
-        elif result.skipped_items:
-            detail = f"skipped: {', '.join(item.id for item in result.skipped_items)}"
+        detail = escape_for_report(" · ".join(gate_detail_segments(result, lang, text_width=60)))
         lines.append(f"| {gate_id} | {status_str} | {detail} |")
 
     lines += [
@@ -194,6 +209,7 @@ def build_payload(
                 "status": result.status.value,
                 "blocking": [item.id for item in result.blocking_items],
                 "skipped": [item.id for item in result.skipped_items],
+                "blocking_skips": [item.id for item in result.blocking_skips],
             }
             for gate_id, result in sorted(gate_results.items())
         },
@@ -216,4 +232,24 @@ def render_json(
 ) -> str:
     """Return the assessment report as a JSON string."""
     data = build_payload(use_case, risk_class, scores, gate_results, affirmed, skipped, lang)
+    return json.dumps(data, indent=2, ensure_ascii=False)
+
+
+def render_gate_json(
+    result: GateResult,
+    risk_class: str,
+    strict: bool,
+    lang: str,
+) -> str:
+    """Return a single gate-readiness result as a JSON string (for ``--quiet``)."""
+    data: dict[str, object] = {
+        "gate": result.gate,
+        "status": result.status.value,
+        "risk_class": risk_class,
+        "strict": strict or risk_class == "high",
+        "lang": lang,
+        "blocking": [item.id for item in result.blocking_items],
+        "skipped": [item.id for item in result.skipped_items],
+        "blocking_skips": [item.id for item in result.blocking_skips],
+    }
     return json.dumps(data, indent=2, ensure_ascii=False)

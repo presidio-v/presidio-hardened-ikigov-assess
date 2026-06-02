@@ -105,3 +105,65 @@ def test_gate_result_type():
     result = evaluate_gate("G1", frozenset(), frozenset())
     assert isinstance(result, GateResult)
     assert isinstance(result.status, GateStatus)
+
+
+# ── v0.3.0: risk-class-aware thresholds & strict policy ──────────────────────
+
+
+def _partition_one_skip(gate: str):
+    """Return (affirmed, skipped) where one G0 item is skipped, rest affirmed."""
+    ids = list(_gate_ids(gate))
+    return frozenset(ids[1:]), frozenset([ids[0]])
+
+
+def test_low_risk_forgives_skips_to_open():
+    affirmed, skipped = _partition_one_skip("G0")
+    result = evaluate_gate("G0", affirmed, skipped, risk_class="low")
+    assert result.status == GateStatus.OPEN
+    assert result.blocking_skips == ()
+
+
+def test_medium_risk_skips_stay_partial():
+    affirmed, skipped = _partition_one_skip("G0")
+    result = evaluate_gate("G0", affirmed, skipped, risk_class="medium")
+    assert result.status == GateStatus.PARTIAL
+    assert result.blocking_skips == ()
+
+
+def test_high_risk_skips_block():
+    affirmed, skipped = _partition_one_skip("G0")
+    result = evaluate_gate("G0", affirmed, skipped, risk_class="high")
+    assert result.status == GateStatus.BLOCKED
+    assert {i.id for i in result.blocking_skips} == skipped
+
+
+def test_strict_blocks_skips_at_any_risk():
+    affirmed, skipped = _partition_one_skip("G0")
+    result = evaluate_gate("G0", affirmed, skipped, risk_class="low", strict=True)
+    # strict overrides low-risk forgiveness
+    assert result.status == GateStatus.BLOCKED
+    assert {i.id for i in result.blocking_skips} == skipped
+
+
+def test_strict_all_affirmed_is_open():
+    result = evaluate_gate("G0", _gate_ids("G0"), frozenset(), risk_class="high", strict=True)
+    assert result.status == GateStatus.OPEN
+    assert result.blocking_skips == ()
+
+
+@pytest.mark.parametrize("risk", ["low", "medium", "high"])
+def test_denied_always_blocks_regardless_of_risk(risk):
+    # One denied item (not affirmed, not skipped) blocks at every risk class.
+    ids = list(_gate_ids("G0"))
+    affirmed = frozenset(ids[1:])  # first denied
+    result = evaluate_gate("G0", affirmed, frozenset(), risk_class=risk)
+    assert result.status == GateStatus.BLOCKED
+    assert len(result.blocking_items) == 1
+
+
+def test_evaluate_all_gates_threads_policy():
+    from presidio_ikigov_assess.scoring import all_item_ids
+
+    # Skip everything; at low risk all gates should be OPEN (skips forgiven).
+    results = evaluate_all_gates(frozenset(), all_item_ids(), risk_class="low")
+    assert all(r.status == GateStatus.OPEN for r in results.values())

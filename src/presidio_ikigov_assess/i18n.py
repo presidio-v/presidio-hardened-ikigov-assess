@@ -93,6 +93,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "de": "übersprungen",
         "en": "skipped",
     },
+    "strict_blocking_label": {
+        "de": "blockierend (Skips nicht erlaubt)",
+        "en": "blocking (skips not permitted)",
+    },
     "no_items_affirmed": {
         "de": "Keine Elemente bestätigt.",
         "en": "No items affirmed.",

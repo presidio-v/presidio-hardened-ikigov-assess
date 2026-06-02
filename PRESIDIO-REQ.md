@@ -77,7 +77,7 @@ Every deliberation about future versions and roadmap is persisted here.
 |---|---|---|
 | v0.1.0 | MVP — interactive + parameter-driven assessment, M1–M6 scoring, bilingual | Shipped |
 | v0.2.0 | MCP server — agent-accessible assessment engine (`iga-mcp`) | Shipped |
-| v0.3.0 | Gate readiness refinement, risk-class-aware thresholds, CI exit codes 0/2/3 | Planned |
+| v0.3.0 | Gate readiness refinement, risk-class-aware thresholds, CI exit codes 0/2/3 | Shipped |
 | v0.4.0 | Report export: Markdown and JSON | Planned |
 | v0.5.0 | ISO/IEC 42001 clause-level gap mapping | Planned |
 | v0.6.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |
@@ -229,6 +229,36 @@ Introduce risk-class-aware gate thresholds (low risk: PARTIAL suffices to OPEN a
 | `--strict` | No skips permitted for gate-critical items (implied at `--risk-class high`) |
 | `--assert-gate G2` | Exit with gate-specific code; stackable for pipelines |
 | `--quiet` | Machine-readable JSON output only (no progress bars) |
+
+### Implementation (2026-06-02)
+
+Resolved the deliberated scope as follows:
+
+- **Status policy in `gates.py`.** The gate *partition* (affirmed / denied /
+  skipped) stays policy-free; a pure `_resolve_status(blocking, skipped,
+  risk_class, strict)` maps it to OPEN/PARTIAL/BLOCKED. Low risk forgives skips
+  (OPEN), medium leaves them PARTIAL, high/`--strict` makes them block.
+  `evaluate_gate`/`evaluate_all_gates` gained `risk_class="medium"` and
+  `strict=False` parameters (default = prior v0.1 behaviour, so existing callers
+  are unaffected).
+- **`GateResult.blocking_skips`.** New field listing the skipped items that block
+  under strict/high-risk policy, so a BLOCKED-not-PARTIAL gate can explain *why*.
+  Surfaced in console (`blocking (skips not permitted): …`), Markdown, JSON
+  report (`gates.<G>.blocking_skips`), and the MCP tools.
+- **CI exit codes.** `--assert-gate` now exits `0` OPEN / `2` PARTIAL / `3`
+  BLOCKED; `1` remains the general-error code (invalid input, or `--assert-gate`
+  not matching `--gate`). Mapping lives in `cli.GATE_EXIT_CODES`.
+- **`--strict` / `--quiet`** added to `assess`, `gate`, and (`--strict`) `report`;
+  `--quiet` emits the JSON payload (`render_json`) or single-gate JSON
+  (`render_gate_json`). The MCP `iga_assess` / `iga_check_gate` tools gained a
+  `strict` argument and thread `risk_class` into gate evaluation.
+
+Decision note: `--assert-gate` is constrained to match `--gate` (a mismatch is a
+usage error, exit 1) rather than silently no-opping as in v0.1; "stackable" is
+achieved by running one `iga gate … --assert-gate` per gate in the pipeline.
+
+Tests: 172 total, 94% coverage (gate-policy matrix in `test_gates.py`, exit
+codes / strict / quiet in `test_cli.py`, strict threading in `test_mcp_server.py`).
 
 ---
 

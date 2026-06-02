@@ -178,6 +178,7 @@ def assess(
     risk_class: str = "medium",
     lang: str = "en",
     use_case: str = "unnamed",
+    strict: bool = False,
 ) -> dict:
     """Run a full assessment and return scores, gate readiness and metadata."""
     lang = _validated(lang, validate_lang)
@@ -187,7 +188,7 @@ def assess(
     _guard_session()
 
     scores = compute_scores(affirm_ids, skip_ids, risk_class)
-    gate_results = evaluate_all_gates(affirm_ids, skip_ids)
+    gate_results = evaluate_all_gates(affirm_ids, skip_ids, risk_class, strict)
     payload = build_payload(use_case, risk_class, scores, gate_results, affirm_ids, skip_ids, lang)
 
     gates_open = [g for g, r in gate_results.items() if r.status.value == "OPEN"]
@@ -209,6 +210,7 @@ def gate_status(
     skipped: Optional[list[str]] = None,
     risk_class: str = "medium",
     lang: str = "en",
+    strict: bool = False,
 ) -> dict:
     """Evaluate readiness for a single IKI-Gov lifecycle gate (G0–G5)."""
     lang = _validated(lang, validate_lang)
@@ -216,13 +218,14 @@ def gate_status(
     risk_class = _validated(risk_class, validate_risk_class)
     affirm_ids, skip_ids = _prepare_answers(affirmed, skipped)
 
-    result = evaluate_gate(gate, affirm_ids, skip_ids)
+    result = evaluate_gate(gate, affirm_ids, skip_ids, risk_class, strict)
     log_security_event(
         {
             "event": "iga-mcp-gate-check",
             "gate": gate,
             "status": result.status.value,
             "risk_class": risk_class,
+            "strict": strict or risk_class == "high",
             "lang": lang,
         }
     )
@@ -233,7 +236,11 @@ def gate_status(
         "status_label": t(result.status.value, lang),
         "blocking": [{"id": item.id, "text": item.text(lang)} for item in result.blocking_items],
         "skipped": [{"id": item.id, "text": item.text(lang)} for item in result.skipped_items],
+        "blocking_skips": [
+            {"id": item.id, "text": item.text(lang)} for item in result.blocking_skips
+        ],
         "risk_class": risk_class,
+        "strict": strict or risk_class == "high",
         "lang": lang,
     }
 
@@ -280,6 +287,7 @@ def build_server():
         risk_class: str = "medium",
         lang: str = "en",
         use_case: str = "unnamed",
+        strict: bool = False,
     ) -> dict:
         """Assess an AI use case against the IKI-Gov checklist.
 
@@ -287,10 +295,12 @@ def build_server():
         evidence (e.g. ``["S1", "S2", "D1"]``); ``skipped`` lists IDs marked
         not-applicable (excluded from scoring). Any item neither affirmed nor
         skipped counts as denied. ``risk_class`` is low|medium|high and scales
-        item weights; ``lang`` is de|en. Returns per-dimension M1–M6 scores,
-        overall maturity, and OPEN/PARTIAL/BLOCKED readiness for every gate.
+        item weights; ``lang`` is de|en. ``strict`` (implied at high risk) makes
+        skipped gate-critical items block their gate. Returns per-dimension
+        M1–M6 scores, overall maturity, and gate readiness, where a gate is
+        OPEN/PARTIAL/BLOCKED under the active risk policy.
         """
-        return assess(affirmed, skipped, risk_class, lang, use_case)
+        return assess(affirmed, skipped, risk_class, lang, use_case, strict)
 
     @server.tool()
     def iga_check_gate(
@@ -299,14 +309,17 @@ def build_server():
         skipped: Optional[list[str]] = None,
         risk_class: str = "medium",
         lang: str = "en",
+        strict: bool = False,
     ) -> dict:
         """Check readiness for one IKI-Gov lifecycle gate (``gate``: G0–G5).
 
-        Returns the gate's transition label, status (OPEN if every mapped item
-        is affirmed, PARTIAL if the only gaps are skips, BLOCKED if any mapped
-        item is denied), and the blocking/skipped items with their text.
+        Returns the gate's transition label and status under the active risk
+        policy: OPEN (every mapped item affirmed; at low risk, skips are
+        forgiven), PARTIAL (only gaps are skips, at medium risk), or BLOCKED
+        (any mapped item denied, or — under ``strict``/high risk — skipped).
+        ``blocking_skips`` lists skips that block the gate under strict policy.
         """
-        return gate_status(gate, affirmed, skipped, risk_class, lang)
+        return gate_status(gate, affirmed, skipped, risk_class, lang, strict)
 
     return server
 

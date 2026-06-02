@@ -36,8 +36,15 @@ iga assess --interactive --lang de --risk-class high --use-case "kredit-scoring"
 iga gate --gate G2 --risk-class high \
     --affirm S1,S2,S3,D1,D2,T1,T4,O1,I1 --lang en
 
-# CI pipeline gate assertion (exits 1 if G1 not OPEN)
+# CI pipeline gate assertion (exit 0 OPEN / 2 PARTIAL / 3 BLOCKED)
 iga gate --gate G1 --risk-class high --affirm S1,S2,D1,D2 --assert-gate G1
+
+# Strict mode: skipped gate-critical items count as blocking
+iga gate --gate G2 --risk-class high --affirm S1,S2 --skip D3 --strict --assert-gate G2
+
+# Machine-readable JSON (scriptable, no progress bars)
+iga assess --affirm S1,S2,S3 --quiet
+iga gate --gate G0 --affirm S1,S2 --skip S3 --quiet
 
 # Export report to Markdown (stdout)
 iga report --use-case "fraud-scoring" --risk-class high \
@@ -116,7 +123,35 @@ Skipped items are excluded from both numerator and denominator (conservative).
 | G4 | Betrieb → Anpassung |
 | G5 | Anpassung → Außerbetriebnahme |
 
-Status: **OPEN** (all affirmed) · **PARTIAL** (some skipped, none denied) · **BLOCKED** (≥1 denied)
+**Status:** **OPEN** (all affirmed) · **PARTIAL** (some skipped, none denied) · **BLOCKED** (≥1 denied)
+
+### Risk-class-aware thresholds (v0.3.0)
+
+How skips are treated depends on the active risk class:
+
+| Risk class | Skipped gate-critical items |
+|------------|-----------------------------|
+| `low` | forgiven — a gate with skips but no denials is **OPEN** |
+| `medium` | tolerated — the gate is **PARTIAL** until they are affirmed |
+| `high` | not permitted — skips **BLOCK** the gate (strict by default) |
+
+`--strict` forces high-risk behaviour at any risk class. When a skip blocks a gate,
+it is reported separately (`blocking_skips`) so the reason for a BLOCKED-not-PARTIAL
+gate is explicit.
+
+### CI exit codes
+
+`--assert-gate Gn` exits with a status-specific code so pipelines can branch without
+parsing output:
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | gate OPEN |
+| `2` | gate PARTIAL |
+| `3` | gate BLOCKED |
+| `1` | general error (invalid input, gate mismatch) |
+
+`--quiet` (`-q`) on `assess` and `gate` emits machine-readable JSON only.
 
 ---
 
@@ -178,8 +213,8 @@ Security controls built into the tool:
 | Version | Theme | Status |
 |---------|-------|--------|
 | v0.1.0 | MVP — interactive + parameter-driven assessment, M1–M6 scoring, bilingual | Released |
-| v0.2.0 | MCP server — agent-accessible assessment engine (`iga-mcp`) | Current |
-| v0.3.0 | Gate readiness refinement, CI exit codes 0/2/3, `--strict` flag | Planned |
+| v0.2.0 | MCP server — agent-accessible assessment engine (`iga-mcp`) | Released |
+| v0.3.0 | Gate readiness refinement, CI exit codes 0/2/3, `--strict` flag | Current |
 | v0.4.0 | Report export to file (Markdown and JSON) | Planned |
 | v0.5.0 | ISO/IEC 42001 clause-level gap mapping | Planned |
 | v0.6.0 | Portfolio mode: multiple use cases, SQLite persistence | Planned |

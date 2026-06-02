@@ -158,6 +158,31 @@ def test_gate_status_rejects_bad_gate():
         gate_status("G9")
 
 
+def test_gate_status_low_risk_forgives_skips():
+    from presidio_ikigov_assess.checklist import ITEMS_BY_GATE
+
+    ids = [item.id for item in ITEMS_BY_GATE["G0"]]
+    result = gate_status("G0", affirmed=ids[1:], skipped=[ids[0]], risk_class="low")
+    assert result["status"] == "OPEN"
+    assert result["blocking_skips"] == []
+
+
+def test_gate_status_strict_blocks_skips():
+    from presidio_ikigov_assess.checklist import ITEMS_BY_GATE
+
+    ids = [item.id for item in ITEMS_BY_GATE["G0"]]
+    result = gate_status("G0", affirmed=ids[1:], skipped=[ids[0]], strict=True)
+    assert result["status"] == "BLOCKED"
+    assert [b["id"] for b in result["blocking_skips"]] == [ids[0]]
+    assert result["strict"] is True
+
+
+def test_assess_strict_reflected_in_gates():
+    payload = assess(affirmed=["S1", "S2"], skipped=["S3"], strict=True)
+    assert payload["gates"]["G0"]["status"] == "BLOCKED"
+    assert payload["gates"]["G0"]["blocking_skips"] == ["S3"]
+
+
 # ── FastMCP wiring (only when the optional mcp package is installed) ──────────
 
 
