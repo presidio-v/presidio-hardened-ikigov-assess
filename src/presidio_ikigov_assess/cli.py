@@ -57,10 +57,13 @@ from presidio_ikigov_assess.sanitize import (
 )
 from presidio_ikigov_assess.scoring import compute_scores
 from presidio_ikigov_assess.security import (
+    DepCheckResult,
+    SessionLimitError,
     dep_check_available,
-    increment_and_check_session_count,
+    dep_check_status,
+    enforce_persistent_session_limit,
     log_security_event,
-    run_dep_check,
+    session_limit,
 )
 from presidio_ikigov_assess.trend import TrendError, compute_trend, select_trend_pair
 
@@ -90,7 +93,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.8.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.8.1."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 
@@ -103,11 +106,16 @@ def _run_dep_check_quietly() -> None:
         err_console.print(f"[dim]{t('dep_check_unavailable', 'en')}[/dim]")
         return
     err_console.print(f"[dim]{t('dep_check_start', 'en')}[/dim]")
-    ok = run_dep_check(verbose=False)
-    if ok:
+    status = dep_check_status(verbose=False)
+    if status is DepCheckResult.CLEAN:
         err_console.print(f"[dim]{t('dep_check_ok', 'en')}[/dim]")
-    else:
+    elif status is DepCheckResult.VULNERABLE:
         err_console.print(f"[yellow]{t('dep_check_warn', 'en')}[/yellow]")
+    elif status is DepCheckResult.UNAVAILABLE:
+        err_console.print(f"[dim]{t('dep_check_unavailable', 'en')}[/dim]")
+    else:
+        # Inconclusive (timeout / tool error): do not imply the scan was clean.
+        err_console.print(f"[yellow]{t('dep_check_inconclusive', 'en')}[/yellow]")
 
 
 def _parse_answers(
@@ -200,7 +208,11 @@ def assess(
     use_case = _validated(use_case, validate_use_case, lang)
     risk_class = _validated(risk_class, validate_risk_class, lang)
 
-    increment_and_check_session_count()
+    try:
+        enforce_persistent_session_limit()
+    except SessionLimitError:
+        err_console.print(f"[red]{t('rate_limit_exceeded', lang, limit=session_limit())}[/red]")
+        raise typer.Exit(1)
 
     if interactive:
         from presidio_ikigov_assess.wizard import run_wizard
@@ -452,6 +464,13 @@ def report(
     if out_path is None:
         print(report_text)
         return
+
+    # Refuse to write through a symlink: an attacker who can pre-plant a symlink
+    # at the destination could otherwise redirect the write to a file outside
+    # the intended target.
+    if Path(out_path).is_symlink():
+        err_console.print(f"[red]Error:[/red] {t('output_is_symlink', lang, path=out_path)}")
+        raise typer.Exit(1)
 
     try:
         Path(out_path).write_text(report_text + "\n", encoding="utf-8")

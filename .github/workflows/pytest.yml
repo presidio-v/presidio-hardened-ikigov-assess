@@ -24,7 +24,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          # Upgrade the build toolchain so the CI environment does not ship
+          # known-vulnerable setuptools/wheel (CVE-2024-6345, PYSEC-2025-49,
+          # CVE-2026-24049). pip resolves dependencies from the locked tree.
+          python -m pip install --upgrade pip setuptools wheel
           pip install -e ".[dev]"
 
       - name: Lint with ruff

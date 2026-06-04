@@ -4,7 +4,24 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | Yes       |
+| 0.8.x   | Yes       |
+| < 0.8   | No        |
+
+### Supported Python runtimes
+
+| Python | Supported |
+|--------|-----------|
+| 3.10 – 3.12 | Yes |
+| 3.9    | v0.8.x only — **dropped in v0.9.0** |
+
+**Planned change (v0.9.0): minimum Python rises to 3.10+.** The security-patched
+`urllib3` line (2.7.0+) no longer supports Python 3.9, so on 3.9 the dev/audit
+dependency chain stays pinned to a vulnerable `urllib3` with no 3.9-compatible
+fix. `urllib3` is *not* a runtime dependency of the core package (so end-user
+installs on 3.9 are unaffected today), but to let the entire locked tree —
+including CI/audit tooling — resolve to patched releases, v0.9.0 raises
+`requires-python` to `>=3.10`. Python 3.9 is also upstream end-of-life as of
+October 2025.
 
 ## Reporting a Vulnerability
 
@@ -33,10 +50,18 @@ within 30 days of a confirmed vulnerability.
 - **Secure logging** — the security event log (`~/.iga/security.log`) records only structural
   metadata (event type, risk class, gate status, language). No use-case content, organisational
   data, or secrets are written to log output.
-- **Dependency CVE check** — on each invocation the tool attempts a `pip-audit` scan of the
-  installed environment. Suppress with `--no-dep-check` in offline or CI contexts.
+- **Dependency CVE check** — when `pip-audit` is installed (the `audit` or `dev` extra),
+  the tool runs it on each invocation against the installed environment. The check is
+  advisory: a *clean*, *unavailable* (pip-audit not installed), and *inconclusive*
+  (timeout/error) result are reported distinctly so a non-completing scan is never
+  presented as "no vulnerabilities". Suppress with `--no-dep-check` in offline or CI contexts.
 - **Rate limiting** — the tool enforces a configurable maximum number of assessments per
-  session (`IGA_MAX_ASSESSMENTS` env var, default 100).
+  session (`IGA_MAX_ASSESSMENTS` env var, default 100). The CLI uses a *persistent*
+  per-session guard (`~/.iga/session.json`) so the limit holds across one-shot invocations;
+  a session resets after an idle gap of `IGA_SESSION_IDLE_SECONDS` (default 3600s). The
+  long-lived MCP server uses an in-process counter for the lifetime of the server.
+  Malformed values for these env vars fall back to the documented defaults with a warning
+  rather than aborting the tool.
 - **Restricted file permissions** — `~/.iga/` is created with mode `700` and the security
   log file with mode `600`.
 

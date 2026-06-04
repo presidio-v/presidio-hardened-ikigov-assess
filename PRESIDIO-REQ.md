@@ -39,7 +39,11 @@ The checklist content is drawn directly from the five appendix sections of the I
 
 ## Technical Requirements
 
-- Python 3.9+
+- Python 3.9+ for the v0.1.0–v0.8.x line. **Minimum rises to Python 3.10+ in
+  v0.9.0** (see the v0.9.0 platform decision and cross-cutting decisions table) so
+  the whole dependency tree can resolve to security-patched releases — the patched
+  `urllib3` line dropped 3.9, leaving the dev/audit toolchain pinned to a
+  vulnerable version on 3.9 only.
 - Modern `pyproject.toml` + hatchling/uv + Typer CLI
 - `src/presidio_ikigov_assess/` layout
 - Commands:
@@ -563,6 +567,27 @@ versions, so any report can cite exactly which inputs produced it. Reproducible:
 the same answers + same content versions produce an identical manifest (modulo
 timestamp).
 
+### Platform decision — drop Python 3.9 (added 2026-06-04)
+
+**Decision:** v0.9.0 raises the minimum supported runtime to **Python 3.10+**.
+`requires-python` becomes `>=3.10`, the `3.9` Trove classifier and the `3.9` CI
+matrix entry are removed, and the `mcp` extra's `python_version >= '3.10'` marker
+becomes unconditional (the core already requires 3.10).
+
+**Rationale (from the v0.8.1 security audit, finding M-2):** the security-patched
+`urllib3` line (2.7.0+) dropped Python 3.9, so on 3.9 the dev/audit dependency
+chain (`pip-audit` → `requests` → `urllib3`) stays pinned to the vulnerable
+`urllib3 2.6.3` with no 3.9-compatible fix available. Dropping 3.9 lets the entire
+locked tree — including the dev/CI toolchain — resolve to patched releases and
+removes the only residual advisory from the audit. Python 3.9 also reaches
+upstream end-of-life in October 2025, so this aligns the project with supported
+runtimes. It additionally simplifies the codebase (no more 3.9-vs-3.10 dependency
+markers; `from __future__ import annotations` boilerplate can be revisited).
+
+**Migration note:** no API or behaviour change for users on 3.10+. Users still on
+3.9 must upgrade their interpreter; this is a packaging-metadata change, announced
+in the v0.9.0 release notes and reflected in `SECURITY.md` supported versions.
+
 ---
 
 ## v0.10.0 — Pluggable Regulatory-Content Provider Interface
@@ -658,6 +683,7 @@ Builds on v0.2.0 (MCP), v0.6.0 (persistence), v0.10.0 (content packs).
 | Interactive before ISO mapping | Organizations need the base assessment before clause-level gaps are actionable |
 | No PDF export | Avoids heavy dependencies (weasyprint/reportlab) in early versions; Markdown→PDF is user's responsibility |
 | Gate exit codes 0/2/3 from v0.2 | Enables CI pipeline integration without string-parsing output |
+| Drop Python 3.9 in v0.9.0 (min → 3.10+) | Patched `urllib3` (2.7.0+) dropped 3.9, leaving the dev/audit chain on a vulnerable pin (audit M-2); 3.9 is also upstream EOL (Oct 2025). Lets the whole locked tree resolve to patched releases. |
 
 ## SDLC
 

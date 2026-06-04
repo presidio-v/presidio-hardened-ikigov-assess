@@ -85,8 +85,36 @@ def validate_item_ids(raw: str) -> list[str]:
 
 
 def escape_for_report(value: str) -> str:
-    """HTML-escape a string for safe embedding in Markdown or JSON reports."""
+    """HTML-escape a string for safe embedding in report output.
+
+    NOTE: the primary defence against injection is *input* allow-listing
+    (e.g. ``validate_use_case`` restricts names to ``[A-Za-z0-9_-]``); this
+    output escaping is defence-in-depth. HTML-escaping alone does not neutralise
+    Markdown link/image/table syntax — use :func:`escape_markdown` for fields
+    rendered into Markdown.
+    """
     return html.escape(str(value), quote=True)
+
+
+# Markdown metacharacters that can inject structure (links, images, emphasis,
+# code, tables, headings, lists). Backslash-escaped after HTML-escaping. ``&``,
+# ``<`` and ``>`` are already entity-encoded by html.escape, so they are not
+# repeated here; ``-``, ``.`` and ``_`` are intentionally omitted — they are
+# inline-safe, appear in legitimate identifiers, and are already constrained by
+# the input allow-lists (e.g. validate_use_case).
+_MARKDOWN_SPECIALS = r"\`*{}[]()#+!|~"
+_MARKDOWN_TRANSLATION = {ord(ch): f"\\{ch}" for ch in _MARKDOWN_SPECIALS}
+
+
+def escape_markdown(value: str) -> str:
+    """Escape a string for safe embedding in Markdown.
+
+    HTML-escapes first (so the value is also safe if the Markdown is rendered to
+    HTML), then backslash-escapes Markdown-significant characters so user-derived
+    text cannot inject links, tables, or other structure. Defence-in-depth: the
+    primary control remains input allow-listing.
+    """
+    return html.escape(str(value), quote=True).translate(_MARKDOWN_TRANSLATION)
 
 
 _MAX_PATH_LEN = 4096

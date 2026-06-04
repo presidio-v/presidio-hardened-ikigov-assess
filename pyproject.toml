@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "presidio-hardened-ikigov-assess"
-version = "0.8.0"
+version = "0.8.1"
 description = "IKI-Gov Assessment Tool — operationalises the Integrated KI-Governance Reference Model for AI use-case governance."
 readme = "README.md"
 license = { file = "LICENSE" }

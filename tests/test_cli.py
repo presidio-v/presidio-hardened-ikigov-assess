@@ -389,6 +389,28 @@ def test_report_empty_output_path_exits_1():
     assert result.exit_code == 1
 
 
+def test_report_output_symlink_rejected(tmp_path):
+    # L-4: writing through a symlink is refused so the write cannot be redirected.
+    victim = tmp_path / "victim.md"
+    link = tmp_path / "link.md"
+    link.symlink_to(victim)
+    result = invoke("report", "--affirm", "S1", "--output", str(link))
+    assert result.exit_code == 1
+    assert not victim.exists()
+
+
+def test_assess_persistent_rate_limit_blocks(monkeypatch):
+    # M-1: the persistent CLI guard blocks once the limit is exceeded, and the
+    # state survives across invocations (separate runner calls = the same store).
+    import presidio_ikigov_assess.security as sec
+
+    monkeypatch.setattr(sec, "_MAX_ASSESSMENTS", 2)
+    assert invoke("assess", "-u", "a", "-r", "low", "--affirm", "S1", "-q").exit_code == 0
+    assert invoke("assess", "-u", "b", "-r", "low", "--affirm", "S1", "-q").exit_code == 0
+    blocked = invoke("assess", "-u", "c", "-r", "low", "--affirm", "S1", "-q")
+    assert blocked.exit_code == 1
+
+
 def test_report_html_escaped_use_case():
     result = invoke(
         "report",

@@ -5,6 +5,7 @@ import pytest
 from presidio_ikigov_assess.sanitize import (
     ValidationError,
     escape_for_report,
+    escape_markdown,
     validate_date,
     validate_format,
     validate_gate,
@@ -14,6 +15,35 @@ from presidio_ikigov_assess.sanitize import (
     validate_risk_class,
     validate_use_case,
 )
+
+# ── escape_markdown (I-1: Markdown-aware output escaping) ────────────────────
+
+
+def test_escape_markdown_neutralises_link_injection():
+    out = escape_markdown("[click](http://evil)")
+    assert "[click]" not in out
+    assert "\\[click\\]" in out
+    assert "\\(" in out and "\\)" in out
+
+
+def test_escape_markdown_neutralises_table_and_emphasis():
+    out = escape_markdown("a|b *bold* `code`")
+    assert "\\|" in out
+    assert "\\*bold\\*" in out
+    assert "\\`code\\`" in out
+
+
+def test_escape_markdown_html_escapes_angle_brackets():
+    out = escape_markdown("<script>")
+    assert "&lt;" in out and "&gt;" in out
+    assert "<script>" not in out
+
+
+def test_escape_markdown_preserves_benign_identifier_chars():
+    # Hyphens, underscores and dots are inline-safe and allow-listed; they must
+    # not be mangled so legitimate use-case names render cleanly.
+    assert escape_markdown("fraud-scoring_v1.2") == "fraud-scoring_v1.2"
+
 
 # ── validate_output_path (v0.4.0) ───────────────────────────────────────────
 

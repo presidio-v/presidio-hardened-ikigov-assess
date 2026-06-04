@@ -194,6 +194,16 @@ STRINGS: dict[str, dict[str, str]] = {
         "de": "Hinweis: Abhängigkeitsprüfung hat das Zeitlimit überschritten.",
         "en": "Note: Dependency check timed out.",
     },
+    "dep_check_inconclusive": {
+        "de": "Warnung: Abhängigkeitsprüfung ergebnislos (Zeitlimit/Fehler). "
+        "Kein sauberes Ergebnis — bitte pip-audit manuell ausführen.",
+        "en": "Warning: dependency check inconclusive (timeout/error). "
+        "Not a clean result — run pip-audit manually to confirm.",
+    },
+    "output_is_symlink": {
+        "de": "Ausgabepfad ist ein symbolischer Link; Schreiben abgelehnt: '{path}'.",
+        "en": "Output path is a symbolic link; refusing to write: '{path}'.",
+    },
     "rate_limit_exceeded": {
         "de": "Sitzungslimit erreicht. Maximal {limit} Bewertungen pro Sitzung erlaubt.",
         "en": "Session limit reached. Maximum {limit} assessments per session allowed.",
