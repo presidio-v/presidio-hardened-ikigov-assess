@@ -7,6 +7,22 @@
 | 0.8.x   | Yes       |
 | < 0.8   | No        |
 
+### Supported Python runtimes
+
+| Python | Supported |
+|--------|-----------|
+| 3.10 – 3.12 | Yes |
+| 3.9    | v0.8.x only — **dropped in v0.9.0** |
+
+**Planned change (v0.9.0): minimum Python rises to 3.10+.** The security-patched
+`urllib3` line (2.7.0+) no longer supports Python 3.9, so on 3.9 the dev/audit
+dependency chain stays pinned to a vulnerable `urllib3` with no 3.9-compatible
+fix. `urllib3` is *not* a runtime dependency of the core package (so end-user
+installs on 3.9 are unaffected today), but to let the entire locked tree —
+including CI/audit tooling — resolve to patched releases, v0.9.0 raises
+`requires-python` to `>=3.10`. Python 3.9 is also upstream end-of-life as of
+October 2025.
+
 ## Reporting a Vulnerability
 
 Please report security vulnerabilities by opening a private GitHub Security Advisory
