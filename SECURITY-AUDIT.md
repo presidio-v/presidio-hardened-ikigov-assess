@@ -29,7 +29,7 @@ local, single-user CLI plus an optional stdio MCP server.
 | ID | Severity | Title | Status |
 |----|----------|-------|--------|
 | M-1 | Medium | Per-session rate limit is inert for the CLI (resets every process) | **Fixed** |
-| M-2 | Medium | Known-vulnerable dependencies present in the runtime/build environment | Mitigated / documented |
+| M-2 | Medium | Known-vulnerable dependencies present in the runtime/build environment | **Fixed** |
 | L-1 | Low | Malformed `IGA_MAX_ASSESSMENTS` crashes the tool at import (availability) | **Fixed** |
 | L-2 | Low | Startup dependency check fails open on every non-"1" outcome | **Fixed** |
 | L-3 | Low | File-permission TOCTOU window on `security.log` and `assessments.db` | **Fixed** |
@@ -50,7 +50,7 @@ The suite remains green: **286 passed, ~96% coverage**, `ruff` lint + format cle
 | ID | What changed |
 |----|--------------|
 | M-1 | New **persistent, cross-process** CLI session guard (`security.enforce_persistent_session_limit`) backed by `~/.iga/session.json` with an idle-reset window (`IGA_SESSION_IDLE_SECONDS`, default 3600s). The CLI `assess` now enforces it (exit 1 + localised message when exceeded). The in-memory counter is retained for the long-lived MCP server, where it is correct. Verified: invocations 1–2 pass, 3+ blocked across separate processes. |
-| M-2 | `SECURITY.md` clarified; Dependabot (already present) tracks updates. Recommend refreshing `uv.lock`/CI image so `setuptools`/`wheel`/`urllib3`/`idna` resolve to patched releases (an environment/release action, not a code change). |
+| M-2 | Refreshed `uv.lock`: `idna` 3.11 → **3.18** and `urllib3` 2.6.3 → **2.7.0** (Python ≥3.10) clear their advisories — verified with `pip-audit`. The CI workflow now upgrades the build toolchain (`pip install --upgrade pip setuptools wheel`), which resolves `setuptools` 68.1.2 → **82.0.1** and `wheel` 0.42.0 → **0.47.0** (verified clean in a fresh venv). **Residual (accepted):** on Python 3.9 only, the dev/audit-only `requests`→`urllib3` chain keeps `urllib3` 2.6.3, because the patched 2.7.0 line dropped 3.9; `urllib3` is not a runtime dependency of the core package (only `typer`/`rich`/`prompt_toolkit` are), so end-user installs are unaffected. |
 | L-1 | `security._read_int_env` parses int env vars defensively — malformed → default + stderr warning; below-minimum → clamped. No more import-time crash. |
 | L-2 | New `security.dep_check_status` returns a tri-state (`CLEAN`/`VULNERABLE`/`UNAVAILABLE`/`INCONCLUSIVE`); the CLI prints distinct messages so a timeout/error is never shown as "no vulnerabilities". `run_dep_check` kept as the fail-open boolean wrapper. |
 | L-3 | `security.log` and `assessments.db` are now created with mode `0o600` **atomically** (`os.open(..., O_CREAT, 0o600)` / pre-create before `sqlite3.connect`), closing the open-then-chmod window. The `chmod` is kept as a fallback. |
@@ -64,8 +64,10 @@ The suite remains green: **286 passed, ~96% coverage**, `ruff` lint + format cle
 `~/.iga` (security log + session state) to a per-test temp dir, so the suite no
 longer touches the real user home and tests cannot leak session state.
 
-A patch release (e.g. `0.8.1`) is recommended to ship these fixes; the version
-bump itself is left to the maintainer.
+These fixes ship as **v0.8.1** (`pyproject.toml`, `__init__.__version__`, CLI
+banner all bumped). Dependency advisories were cleared by refreshing `uv.lock`
+and upgrading the CI build toolchain; see the M-2 row above for the residual
+Python-3.9-only, dev-tooling-only `urllib3` note.
 
 ---
 
