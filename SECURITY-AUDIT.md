@@ -26,19 +26,46 @@ and (2) **robustness / fail-open gaps** in the startup dependency check and an
 environment-variable parse. None are remotely exploitable; the threat model is a
 local, single-user CLI plus an optional stdio MCP server.
 
-| ID | Severity | Title |
-|----|----------|-------|
-| M-1 | Medium | Per-session rate limit is inert for the CLI (resets every process) |
-| M-2 | Medium | Known-vulnerable dependencies present in the runtime/build environment |
-| L-1 | Low | Malformed `IGA_MAX_ASSESSMENTS` crashes the tool at import (availability) |
-| L-2 | Low | Startup dependency check fails open on every non-"1" outcome |
-| L-3 | Low | File-permission TOCTOU window on `security.log` and `assessments.db` |
-| L-4 | Low | `report --output` follows symlinks / traverses / overwrites without guard |
-| I-1 | Info | `escape_for_report` is the wrong sanitiser for Markdown and JSON (works only because input is allow-listed) |
-| I-2 | Info | No integrity/authenticity protection on the local store or log |
-| I-3 | Info | CodeQL workflow runs `continue-on-error: true` |
-| I-4 | Info | `SECURITY.md` "Supported Versions" is stale (lists 0.1.x; project is 0.8.0) |
-| I-5 | Info | CVE check is best-effort: silently no-ops when `pip-audit` is not installed |
+| ID | Severity | Title | Status |
+|----|----------|-------|--------|
+| M-1 | Medium | Per-session rate limit is inert for the CLI (resets every process) | **Fixed** |
+| M-2 | Medium | Known-vulnerable dependencies present in the runtime/build environment | Mitigated / documented |
+| L-1 | Low | Malformed `IGA_MAX_ASSESSMENTS` crashes the tool at import (availability) | **Fixed** |
+| L-2 | Low | Startup dependency check fails open on every non-"1" outcome | **Fixed** |
+| L-3 | Low | File-permission TOCTOU window on `security.log` and `assessments.db` | **Fixed** |
+| L-4 | Low | `report --output` follows symlinks / traverses / overwrites without guard | **Fixed** (symlink) |
+| I-1 | Info | `escape_for_report` is the wrong sanitiser for Markdown and JSON (works only because input is allow-listed) | **Fixed** |
+| I-2 | Info | No integrity/authenticity protection on the local store or log | Accepted (roadmap v0.9.0) |
+| I-3 | Info | CodeQL workflow runs `continue-on-error: true` | **Fixed** (scoped to upload) |
+| I-4 | Info | `SECURITY.md` "Supported Versions" is stale (lists 0.1.x; project is 0.8.0) | **Fixed** |
+| I-5 | Info | CVE check is best-effort: silently no-ops when `pip-audit` is not installed | **Fixed** (documented + distinct messaging) |
+
+---
+
+## Remediation summary (2026-06-04)
+
+All actionable findings were remediated on branch `claude/security-audit-2s64K`.
+The suite remains green: **286 passed, ~96% coverage**, `ruff` lint + format clean.
+
+| ID | What changed |
+|----|--------------|
+| M-1 | New **persistent, cross-process** CLI session guard (`security.enforce_persistent_session_limit`) backed by `~/.iga/session.json` with an idle-reset window (`IGA_SESSION_IDLE_SECONDS`, default 3600s). The CLI `assess` now enforces it (exit 1 + localised message when exceeded). The in-memory counter is retained for the long-lived MCP server, where it is correct. Verified: invocations 1–2 pass, 3+ blocked across separate processes. |
+| M-2 | `SECURITY.md` clarified; Dependabot (already present) tracks updates. Recommend refreshing `uv.lock`/CI image so `setuptools`/`wheel`/`urllib3`/`idna` resolve to patched releases (an environment/release action, not a code change). |
+| L-1 | `security._read_int_env` parses int env vars defensively — malformed → default + stderr warning; below-minimum → clamped. No more import-time crash. |
+| L-2 | New `security.dep_check_status` returns a tri-state (`CLEAN`/`VULNERABLE`/`UNAVAILABLE`/`INCONCLUSIVE`); the CLI prints distinct messages so a timeout/error is never shown as "no vulnerabilities". `run_dep_check` kept as the fail-open boolean wrapper. |
+| L-3 | `security.log` and `assessments.db` are now created with mode `0o600` **atomically** (`os.open(..., O_CREAT, 0o600)` / pre-create before `sqlite3.connect`), closing the open-then-chmod window. The `chmod` is kept as a fallback. |
+| L-4 | `report --output` now refuses to write through a symlinked destination (exit 1). Normal paths unchanged. |
+| I-1 | New `sanitize.escape_markdown` (HTML-escape + backslash-escape of structural Markdown metacharacters) used for the use-case in Markdown output; benign identifier chars (`- . _`, already allow-listed) are preserved. Docstrings now state that input allow-listing is the load-bearing control. |
+| I-3 | `continue-on-error` moved from the whole CodeQL job to only the analyze/upload step, so checkout/init/autobuild failures still fail CI. |
+| I-4 | `SECURITY.md` supported-versions table updated to `0.8.x`. |
+| I-5 | `SECURITY.md` wording corrected to reflect that the CVE check requires the `audit`/`dev` extra and reports unavailable/inconclusive distinctly. |
+
+**Test isolation hardening:** added `tests/conftest.py` (autouse) that redirects
+`~/.iga` (security log + session state) to a per-test temp dir, so the suite no
+longer touches the real user home and tests cannot leak session state.
+
+A patch release (e.g. `0.8.1`) is recommended to ship these fixes; the version
+bump itself is left to the maintainer.
 
 ---
 

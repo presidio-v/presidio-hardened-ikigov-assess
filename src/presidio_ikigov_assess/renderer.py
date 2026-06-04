@@ -13,7 +13,7 @@ from presidio_ikigov_assess.euaiact import ArticleCoverage
 from presidio_ikigov_assess.gates import GateResult, GateStatus
 from presidio_ikigov_assess.i18n import RISK_LABEL_KEY, t
 from presidio_ikigov_assess.iso import ClauseCoverage, Coverage
-from presidio_ikigov_assess.sanitize import escape_for_report
+from presidio_ikigov_assess.sanitize import escape_for_report, escape_markdown
 from presidio_ikigov_assess.scoring import AssessmentScores
 from presidio_ikigov_assess.trend import TrendResult
 
@@ -153,7 +153,7 @@ def render_markdown(
     lang: str,
 ) -> str:
     """Return the assessment report as a Markdown string."""
-    safe_use_case = escape_for_report(use_case)
+    safe_use_case = escape_markdown(use_case)
     risk_label = t(RISK_LABEL_KEY[risk_class], lang)
     title = t("assessment_title", lang)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

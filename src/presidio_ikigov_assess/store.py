@@ -57,6 +57,13 @@ def _connect() -> sqlite3.Connection:
     """Open the database, creating the directory, file (0o600), and schema."""
     path = db_path()
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # Pre-create the DB file with 0o600 before sqlite opens it, so there is no
+    # world-readable window between sqlite's create-under-umask and the chmod.
+    if not path.exists():
+        try:
+            os.close(os.open(path, os.O_CREAT | os.O_WRONLY, 0o600))
+        except OSError:
+            pass  # fall back to sqlite creating it + the chmod below
     conn = sqlite3.connect(path)
     conn.execute(_SCHEMA)
     conn.commit()
