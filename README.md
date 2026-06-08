@@ -18,6 +18,9 @@ pip install presidio-hardened-ikigov-assess
 
 # With dependency CVE checking
 pip install "presidio-hardened-ikigov-assess[audit]"
+
+# With Ed25519 public-key evidence verification
+pip install "presidio-hardened-ikigov-assess[crypto]"
 ```
 
 ---
@@ -240,6 +243,64 @@ a hard delete — no soft-delete log is retained.
 
 ---
 
+## External Evidence
+
+Affirmations can be backed by **signed evidence** emitted by peer `presidio-hardened-*`
+controls (first producer: `presidio-hardened-ai`), upgrading an item from *self-attested*
+to *evidence-backed* — or cryptographically **verified** against a local trust store.
+Verification is fail-closed: a missing, malformed, or wrong signature never counts as verified.
+
+```bash
+# Affirm items from an evidence document, verifying signatures against a trust store
+iga assess --use-case "fraud-scoring" --risk-class high \
+    --evidence evidence.json --trust trust.json
+
+# Fail-closed: only references that verify against --trust affirm their item
+iga assess --use-case "fraud-scoring" --risk-class high \
+    --evidence evidence.json --trust trust.json --require-evidence
+
+# Verify a document on its own (exit 0 only if every reference verifies)
+iga verify-evidence --evidence evidence.json --trust trust.json
+```
+
+An **evidence document** is the producer's `EvidenceRef` JSON:
+
+```json
+{
+  "schema": "presidio-hardened/evidence-ref@1",
+  "use_case": "fraud-scoring",
+  "evidence": [
+    {
+      "item_id": "D1",
+      "source": "presidio-hardened-ai",
+      "source_version": "0.2.0",
+      "ledger_ref": "pai-ledger:seq/0",
+      "content_hash": "abc123def456",
+      "signer": "presidio-hardened-ai",
+      "signature": "2e7af6d2…",
+      "claimed_at": "2026-06-08T00:00:00+00:00"
+    }
+  ]
+}
+```
+
+A **trust store** maps each signer to its key. An entry is either a bare HMAC secret
+(back-compat) or an object declaring the algorithm and key material:
+
+```json
+{
+  "presidio-hardened-ai": "shared-hmac-secret",
+  "peer-control": { "alg": "ed25519", "public_key": "<64-hex-char public key>" }
+}
+```
+
+Ed25519 (RFC 8032) public-key verification lets a verifier hold **only public keys** — no
+shared secret with the producer — and requires the `[crypto]` extra. Signatures are over the
+canonical `{content_hash, signer}` message; signer keys are resolved from the local trust
+store only (no network). Evidence references carry hashes and opaque ledger URIs, never PII.
+
+---
+
 ## MCP Server
 
 The assessment engine is also available as a [Model Context Protocol](https://modelcontextprotocol.io)
@@ -272,6 +333,7 @@ Register it with an MCP client (e.g. Claude Desktop) by adding to the client's c
 | `iga_framework_info` | Describe the model: lifecycle phases, dimensions M1–M6, gates G0–G5, sections, risk classes (de/en) |
 | `iga_list_checklist` | Return all 25 checklist items with IDs, text, dimension, gates, and section |
 | `iga_assess` | Score a use case from affirmed/skipped item IDs → M1–M6 scores, overall maturity, gate readiness |
+| `iga_assess_with_evidence` | Score a use case from signed `EvidenceRef` documents, verifying signatures against a trust store (HMAC or Ed25519) |
 | `iga_check_gate` | Evaluate readiness for a single gate G0–G5 with blocking/skipped items |
 | `iga_iso_gap` | Map affirmed items to ISO/IEC 42001 clause coverage (covered / partial / gap) |
 | `iga_euaiact_gap` | Map to EU AI Act high-risk obligations Art. 9–17 (OPEN / PARTIAL / BLOCKED) |
