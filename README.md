@@ -354,6 +354,25 @@ abuse guard (returning a tool error rather than terminating the server when exce
 
 ---
 
+## Evidence-Pack Export (v0.15.0)
+
+Export a signed, audit-ready bundle of an assessment and verify it later:
+
+```bash
+# Write report.md + report.json + manifest.json (sha256 of each artifact + framework hash).
+iga export --use-case fraud-scoring --risk-class high --affirm S1,S2,D1 \
+    --bundle audit/fraud-scoring/ --sign-key "$SEAL_KEY"
+
+# Re-hash artifacts against the manifest (and check the optional HMAC seal).
+iga verify-bundle --bundle audit/fraud-scoring/ --sign-key "$SEAL_KEY"
+```
+
+The `manifest.json` content-hashes every artifact and records a `framework_content_hash`
+pinning the checklist + ISO/EU AI Act mappings that produced the assessment, so any later
+edit is detected by `verify-bundle`. Use `--zip` to emit a `.zip`. (PDF rendering and a
+public-key manifest signature are deferred; the hash manifest + optional HMAC seal are the
+integrity baseline.)
+
 ## Security
 
 See [SECURITY.md](SECURITY.md) for the full security policy.

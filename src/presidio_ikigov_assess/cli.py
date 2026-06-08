@@ -23,6 +23,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
+from presidio_ikigov_assess import bundle as bundle_mod
 from presidio_ikigov_assess import evidence as evidence_mod
 from presidio_ikigov_assess import store
 from presidio_ikigov_assess.euaiact import evaluate_euaiact
@@ -95,7 +96,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.14.1."""
+    """IKI-Gov Assessment Tool (iga) — v0.15.0."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 
@@ -624,6 +625,101 @@ def report(
     # typer.echo (not rich): avoids Rich markup interpretation of the user-supplied
     # path and line-wrapping that would split a long path across lines.
     typer.echo(t("report_written", lang, path=out_path), err=True)
+
+
+@app.command()
+def export(
+    use_case: str = typer.Option("unnamed", "--use-case", "-u", help="AI use-case identifier."),
+    risk_class: str = typer.Option(
+        "medium", "--risk-class", "-r", help="Risk class: low|medium|high."
+    ),
+    lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
+    affirm: Optional[str] = typer.Option(
+        None, "--affirm", help="Comma-separated affirmed item IDs."
+    ),
+    skip: Optional[str] = typer.Option(None, "--skip", help="Comma-separated skipped item IDs."),
+    strict: bool = typer.Option(
+        False, "--strict", help="Treat skipped gate-critical items as blocking."
+    ),
+    bundle: str = typer.Option(..., "--bundle", help="Output directory (or .zip with --zip)."),
+    as_zip: bool = typer.Option(
+        False, "--zip", help="Write a .zip archive instead of a directory."
+    ),
+    sign_key: Optional[str] = typer.Option(
+        None, "--sign-key", help="HMAC key to seal the manifest."
+    ),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
+) -> None:
+    """Export a signed, audit-ready evidence pack (report + hash manifest) for an assessment."""
+    lang = _validated(lang, validate_lang, lang)
+    use_case = _validated(use_case, validate_use_case, lang)
+    risk_class = _validated(risk_class, validate_risk_class, lang)
+    bundle = _validated(bundle, validate_output_path, lang)
+    affirmed, skipped_set = _parse_answers(affirm, skip, lang)
+
+    scores = compute_scores(affirmed, skipped_set, risk_class)
+    gate_results = evaluate_all_gates(affirmed, skipped_set, risk_class, strict)
+    report_md = render_markdown(
+        use_case, risk_class, scores, gate_results, affirmed, skipped_set, lang
+    )
+    report_json = render_json(
+        use_case, risk_class, scores, gate_results, affirmed, skipped_set, lang
+    )
+
+    try:
+        out = bundle_mod.write_bundle(
+            bundle,
+            report_md=report_md,
+            report_json=report_json,
+            use_case=use_case,
+            risk_class=risk_class,
+            as_zip=as_zip,
+            sign_key=sign_key,
+        )
+    except (OSError, bundle_mod.BundleError) as exc:
+        err_console.print(f"[red]Error:[/red] could not write evidence pack: {exc}")
+        raise typer.Exit(1) from exc
+
+    log_security_event(
+        {"event": "iga-export", "as_zip": as_zip, "signed": sign_key is not None, "lang": lang}
+    )
+    if quiet:
+        print(json.dumps({"bundle": str(out), "signed": sign_key is not None, "zip": as_zip}))
+    else:
+        console.print(f"[green]Evidence pack written to: {out}[/green]")
+
+
+@app.command(name="verify-bundle")
+def verify_bundle(
+    bundle: str = typer.Option(..., "--bundle", help="Evidence-pack directory or .zip to verify."),
+    sign_key: Optional[str] = typer.Option(
+        None, "--sign-key", help="HMAC key to check the manifest seal."
+    ),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
+) -> None:
+    """Verify an evidence pack: re-hash artifacts vs the manifest (and optional signature)."""
+    bundle = _validated(bundle, validate_output_path, "en")
+    try:
+        report = bundle_mod.verify_bundle(bundle, sign_key=sign_key)
+    except bundle_mod.BundleError as exc:
+        err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    log_security_event({"event": "iga-verify-bundle", "ok": report["ok"]})
+    if quiet:
+        print(json.dumps(report))
+    else:
+        for name, ok in report["artifacts"].items():
+            colour = "green" if ok else "red"
+            console.print(f"[{colour}]{'OK  ' if ok else 'FAIL'}[/{colour}] {name}")
+        if report["signature"] is not None:
+            sig_ok = report["signature"]
+            console.print(
+                f"[{'green' if sig_ok else 'red'}]manifest signature: "
+                f"{'valid' if sig_ok else 'INVALID'}[/]"
+            )
+    if not report["ok"]:
+        raise typer.Exit(1)
 
 
 @app.command(name="iso-gap")

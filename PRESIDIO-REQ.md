@@ -87,13 +87,14 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.6.0 | Portfolio mode: SQLite persistence, `list` / `portfolio` / `delete` | Shipped |
 | v0.7.0 | Maturity trending: delta between runs (`iga trend`) | Shipped |
 | v0.8.0 | EU AI Act gate→article mapping (`iga euaiact-gap`) | Shipped |
-| v0.9.0 | Evidence-pack export: signed, audit-ready report bundle + manifest | Planned |
+| v0.9.0 | Evidence-pack export: signed, audit-ready report bundle + manifest | Shipped as v0.15.0 |
 | v0.10.0 | Pluggable regulatory-content provider interface (versioned content packs) | Planned |
 | v0.11.0 | NIST AI RMF mapping + framework-agnostic coverage core | Planned |
 | v0.12.0 | Remote MCP endpoint: HTTP/SSE transport, org context, auth | Planned |
 | v0.13.0 | External evidence-backed affirmation: consume signed evidence from peer `presidio-hardened-*` controls (first producer: `presidio-hardened-ai`) | Shipped |
 | v0.14.0 | Public-key (Ed25519) evidence verification: trust-store `{alg, public_key}` entries + `verify_ref` dispatch (`[crypto]` extra) | Shipped |
-| v0.14.1 | Key rotation: multiple active public keys per signer (`public_key`/`key` may be a list; verify against any) | **Current** |
+| v0.14.1 | Key rotation: multiple active public keys per signer (`public_key`/`key` may be a list; verify against any) | Shipped |
+| v0.15.0 | Signed evidence-pack export: `iga export` / `iga verify-bundle` (realises the v0.9.0 feature) | **Current** |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -879,6 +880,39 @@ at load rather than silently failing verification.
 ### Compatibility
 `load_trust_store` now returns normalised `{alg, material}` entries (was raw strings);
 `verify_ref` still accepts bare-string trust values directly, so existing callers work.
+
+---
+
+## v0.15.0 — Signed Evidence-Pack Export (realises v0.9.0)
+
+**Deliberated:** 2026-06-08
+
+### Scope decision
+Implement the long-planned **evidence-pack export** (roadmap label v0.9.0; released as
+v0.15.0 since the package version has overtaken the old label). `iga export` writes a
+self-contained, tamper-evident bundle of an assessment — `report.md` + `report.json` plus
+a `manifest.json` that **sha256-hashes every artifact** and records the
+`framework_content_hash` (the checklist text + ISO matrix + EU AI Act gate→article table
+in force). `iga verify-bundle` re-hashes the artifacts against the manifest. The hash
+manifest is the integrity baseline; an **optional detached HMAC signature** over the
+manifest (`--sign-key`) seals the bundle as a whole.
+
+### Components
+`bundle.py`: `framework_content_hash`, `build_manifest`, `write_bundle` (directory or
+`--zip`), `verify_bundle` (fail-closed re-hash + optional signature check). CLI: `iga
+export --bundle DIR [--zip] [--sign-key KEY]` and `iga verify-bundle --bundle … [--sign-key …]`.
+
+### Acceptance criteria (each maps to a test)
+1. `framework_content_hash` is stable; the manifest carries per-artifact sha256 + the
+   framework hash. *(test_bundle)*
+2. A written bundle verifies; tampering any artifact makes `verify_bundle` fail-closed. *(test_bundle)*
+3. With `--sign-key`, the manifest seal verifies; a wrong key fails. *(test_bundle)*
+4. Directory and `.zip` bundles both round-trip; a bundle without a manifest raises. *(test_bundle)*
+5. CLI `export` then `verify-bundle` succeed; a tampered member makes `verify-bundle` exit 1. *(test_bundle)*
+
+### Deferred (per the original v0.9.0 deliberation)
+PDF rendering (heavy dep) and a public-key (Ed25519/sigstore) manifest signature — the
+HMAC seal is the baseline; Ed25519 signing can reuse the v0.14.x crypto path later.
 
 ---
 
