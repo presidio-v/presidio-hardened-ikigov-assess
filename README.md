@@ -294,6 +294,16 @@ A **trust store** maps each signer to its key. An entry is either a bare HMAC se
 }
 ```
 
+For **key rotation**, `public_key` (or `key` for HMAC) may be a **list** — a signature
+verifies if it matches any listed key, so a new key can run alongside the old one during an
+overlap window; revoke by removing the key from the store:
+
+```json
+{
+  "peer-control": { "alg": "ed25519", "public_key": ["<new public key>", "<retiring key>"] }
+}
+```
+
 Ed25519 (RFC 8032) public-key verification lets a verifier hold **only public keys** — no
 shared secret with the producer — and requires the `[crypto]` extra. Signatures are over the
 canonical `{content_hash, signer}` message; signer keys are resolved from the local trust
