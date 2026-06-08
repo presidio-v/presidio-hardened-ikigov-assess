@@ -92,7 +92,8 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.11.0 | NIST AI RMF mapping + framework-agnostic coverage core | Planned |
 | v0.12.0 | Remote MCP endpoint: HTTP/SSE transport, org context, auth | Planned |
 | v0.13.0 | External evidence-backed affirmation: consume signed evidence from peer `presidio-hardened-*` controls (first producer: `presidio-hardened-ai`) | Shipped |
-| v0.14.0 | Public-key (Ed25519) evidence verification: trust-store `{alg, public_key}` entries + `verify_ref` dispatch (`[crypto]` extra) | **Current** |
+| v0.14.0 | Public-key (Ed25519) evidence verification: trust-store `{alg, public_key}` entries + `verify_ref` dispatch (`[crypto]` extra) | Shipped |
+| v0.14.1 | Key rotation: multiple active public keys per signer (`public_key`/`key` may be a list; verify against any) | **Current** |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -811,6 +812,33 @@ end-to-end. Resolved as follows:
 Tests: full suite green (302 passed); `test_evidence.py` covers parse/verify/classify/
 coverage, the producer-cross-validated golden vector, the `assess`/`verify-evidence` CLI,
 and the MCP tool.
+
+---
+
+## v0.14.1 — Key Rotation (Multiple Keys per Signer)
+
+**Deliberated:** 2026-06-08
+
+### Scope decision
+Support **key rotation** for the public-key signing baseline: a signer's trust entry may
+list **several** keys (`"public_key": ["<new>", "<old>"]`, likewise `"key"` for HMAC), and
+`verify_ref` succeeds if the signature matches **any** of them. This lets an operator add a
+new key, switch the producer to it, and retire the old one — with an overlap window during
+which evidence signed under either key still verifies. Verifier-only: the producer is
+unchanged (it just signs with its current key). Trust entries normalise to `{alg, keys}`
+(a list); a bare string or single value still works.
+
+### Acceptance criteria (each maps to a test)
+1. A ref verifies when its key is one of several listed (Ed25519 and HMAC). *(test_evidence)*
+2. Fail-closed when none of the listed keys match. *(test_evidence)*
+3. An empty key list is rejected at load. *(test_evidence)*
+4. Single-value and bare-string entries remain back-compatible. *(test_evidence)*
+
+### Security
+No key-id is added to `EvidenceRef` (the contract is unchanged); the verifier tries each
+listed key. Trying N keys is N Ed25519 verifications per ref — fine for the small key sets
+rotation needs. Rotation is the verifier's policy; revocation = remove the key from the
+trust store.
 
 ---
 

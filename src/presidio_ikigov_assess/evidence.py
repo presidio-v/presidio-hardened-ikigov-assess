@@ -140,32 +140,39 @@ def _require_crypto():
     return ed25519
 
 
-def _normalise_entry(signer: str, value: object) -> dict[str, str]:
-    """Normalise a trust entry to ``{'alg', 'material'}``.
+def _normalise_entry(signer: str, value: object) -> dict[str, object]:
+    """Normalise a trust entry to ``{'alg', 'keys'}`` (``keys`` is always a list).
 
     A bare string is an HMAC secret (back-compat). An object declares the signer's
-    algorithm and key material:
-    ``{'alg': 'hmac-sha256'|'ed25519', 'key'|'public_key': '<hex/secret>'}``.
+    algorithm and key material, which may be a single value **or a list** so a signer
+    can have several active keys during rotation:
+    ``{'alg': 'hmac-sha256'|'ed25519', 'key'|'public_key': '<hex>' | ['<hex>', ...]}``.
     """
     if isinstance(value, str):
-        return {"alg": "hmac-sha256", "material": value}
+        return {"alg": "hmac-sha256", "keys": [value]}
     if isinstance(value, Mapping):
         alg = value.get("alg", "hmac-sha256")
         if alg not in SIGNING_ALGORITHMS:
             raise EvidenceError(f"trust entry '{signer}': unknown alg {alg!r}")
-        material = value.get("public_key") if alg == "ed25519" else value.get("key")
-        material = material if material is not None else value.get("key") or value.get("public_key")
-        if not isinstance(material, str) or not material:
-            raise EvidenceError(f"trust entry '{signer}': missing key material")
-        return {"alg": alg, "material": material}
+        raw = value.get("public_key") if alg == "ed25519" else value.get("key")
+        raw = raw if raw is not None else (value.get("key") or value.get("public_key"))
+        keys = [raw] if isinstance(raw, str) else raw
+        if (
+            not isinstance(keys, list)
+            or not keys
+            or not all(isinstance(k, str) and k for k in keys)
+        ):
+            raise EvidenceError(f"trust entry '{signer}': missing or invalid key material")
+        return {"alg": alg, "keys": list(keys)}
     raise EvidenceError(f"trust entry '{signer}': must be a string or an object")
 
 
-def load_trust_store(text: str) -> dict[str, dict[str, str]]:
-    """Parse a trust-store JSON document into normalised ``{'alg', 'material'}`` entries.
+def load_trust_store(text: str) -> dict[str, dict[str, object]]:
+    """Parse a trust-store JSON document into normalised ``{'alg', 'keys'}`` entries.
 
     Each signer maps to either a bare HMAC-secret string (back-compat) or an object
-    ``{'alg': 'hmac-sha256'|'ed25519', 'key'|'public_key': '<hex>'}``. Fails fast if an
+    ``{'alg': 'hmac-sha256'|'ed25519', 'key'|'public_key': '<hex>' | ['<hex>', ...]}``.
+    A list of keys supports rotation (any listed key may verify). Fails fast if an
     Ed25519 entry is present but the ``[crypto]`` extra is missing.
     """
     try:
@@ -204,19 +211,19 @@ def verify_ref(ref: EvidenceRef, trust: Mapping[str, object]) -> bool:
     """Verify a ref's signature against the trust store (timing-safe, fail-closed).
 
     A trust value may be a bare HMAC-secret string (back-compat) or a normalised
-    ``{'alg', 'material'}`` entry from :func:`load_trust_store` (HMAC or Ed25519).
+    ``{'alg', 'keys'}`` entry from :func:`load_trust_store`. Verification succeeds if
+    the signature matches **any** listed key, which is what allows key rotation.
     """
     entry = trust.get(ref.signer)
     if entry is None:
         return False
     norm = (
         entry
-        if isinstance(entry, Mapping) and "material" in entry
+        if isinstance(entry, Mapping) and "keys" in entry
         else _normalise_entry(ref.signer, entry)
     )
-    if norm["alg"] == "ed25519":
-        return _verify_ed25519(ref.content_hash, ref.signer, ref.signature, norm["material"])
-    return _verify_hmac(ref.content_hash, ref.signer, ref.signature, norm["material"])
+    verify = _verify_ed25519 if norm["alg"] == "ed25519" else _verify_hmac
+    return any(verify(ref.content_hash, ref.signer, ref.signature, key) for key in norm["keys"])
 
 
 @dataclass(frozen=True)

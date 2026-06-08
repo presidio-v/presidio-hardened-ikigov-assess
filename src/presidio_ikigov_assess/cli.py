@@ -95,7 +95,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.14.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.14.1."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 

@@ -1,3 +1,3 @@
 """IKI-Gov Assessment Tool — presidio-hardened-ikigov-assess."""
 
-__version__ = "0.14.0"
+__version__ = "0.14.1"

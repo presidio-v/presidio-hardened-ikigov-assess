@@ -88,6 +88,7 @@ controls in force:
   (RFC 8032) public-key verification means a verifier holds only public keys — no shared
   secret with the producer. Ed25519 entries require the `[crypto]` extra; `load_trust_store`
   fails fast with a clear message if it is missing rather than failing verification silently.
+- **Key rotation (v0.14.1)** — a signer's trust entry may list multiple keys (`public_key`/`key` as a list); `verify_ref` accepts a match against any, enabling rotation with an overlap window. Revocation is removing the key from the trust store.
 - **Structured logging** — `iga-evidence-attached` / `iga-evidence-verified` events record
   reference/verification counts only — no evidence content and no ledger-ref value.
 

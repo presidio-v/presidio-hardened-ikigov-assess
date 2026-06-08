@@ -92,7 +92,7 @@ def test_bad_hex_signature_rejected():
 
 def test_load_trust_store():
     # String entries normalise to HMAC; verify_ref still accepts bare strings too.
-    assert load_trust_store('{"a": "k"}') == {"a": {"alg": "hmac-sha256", "material": "k"}}
+    assert load_trust_store('{"a": "k"}') == {"a": {"alg": "hmac-sha256", "keys": ["k"]}}
     with pytest.raises(EvidenceError):
         load_trust_store('{"a": 1}')
 
@@ -239,8 +239,30 @@ def test_load_trust_store_accepts_string_and_object_entries():
             }
         )
     )
-    assert store["hmac-signer"] == {"alg": "hmac-sha256", "material": "secret"}
-    assert store[GOLDEN_SIGNER] == {"alg": "ed25519", "material": ED_PUB}
+    assert store["hmac-signer"] == {"alg": "hmac-sha256", "keys": ["secret"]}
+    assert store[GOLDEN_SIGNER] == {"alg": "ed25519", "keys": [ED_PUB]}
+
+
+def test_key_rotation_multiple_public_keys():
+    # A signer with several active keys: the ref (signed by ED_PUB's key) verifies
+    # even when ED_PUB is listed alongside an unrelated key (rotation window).
+    other = "00" * 32
+    rotating = {GOLDEN_SIGNER: {"alg": "ed25519", "public_key": [other, ED_PUB]}}
+    assert verify_ref(_ed_ref(), rotating) is True
+    # None of the listed keys match -> fail-closed.
+    assert (
+        verify_ref(_ed_ref(), {GOLDEN_SIGNER: {"alg": "ed25519", "public_key": [other]}}) is False
+    )
+
+
+def test_key_rotation_hmac_list():
+    rotating = {GOLDEN_SIGNER: {"alg": "hmac-sha256", "key": ["stale-secret", GOLDEN_KEY]}}
+    assert verify_ref(_ref(), rotating) is True
+
+
+def test_trust_entry_empty_key_list_rejected():
+    with pytest.raises(EvidenceError):
+        load_trust_store(json.dumps({"s": {"alg": "ed25519", "public_key": []}}))
 
 
 def test_load_trust_store_rejects_unknown_alg():
