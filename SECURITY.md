@@ -107,17 +107,28 @@ HMAC-sealed audit bundle. The controls in force:
 
 ## Remote MCP Endpoint (v0.18.0)
 
-The networked MCP endpoint (`iga-mcp-remote`, `[mcp]` extra) is multi-tenant:
+> **Status: primitives only — not yet deployment-ready.** v0.18.0 ships the *verifiable
+> building blocks* for a multi-tenant networked endpoint, each defined and unit-tested in
+> `remote.py`. It does **not** yet ship a server that enforces them: `serve()` is thin,
+> transport-only scaffolding that does not wire the auth/isolation/rate-limit checks into the
+> request pipeline. **Do not expose `iga-mcp-remote` on an untrusted network** until that
+> wiring (and a concurrency-safe replacement for the env-var store scoping below) lands.
+
+The intended multi-tenant model and the primitives provided:
 
 - **Token authentication** — bearer tokens are stored only as sha256 hashes
   (`{org: token_hash}`); `resolve_org` is timing-safe and fail-closed (an unknown or empty
   token authenticates no org).
 - **Per-org isolation** — each org's assessments live in their own SQLite database; the org
-  id is allow-list validated so a tenant cannot traverse out of its store directory.
+  id is allow-list validated so a tenant cannot traverse out of its store directory. Note the
+  current `org_store` scopes the DB via the process-global `IGA_DB_PATH` env var, which is
+  **not safe under concurrent requests** — request-local scoping is required before serving
+  real tenants.
 - **Per-org rate limiting** — a configurable per-org request cap (`IGA_MCP_MAX_PER_ORG`)
   generalises the per-session abuse guard.
-- The HTTP transport is thin wiring; the auth/isolation/limit invariants are enforced in
-  `remote.py` and unit-tested. TLS and bind address are deployment configuration.
+
+These invariants are defined and unit-tested in `remote.py` but are **not** enforced by the
+running server yet (see status note above). TLS and bind address are deployment configuration.
 
 ## Software Development Lifecycle
 
