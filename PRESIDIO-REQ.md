@@ -98,7 +98,8 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.16.0 | Pluggable content packs: `content/` core + `iga content-list` / `iga framework-gap` (realises v0.10.0) | Shipped |
 | v0.16.1 | Evidence-pack seal key off argv: `--sign-key-file` / `$IGA_SIGN_KEY` for `export` / `verify-bundle` | Shipped |
 | v0.17.0 | NIST AI RMF built-in content pack (realises v0.11.0; works via `framework-gap`, no engine change) | Shipped |
-| v0.18.0 | Remote MCP endpoint: token auth + per-org store isolation + per-org rate limiting (`iga-mcp-remote`, realises v0.12.0) | **Current** |
+| v0.18.0 | Remote MCP endpoint primitives: token auth, per-org store scoping, per-org rate limiting (`remote.py`, realises v0.12.0) | Shipped |
+| v0.19.0 | Remote endpoint enforcement: pure-ASGI `OrgAuthMiddleware` wires auth (401) + per-org rate limit (429) ahead of the MCP app; concurrency-safe context-var store scoping | **Current** |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -918,12 +919,46 @@ console script.
 Bearer tokens are stored only as sha256 hashes (`{org: token_hash}`); auth is timing-safe
 and fail-closed. Org ids are allow-list validated, so a tenant cannot escape its store
 directory. Per-org rate limiting bounds abuse. Transport specifics (TLS termination, bind
-address) are deployment configuration; the auth/isolation/limit invariants are enforced in
-code and tested.
+address) are deployment configuration. The auth/isolation/limit invariants are *defined and
+unit-tested* here; **wiring them into the running server is v0.19.0.**
 
 ### Completes the roadmap
 With v0.18.0 the planned v0.9.0–v0.12.0 line is fully delivered (as v0.15.0–v0.18.0),
 alongside the pulled-forward v0.13.0–v0.14.1.
+
+---
+
+## v0.19.0 — Remote Endpoint Enforcement (hardening of v0.18.0)
+
+**Deliberated:** 2026-06-08
+
+### Scope decision
+v0.18.0 shipped correct, tested primitives but `serve()` did not actually enforce them, and
+`org_store` scoped the DB via a process-global env var (unsafe under concurrent requests).
+v0.19.0 closes both: a pure-ASGI `OrgAuthMiddleware` wraps the FastMCP streamable-HTTP app
+and authenticates + rate-limits every request before it reaches the MCP app; store scoping
+moves to a per-task context var.
+
+### Components
+`store.use_db_path`/`reset_db_path` + a `_db_path_override` context var (precedence: context
+override → `IGA_DB_PATH` → default), so scoping is request-local and concurrency-safe.
+`remote.OrgAuthMiddleware` (pure ASGI, not `BaseHTTPMiddleware`): bearer→org via
+`resolve_org` (401 on failure), `OrgRateLimiter.check` (429 over cap), then binds the org DB
+path for the request. `serve()` runs `build_asgi_app()` under uvicorn.
+
+### Acceptance criteria (each maps to a test)
+1. Missing or invalid bearer token → 401; the downstream app is never reached. *(test_remote)*
+2. Valid token → 200, with the store bound to that org's DB for the in-request task. *(test_remote)*
+3. Per-org rate limit → 429 past the cap; independent per org. *(test_remote)*
+4. The DB-path override is context-local (a copied context sees it; the outer does not). *(test_remote)*
+
+### Security — isolation scope and known limitation
+Authentication and rate limiting are enforced unconditionally (rejection precedes the MCP
+app). The per-request context-var DB binding, however, does **not** reach MCP tools: the
+streamable-HTTP transport runs tool execution in a separate **session** task. This is safe
+today because all registered MCP tools are **stateless** (no store access). Exposing any
+store-backed tool remotely would require binding the org to the MCP *session* — explicitly
+deferred. Documented in SECURITY.md and in `OrgAuthMiddleware`.
 
 ---
 

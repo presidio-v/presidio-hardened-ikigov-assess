@@ -105,30 +105,28 @@ HMAC-sealed audit bundle. The controls in force:
   yields `ok=false` and a non-zero exit; hash and signature comparisons are constant-time.
 
 
-## Remote MCP Endpoint (v0.18.0)
+## Remote MCP Endpoint (v0.18.0 primitives, v0.19.0 enforcement)
 
-> **Status: primitives only — not yet deployment-ready.** v0.18.0 ships the *verifiable
-> building blocks* for a multi-tenant networked endpoint, each defined and unit-tested in
-> `remote.py`. It does **not** yet ship a server that enforces them: `serve()` is thin,
-> transport-only scaffolding that does not wire the auth/isolation/rate-limit checks into the
-> request pipeline. **Do not expose `iga-mcp-remote` on an untrusted network** until that
-> wiring (and a concurrency-safe replacement for the env-var store scoping below) lands.
+The networked endpoint (`iga-mcp-remote`, `[mcp]` extra) wraps the FastMCP streamable-HTTP
+app in a pure-ASGI guard (`OrgAuthMiddleware`) that runs **before** the MCP app:
 
-The intended multi-tenant model and the primitives provided:
+- **Token authentication — enforced.** Every request must carry a `Bearer` token that
+  resolves to an org via the token store (`{org: sha256(token)}`); `resolve_org` is
+  timing-safe (`hmac.compare_digest`) and fail-closed. Missing/unknown tokens get **401**
+  before any MCP processing. Tokens are stored only as sha256 hashes.
+- **Per-org rate limiting — enforced.** A configurable per-org request cap
+  (`IGA_MCP_MAX_PER_ORG`) returns **429** once exceeded; counts are per org.
+- **Per-org store scoping** — the org's database path is bound on a per-task **context var**
+  (concurrency-safe; it replaced the earlier process-global `IGA_DB_PATH` mutation). The org
+  id is allow-list validated, so a tenant id cannot traverse out of its store directory.
 
-- **Token authentication** — bearer tokens are stored only as sha256 hashes
-  (`{org: token_hash}`); `resolve_org` is timing-safe and fail-closed (an unknown or empty
-  token authenticates no org).
-- **Per-org isolation** — each org's assessments live in their own SQLite database; the org
-  id is allow-list validated so a tenant cannot traverse out of its store directory. Note the
-  current `org_store` scopes the DB via the process-global `IGA_DB_PATH` env var, which is
-  **not safe under concurrent requests** — request-local scoping is required before serving
-  real tenants.
-- **Per-org rate limiting** — a configurable per-org request cap (`IGA_MCP_MAX_PER_ORG`)
-  generalises the per-session abuse guard.
-
-These invariants are defined and unit-tested in `remote.py` but are **not** enforced by the
-running server yet (see status note above). TLS and bind address are deployment configuration.
+**Isolation scope / known limitation.** The streamable-HTTP transport dispatches tool
+execution to a separate **session** task, so the per-request context-var binding does *not*
+reach the MCP tools. This is safe today because **all registered MCP tools are stateless**
+(none read or write the store), so no per-tenant persisted data is exposed over the endpoint.
+**Before exposing any store-backed tool remotely**, isolation must be re-established by binding
+the org to the MCP *session* (not the request). TLS and bind address are deployment
+configuration.
 
 ## Software Development Lifecycle
 

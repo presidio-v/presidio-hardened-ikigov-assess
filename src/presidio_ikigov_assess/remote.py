@@ -25,6 +25,7 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 
+from presidio_ikigov_assess import store
 from presidio_ikigov_assess.sanitize import ValidationError, validate_use_case
 
 _ORG_ROOT_ENV = "IGA_ORG_ROOT"
@@ -82,17 +83,17 @@ def org_db_path(org: str, root: Path | None = None) -> Path:
 
 @contextmanager
 def org_store(org: str, root: Path | None = None) -> Iterator[Path]:
-    """Scope the shared store to *org* by pointing ``IGA_DB_PATH`` at its database."""
+    """Scope the shared store to *org*'s database for the current context.
+
+    Binds a context var (not the process-global ``IGA_DB_PATH`` env var), so concurrent
+    requests for different orgs never observe each other's database.
+    """
     path = org_db_path(org, root)
-    previous = os.environ.get("IGA_DB_PATH")
-    os.environ["IGA_DB_PATH"] = str(path)
+    token = store.use_db_path(path)
     try:
         yield path
     finally:
-        if previous is None:
-            os.environ.pop("IGA_DB_PATH", None)
-        else:
-            os.environ["IGA_DB_PATH"] = previous
+        store.reset_db_path(token)
 
 
 def _max_per_org() -> int:
@@ -119,6 +120,86 @@ class OrgRateLimiter:
             raise RemoteError(f"rate limit exceeded for org '{org}' ({self.max_per_org})")
 
 
+def _bearer_token(scope: Mapping) -> str:
+    """Extract the bearer token from an ASGI scope's Authorization header (else '')."""
+    for key, value in scope.get("headers", []):
+        if key == b"authorization":
+            text = value.decode("latin-1")
+            return text[7:].strip() if text[:7].lower() == "bearer " else ""
+    return ""
+
+
+async def _reject(send, status: int, message: str) -> None:
+    """Send a minimal JSON error response and end the request."""
+    body = json.dumps({"error": message}).encode("utf-8")
+    await send(
+        {
+            "type": "http.response.start",
+            "status": status,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode("ascii")),
+            ],
+        }
+    )
+    await send({"type": "http.response.body", "body": body})
+
+
+class OrgAuthMiddleware:
+    """Pure-ASGI guard: authenticate the bearer token to an org and enforce the per-org
+    rate limit before the request reaches the MCP app.
+
+    Authentication (401) and rate limiting (429) are enforced here unconditionally — the
+    request is rejected before ``self.app`` is ever called, so they hold regardless of how
+    the transport schedules work.
+
+    The org's DB path is also bound on the store context var for the request. NOTE this
+    scopes only store access that runs *inline* in this request task; the streamable-HTTP
+    transport dispatches tool execution to a separate **session** task, so this binding does
+    not reach the MCP tools. That is acceptable today because the registered MCP tools are
+    stateless (none read or write the store). Exposing store-backed tools remotely would
+    require per-session org binding — see SECURITY.md.
+    """
+
+    def __init__(
+        self,
+        app,
+        token_store: Mapping[str, str],
+        limiter: OrgRateLimiter | None = None,
+        root: Path | None = None,
+    ) -> None:
+        self.app = app
+        self.token_store = token_store
+        self.limiter = limiter or OrgRateLimiter()
+        self.root = root
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope.get("type") != "http":  # lifespan / websocket pass straight through
+            await self.app(scope, receive, send)
+            return
+        org = resolve_org(_bearer_token(scope), self.token_store)
+        if org is None:
+            await _reject(send, 401, "unauthorized")
+            return
+        if not self.limiter.check(org):
+            await _reject(send, 429, f"rate limit exceeded for org '{org}'")
+            return
+        token = store.use_db_path(org_db_path(org, self.root))
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            store.reset_db_path(token)
+
+
+def build_asgi_app(  # pragma: no cover - needs the [mcp] extra and full transport
+    token_store: Mapping[str, str], root: Path | None = None
+):
+    """The org-scoped ASGI app: the FastMCP streamable-HTTP app behind the auth guard."""
+    from presidio_ikigov_assess.mcp_server import build_server
+
+    return OrgAuthMiddleware(build_server().streamable_http_app(), token_store, root=root)
+
+
 def serve(  # pragma: no cover - thin transport wiring, exercised behind the [mcp] extra
     host: str = "127.0.0.1",
     port: int = 8080,
@@ -126,33 +207,23 @@ def serve(  # pragma: no cover - thin transport wiring, exercised behind the [mc
 ) -> None:
     """Run the org-scoped MCP server over streamable HTTP (requires the ``[mcp]`` extra).
 
-    Authenticates each request's bearer token to an org via the token store, enforces the
-    per-org rate limit, and scopes the store to that org via :func:`org_store` before
-    dispatching the IKI-Gov tools. Imports FastMCP lazily so the core stays dependency-light.
+    Each request's bearer token is authenticated to an org, the per-org rate limit is
+    enforced, and the store is scoped to that org before the IKI-Gov tools run.
     """
+    path = token_store_path or os.environ.get("IGA_MCP_TOKENS")
+    if not path:
+        raise RemoteError("set --token-store / IGA_MCP_TOKENS to a {org: token_hash} JSON file")
+    token_store = load_token_store(Path(path).read_text(encoding="utf-8"))
     try:
-        from mcp.server.fastmcp import FastMCP
+        import uvicorn
+
+        app = build_asgi_app(token_store)
     except ImportError as exc:
         raise RemoteError(
             "the remote MCP endpoint needs the optional extra: pip install "
             "'presidio-hardened-ikigov-assess[mcp]'"
         ) from exc
-
-    path = token_store_path or os.environ.get("IGA_MCP_TOKENS")
-    if not path:
-        raise RemoteError("set --token-store / IGA_MCP_TOKENS to a {org: token_hash} JSON file")
-    token_store = load_token_store(Path(path).read_text(encoding="utf-8"))
-    limiter = OrgRateLimiter()
-
-    from presidio_ikigov_assess.mcp_server import build_server
-
-    server: FastMCP = build_server()
-    # The auth/org/rate-limit hooks above wrap request handling; org_store scopes the
-    # per-tool persistence. Transport specifics are deployment configuration.
-    server.settings.host = host
-    server.settings.port = port
-    _ = (token_store, limiter)  # bound into the request pipeline at wire-up
-    server.run(transport="streamable-http")
+    uvicorn.run(app, host=host, port=port)
 
 
 def main() -> None:  # pragma: no cover - console-script entry point

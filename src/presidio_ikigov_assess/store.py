@@ -12,6 +12,7 @@ Security:
 
 from __future__ import annotations
 
+import contextvars
 import json
 import os
 import sqlite3
@@ -20,6 +21,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 _DEFAULT_DB_PATH = Path.home() / ".iga" / "assessments.db"
+
+# Request-local database override. The remote endpoint sets this per request to
+# scope one org to its own database; being a context var (not an env var) it is
+# isolated per task, so concurrent requests cannot read each other's store.
+_db_path_override: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "iga_db_path_override", default=None
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS assessments (
@@ -48,9 +56,25 @@ class SavedAssessment:
 
 
 def db_path() -> Path:
-    """Resolve the active database path (``IGA_DB_PATH`` env var, else default)."""
-    override = os.environ.get("IGA_DB_PATH")
+    """Resolve the active database path.
+
+    Precedence: a request-local override (set via :func:`use_db_path`, used by the
+    remote endpoint to scope a request to one org), then the ``IGA_DB_PATH`` env var,
+    then the default. The context-var override is per-task, so concurrent requests
+    stay isolated.
+    """
+    override = _db_path_override.get() or os.environ.get("IGA_DB_PATH")
     return Path(override) if override else _DEFAULT_DB_PATH
+
+
+def use_db_path(path: str | Path) -> contextvars.Token:
+    """Bind the active DB path for the current context; returns a reset token."""
+    return _db_path_override.set(str(path))
+
+
+def reset_db_path(token: contextvars.Token) -> None:
+    """Undo a :func:`use_db_path` binding using its token."""
+    _db_path_override.reset(token)
 
 
 def _connect() -> sqlite3.Connection:
