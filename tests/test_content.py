@@ -164,3 +164,50 @@ def test_cli_framework_gap_unknown_exits_1(monkeypatch, tmp_path):
     monkeypatch.setenv("IGA_CONTENT_PATH", str(tmp_path))
     r = runner.invoke(app, ["--no-dep-check", "framework-gap", "--framework", "nope", "--quiet"])
     assert r.exit_code == 1
+
+
+# ── NIST AI RMF (v0.17.0) ────────────────────────────────────────────────────
+from presidio_ikigov_assess.checklist import VALID_ITEM_IDS  # noqa: E402
+from presidio_ikigov_assess.content import nist_ai_rmf_pack  # noqa: E402
+
+
+def test_nist_pack_maps_every_item_once():
+    pack = nist_ai_rmf_pack()
+    assert pack.framework_id == "nist-ai-rmf" and pack.mapping_kind == "item"
+    assert pack.target_order == ("GOVERN", "MAP", "MEASURE", "MANAGE")
+    all_sources = [s for sources in pack.mapping.values() for s in sources]
+    assert set(all_sources) == set(VALID_ITEM_IDS)  # full coverage
+    assert len(all_sources) == len(VALID_ITEM_IDS)  # each exactly once
+
+
+def test_nist_in_builtin_and_load_packs():
+    assert "nist-ai-rmf" in builtin_packs()
+    assert "nist-ai-rmf" in load_packs()
+
+
+def test_nist_coverage_runs():
+    cov = evaluate_coverage(
+        nist_ai_rmf_pack(), frozenset({"S1", "S2", "S3", "D3", "I1", "I2", "I3", "I5"})
+    )
+    assert cov["GOVERN"].status is Coverage.COVERED  # all GOVERN items affirmed
+    assert cov["MEASURE"].status is Coverage.GAP  # none affirmed
+
+
+def test_cli_framework_gap_nist(monkeypatch, tmp_path):
+    monkeypatch.setenv("IGA_CONTENT_PATH", str(tmp_path))
+    r = runner.invoke(
+        app,
+        [
+            "--no-dep-check",
+            "framework-gap",
+            "--framework",
+            "nist-ai-rmf",
+            "--affirm",
+            "S1,S2,S3",
+            "--quiet",
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    out = json.loads(r.stdout)
+    assert out["framework_id"] == "nist-ai-rmf"
+    assert set(out["coverage"]) == {"GOVERN", "MAP", "MEASURE", "MANAGE"}

@@ -89,14 +89,15 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.8.0 | EU AI Act gate→article mapping (`iga euaiact-gap`) | Shipped |
 | v0.9.0 | Evidence-pack export: signed, audit-ready report bundle + manifest | Shipped as v0.15.0 |
 | v0.10.0 | Pluggable regulatory-content provider interface (versioned content packs) | Shipped as v0.16.0 |
-| v0.11.0 | NIST AI RMF mapping + framework-agnostic coverage core | Planned |
+| v0.11.0 | NIST AI RMF mapping + framework-agnostic coverage core | Shipped as v0.17.0 |
 | v0.12.0 | Remote MCP endpoint: HTTP/SSE transport, org context, auth | Planned |
 | v0.13.0 | External evidence-backed affirmation: consume signed evidence from peer `presidio-hardened-*` controls (first producer: `presidio-hardened-ai`) | Shipped |
 | v0.14.0 | Public-key (Ed25519) evidence verification: trust-store `{alg, public_key}` entries + `verify_ref` dispatch (`[crypto]` extra) | Shipped |
 | v0.14.1 | Key rotation: multiple active public keys per signer (`public_key`/`key` may be a list; verify against any) | Shipped |
 | v0.15.0 | Signed evidence-pack export: `iga export` / `iga verify-bundle` (realises the v0.9.0 feature) | Shipped |
 | v0.16.0 | Pluggable content packs: `content/` core + `iga content-list` / `iga framework-gap` (realises v0.10.0) | Shipped |
-| v0.16.1 | Evidence-pack seal key off argv: `--sign-key-file` / `$IGA_SIGN_KEY` for `export` / `verify-bundle` | **Current** |
+| v0.16.1 | Evidence-pack seal key off argv: `--sign-key-file` / `$IGA_SIGN_KEY` for `export` / `verify-bundle` | Shipped |
+| v0.17.0 | NIST AI RMF built-in content pack (realises v0.11.0; works via `framework-gap`, no engine change) | **Current** |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -882,6 +883,32 @@ at load rather than silently failing verification.
 ### Compatibility
 `load_trust_store` now returns normalised `{alg, material}` entries (was raw strings);
 `verify_ref` still accepts bare-string trust values directly, so existing callers work.
+
+---
+
+## v0.17.0 — NIST AI RMF Content Pack (realises v0.11.0)
+
+**Deliberated:** 2026-06-08
+
+### Scope decision
+Add **NIST AI RMF 1.0** as a built-in content pack on the v0.16.0 pack core — the payoff
+of that architecture: a new framework is **data, not code**. The pack maps the 25
+checklist items to the four NIST functions (GOVERN / MAP / MEASURE / MANAGE) and is served
+through the existing generic `iga framework-gap --framework nist-ai-rmf` with **no engine
+change**. The "framework-agnostic core" the original v0.11.0 called for already landed in
+v0.16.0; this version exercises it with a third framework.
+
+### Mapping (initial, qualitative — to be refined by the framework author)
+Every checklist item is assigned to exactly one function (mirrors the ISO matrix's
+relevance grading; versioned so refinements are tracked via the pack `content_hash`):
+GOVERN = S1–S3, D3, I1–I3, I5; MAP = S4, S5, D1, D4, D5; MEASURE = T1–T3, D2, O1, O2;
+MANAGE = T4, T5, O3–O5, I4.
+
+### Acceptance criteria (each maps to a test)
+1. The pack maps **all 25** items, each exactly once. *(test_content)*
+2. `nist-ai-rmf` is in `builtin_packs()` and `load_packs()`. *(test_content)*
+3. Generic coverage runs (a fully-affirmed function is COVERED, an unaffirmed one GAP). *(test_content)*
+4. `iga framework-gap --framework nist-ai-rmf` returns coverage over the four functions. *(test_content)*
 
 ---
 

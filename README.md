@@ -186,6 +186,7 @@ coverage engine, so new frameworks are added as data:
 iga content-list                              # built-in + external packs (versions, hashes)
 iga framework-gap --framework iso42001 --affirm S1,S2,D1
 iga framework-gap --framework euaiact --risk-class high --affirm S1,S2,D5 --quiet
+iga framework-gap --framework nist-ai-rmf --affirm S1,S2,S3   # NIST AI RMF (Govern/Map/Measure/Manage)
 ```
 
 A pack maps each target (clause/article) to the checklist items or gates that evidence it.
