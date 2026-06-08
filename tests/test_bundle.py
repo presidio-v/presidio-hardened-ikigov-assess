@@ -138,3 +138,97 @@ def test_cli_verify_detects_tamper(tmp_path):
     v = runner.invoke(app, ["--no-dep-check", "verify-bundle", "--bundle", str(pack), "--quiet"])
     assert v.exit_code == 1
     assert json.loads(v.stdout)["ok"] is False
+
+
+def _export_signed(pack, extra_args, env=None):
+    return runner.invoke(
+        app,
+        ["--no-dep-check", "export", "--use-case", "uc", "--affirm", "S1", "--bundle", str(pack)]
+        + extra_args
+        + ["--quiet"],
+        env=env,
+    )
+
+
+def test_sign_key_file_keeps_key_off_argv(tmp_path):
+    # Seal with a key from a file, verify with the same file — round-trips without the
+    # secret ever appearing on the command line.
+    pack = tmp_path / "pack"
+    keyfile = tmp_path / "seal.key"
+    keyfile.write_text("file-seal-key\n", encoding="utf-8")  # trailing newline is stripped
+    r = _export_signed(pack, ["--sign-key-file", str(keyfile)])
+    assert r.exit_code == 0, r.stdout
+    assert json.loads(r.stdout)["signed"] is True
+
+    v = runner.invoke(
+        app,
+        [
+            "--no-dep-check",
+            "verify-bundle",
+            "--bundle",
+            str(pack),
+            "--sign-key-file",
+            str(keyfile),
+            "--quiet",
+        ],
+    )
+    assert json.loads(v.stdout)["signature"] is True
+    # The file key matches the inline form of the same value.
+    inline = runner.invoke(
+        app,
+        [
+            "--no-dep-check",
+            "verify-bundle",
+            "--bundle",
+            str(pack),
+            "--sign-key",
+            "file-seal-key",
+            "--quiet",
+        ],
+    )
+    assert json.loads(inline.stdout)["signature"] is True
+
+
+def test_sign_key_from_env(tmp_path):
+    pack = tmp_path / "pack"
+    r = _export_signed(pack, [], env={"IGA_SIGN_KEY": "env-seal-key"})
+    assert json.loads(r.stdout)["signed"] is True
+    v = runner.invoke(
+        app,
+        ["--no-dep-check", "verify-bundle", "--bundle", str(pack), "--quiet"],
+        env={"IGA_SIGN_KEY": "env-seal-key"},
+    )
+    assert json.loads(v.stdout)["signature"] is True
+
+
+def test_empty_env_sign_key_is_unset(tmp_path):
+    # An empty IGA_SIGN_KEY must not seal the bundle (treated as absent).
+    pack = tmp_path / "pack"
+    r = _export_signed(pack, [], env={"IGA_SIGN_KEY": ""})
+    assert json.loads(r.stdout)["signed"] is False
+
+
+def test_sign_key_file_precedes_inline_and_env(tmp_path):
+    # File wins over inline and env; the resulting bundle verifies only with the file key.
+    pack = tmp_path / "pack"
+    keyfile = tmp_path / "seal.key"
+    keyfile.write_text("the-file-key", encoding="utf-8")
+    r = _export_signed(
+        pack,
+        ["--sign-key-file", str(keyfile), "--sign-key", "ignored"],
+        env={"IGA_SIGN_KEY": "also-ignored"},
+    )
+    assert r.exit_code == 0, r.stdout
+    v = runner.invoke(
+        app,
+        [
+            "--no-dep-check",
+            "verify-bundle",
+            "--bundle",
+            str(pack),
+            "--sign-key",
+            "the-file-key",
+            "--quiet",
+        ],
+    )
+    assert json.loads(v.stdout)["signature"] is True

@@ -92,6 +92,18 @@ controls in force:
 - **Structured logging** — `iga-evidence-attached` / `iga-evidence-verified` events record
   reference/verification counts only — no evidence content and no ledger-ref value.
 
+## Evidence-Pack Export (v0.15.0+)
+
+`iga export` / `iga verify-bundle` produce and check a content-hashed, optionally
+HMAC-sealed audit bundle. The controls in force:
+
+- **Seal key off argv (v0.16.1)** — the manifest HMAC key is resolved from `--sign-key-file`
+  (a file path) or `$IGA_SIGN_KEY`, so the secret stays out of shell history and the process
+  list. Inline `--sign-key` remains for convenience but is documented as the least private
+  option. The same source must be used for `export` and `verify-bundle`.
+- **Fail-closed verification** — any missing member, artifact hash mismatch, or bad seal
+  yields `ok=false` and a non-zero exit; hash and signature comparisons are constant-time.
+
 ## Software Development Lifecycle
 
 This repository is developed under the Presidio hardened-family SDLC. The public report

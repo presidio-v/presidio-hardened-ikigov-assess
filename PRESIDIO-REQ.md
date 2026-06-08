@@ -95,7 +95,8 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.14.0 | Public-key (Ed25519) evidence verification: trust-store `{alg, public_key}` entries + `verify_ref` dispatch (`[crypto]` extra) | Shipped |
 | v0.14.1 | Key rotation: multiple active public keys per signer (`public_key`/`key` may be a list; verify against any) | Shipped |
 | v0.15.0 | Signed evidence-pack export: `iga export` / `iga verify-bundle` (realises the v0.9.0 feature) | Shipped |
-| v0.16.0 | Pluggable content packs: `content/` core + `iga content-list` / `iga framework-gap` (realises v0.10.0) | **Current** |
+| v0.16.0 | Pluggable content packs: `content/` core + `iga content-list` / `iga framework-gap` (realises v0.10.0) | Shipped |
+| v0.16.1 | Evidence-pack seal key off argv: `--sign-key-file` / `$IGA_SIGN_KEY` for `export` / `verify-bundle` | **Current** |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0

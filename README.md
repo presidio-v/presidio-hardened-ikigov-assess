@@ -376,11 +376,12 @@ Export a signed, audit-ready bundle of an assessment and verify it later:
 
 ```bash
 # Write report.md + report.json + manifest.json (sha256 of each artifact + framework hash).
+# Seal the manifest with an HMAC key read from a file (kept off argv / shell history).
 iga export --use-case fraud-scoring --risk-class high --affirm S1,S2,D1 \
-    --bundle audit/fraud-scoring/ --sign-key "$SEAL_KEY"
+    --bundle audit/fraud-scoring/ --sign-key-file ~/.iga/seal.key
 
 # Re-hash artifacts against the manifest (and check the optional HMAC seal).
-iga verify-bundle --bundle audit/fraud-scoring/ --sign-key "$SEAL_KEY"
+iga verify-bundle --bundle audit/fraud-scoring/ --sign-key-file ~/.iga/seal.key
 ```
 
 The `manifest.json` content-hashes every artifact and records a `framework_content_hash`
@@ -388,6 +389,10 @@ pinning the checklist + ISO/EU AI Act mappings that produced the assessment, so 
 edit is detected by `verify-bundle`. Use `--zip` to emit a `.zip`. (PDF rendering and a
 public-key manifest signature are deferred; the hash manifest + optional HMAC seal are the
 integrity baseline.)
+
+The seal key is resolved from `--sign-key-file <path>` (preferred), then `--sign-key <key>`
+(inline; avoid — visible in shell history and the process list), then the `$IGA_SIGN_KEY`
+environment variable. Use the same source for `export` and `verify-bundle`.
 
 ## Security
 

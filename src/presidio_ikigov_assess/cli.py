@@ -17,6 +17,7 @@ Commands:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -97,7 +98,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.16.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.16.1."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 
@@ -160,6 +161,25 @@ def _read_file(path: str, lang: str) -> str:
     except OSError as exc:
         err_console.print(f"[red]Error:[/red] could not read {path}: {exc}")
         raise typer.Exit(1) from exc
+
+
+def _resolve_sign_key(
+    sign_key: Optional[str], sign_key_file: Optional[str], lang: str
+) -> Optional[str]:
+    """Resolve the manifest HMAC seal key, preferring sources that stay off argv.
+
+    Precedence: ``--sign-key-file`` (path) > ``--sign-key`` (inline) > ``$IGA_SIGN_KEY``.
+    The file and env-var paths keep the secret out of shell history and the process list;
+    ``--sign-key`` is kept for convenience but is the least private option. Whitespace
+    around a file's contents is stripped (so ``echo key > file`` works); an empty env var
+    counts as unset.
+    """
+    if sign_key_file is not None:
+        path = _validated(sign_key_file, validate_output_path, lang)
+        return _read_file(path, lang).strip()
+    if sign_key is not None:
+        return sign_key
+    return os.environ.get("IGA_SIGN_KEY") or None
 
 
 def _apply_evidence(
@@ -647,7 +667,14 @@ def export(
         False, "--zip", help="Write a .zip archive instead of a directory."
     ),
     sign_key: Optional[str] = typer.Option(
-        None, "--sign-key", help="HMAC key to seal the manifest."
+        None,
+        "--sign-key",
+        help="HMAC seal key, inline. Least private — prefer --sign-key-file or $IGA_SIGN_KEY.",
+    ),
+    sign_key_file: Optional[str] = typer.Option(
+        None,
+        "--sign-key-file",
+        help="File holding the HMAC seal key, keeping it off argv (also reads $IGA_SIGN_KEY).",
     ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
 ) -> None:
@@ -656,6 +683,7 @@ def export(
     use_case = _validated(use_case, validate_use_case, lang)
     risk_class = _validated(risk_class, validate_risk_class, lang)
     bundle = _validated(bundle, validate_output_path, lang)
+    seal_key = _resolve_sign_key(sign_key, sign_key_file, lang)
     affirmed, skipped_set = _parse_answers(affirm, skip, lang)
 
     scores = compute_scores(affirmed, skipped_set, risk_class)
@@ -675,17 +703,17 @@ def export(
             use_case=use_case,
             risk_class=risk_class,
             as_zip=as_zip,
-            sign_key=sign_key,
+            sign_key=seal_key,
         )
     except (OSError, bundle_mod.BundleError) as exc:
         err_console.print(f"[red]Error:[/red] could not write evidence pack: {exc}")
         raise typer.Exit(1) from exc
 
     log_security_event(
-        {"event": "iga-export", "as_zip": as_zip, "signed": sign_key is not None, "lang": lang}
+        {"event": "iga-export", "as_zip": as_zip, "signed": seal_key is not None, "lang": lang}
     )
     if quiet:
-        print(json.dumps({"bundle": str(out), "signed": sign_key is not None, "zip": as_zip}))
+        print(json.dumps({"bundle": str(out), "signed": seal_key is not None, "zip": as_zip}))
     else:
         console.print(f"[green]Evidence pack written to: {out}[/green]")
 
@@ -694,14 +722,22 @@ def export(
 def verify_bundle(
     bundle: str = typer.Option(..., "--bundle", help="Evidence-pack directory or .zip to verify."),
     sign_key: Optional[str] = typer.Option(
-        None, "--sign-key", help="HMAC key to check the manifest seal."
+        None,
+        "--sign-key",
+        help="HMAC seal key, inline. Least private — prefer --sign-key-file or $IGA_SIGN_KEY.",
+    ),
+    sign_key_file: Optional[str] = typer.Option(
+        None,
+        "--sign-key-file",
+        help="File holding the HMAC seal key, keeping it off argv (also reads $IGA_SIGN_KEY).",
     ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
 ) -> None:
     """Verify an evidence pack: re-hash artifacts vs the manifest (and optional signature)."""
     bundle = _validated(bundle, validate_output_path, "en")
+    seal_key = _resolve_sign_key(sign_key, sign_key_file, "en")
     try:
-        report = bundle_mod.verify_bundle(bundle, sign_key=sign_key)
+        report = bundle_mod.verify_bundle(bundle, sign_key=seal_key)
     except bundle_mod.BundleError as exc:
         err_console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
