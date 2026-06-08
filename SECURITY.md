@@ -65,6 +65,29 @@ within 30 days of a confirmed vulnerability.
 - **Restricted file permissions** — `~/.iga/` is created with mode `700` and the security
   log file with mode `600`.
 
+## Planned — External Evidence Verification (v0.13.0)
+
+> **Not yet implemented.** The following describes the security model of the planned
+> *external evidence-backed affirmation* feature (PRESIDIO-REQ.md, v0.13.0), recorded here
+> so the design is reviewable ahead of implementation. It is not present in any released
+> version and confers no current guarantee.
+
+When shipped, ikigov will be able to attach signed evidence references (`EvidenceRef`) from
+peer `presidio-hardened-*` controls to affirmed checklist items. The intended controls:
+
+- **Fail-closed verification** — a missing, malformed, or invalid hash/signature never
+  passes silently as verified; the item downgrades to self-affirmed, or is denied under
+  `--require-evidence`.
+- **Commitments only** — an `EvidenceRef` carries hashes and opaque ledger URIs, never PII
+  or raw organisational data, consistent with the structural-only logging rule. All fields
+  are length-bounded, scheme/format-validated, and escaped on export like every other input.
+- **Local trust** — signer public keys are resolved from a local trust store
+  (`~/.iga/trust/` or `IGA_TRUST_PATH`); there is no network key resolution by default.
+  Verification reuses the v0.9.0 detached-signature primitive rather than a second mechanism.
+- **Structured logging** — new `iga-evidence-attached` / `iga-evidence-verified` events
+  record item IDs and the verification result only — no evidence content and no ledger-ref
+  value.
+
 ## Software Development Lifecycle
 
 This repository is developed under the Presidio hardened-family SDLC. The public report

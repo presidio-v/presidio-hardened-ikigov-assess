@@ -308,6 +308,16 @@ Security controls built into the tool:
 | v0.7.0 | Maturity trending: delta between saved runs (`iga trend`) | Released |
 | v0.8.0 | EU AI Act gate→article mapping for high-risk systems (`iga euaiact-gap`) | Current |
 
+### Planned
+
+| Version | Theme | Status |
+|---------|-------|--------|
+| v0.9.0 | Evidence-pack export: signed, audit-ready report bundle + manifest | Planned |
+| v0.10.0 | Pluggable regulatory-content provider interface (versioned content packs) | Planned |
+| v0.11.0 | NIST AI RMF mapping + framework-agnostic coverage core | Planned |
+| v0.12.0 | Remote MCP endpoint: HTTP/SSE transport, org context, auth | Planned |
+| v0.13.0 | External evidence-backed affirmation: consume signed evidence from peer `presidio-hardened-*` controls (first producer: `presidio-hardened-ai`) | Planned |
+
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 
 ---

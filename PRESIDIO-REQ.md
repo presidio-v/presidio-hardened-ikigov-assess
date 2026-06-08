@@ -91,6 +91,13 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.10.0 | Pluggable regulatory-content provider interface (versioned content packs) | Planned |
 | v0.11.0 | NIST AI RMF mapping + framework-agnostic coverage core | Planned |
 | v0.12.0 | Remote MCP endpoint: HTTP/SSE transport, org context, auth | Planned |
+| v0.13.0 | External evidence-backed affirmation: consume signed evidence from peer `presidio-hardened-*` controls (first producer: `presidio-hardened-ai`) | Planned |
+
+> **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
+> evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
+> and may be pulled forward to immediately after v0.9.0 if the `presidio-hardened-ai`
+> integration is prioritised over NIST mapping / remote MCP. Numbered v0.13.0 here only to
+> avoid renumbering the existing planned versions — the decision is the author's at commit.
 
 ---
 
@@ -672,6 +679,113 @@ Builds on v0.2.0 (MCP), v0.6.0 (persistence), v0.10.0 (content packs).
 
 ---
 
+## v0.13.0 — External Evidence-Backed Affirmation (presidio-hardened-* control integration)
+
+**Deliberated:** 2026-06-08
+
+### Motivation
+ikigov scores governance maturity from **human self-attestation**: each checklist item is
+a boolean an assessor affirms (`--affirm S1,S2,D1,…`). The inherent limitation of any
+maturity/GRC tool is that an affirmation is *trust, not proof*. Within the
+`presidio-hardened-*` suite, ikigov is the **governance spine** and the peer tools
+(`presidio-hardened-x402`, `presidio-hardened-ai`) are **technical controls** that already
+emit tamper-evident, signed records. This version lets the spine *consume* that signed
+evidence to back the subset of checklist items that are technical controls — upgrading an
+affirmation from "someone ticked it" to **affirmed-by-evidence** (verifiable against the
+producing control's ledger). This is the suite-level differentiator: a machine-verifiable
+conformity trail rather than a questionnaire.
+
+First evidence producer: `presidio-hardened-ai` (training-time privacy: PII-scrub +
+data-lineage ledger, differential-privacy ε accounting, immutable HMAC-chained training
+log). ikigov defines the **consuming interface** here; the producer owns the item→evidence
+mapping in its own repo. The `EvidenceRef` schema below is the integration contract.
+
+### Scope decision
+ikigov gains the ability to accept, record, optionally verify, and render external evidence
+references attached to affirmations. **No change to the scoring formula or gate logic** —
+evidence-backed items count as affirmed exactly as self-affirmed ones do. The new
+information is *provenance* (how an affirmation is substantiated) and an orthogonal
+**evidence-coverage** quality signal. Verification is offline/local by default (hash and
+detached-signature check against producer artifacts the user supplies); no network trust.
+
+### Data model extension — `EvidenceRef`
+An affirmed item may carry zero or more evidence references. An `EvidenceRef` is
+commitments-only (no PII, no raw organisational data — consistent with the family
+structural-only logging rule):
+
+| Field | Description |
+|---|---|
+| `item_id` | Checklist item the evidence substantiates (e.g. `D1`, `O5`) |
+| `source` | Producing control, e.g. `presidio-hardened-ai` |
+| `source_version` | Producer tool version (for reproducibility) |
+| `ledger_ref` | Opaque pointer/URI into the producer's audit ledger (commitment, not content) |
+| `content_hash` | `sha256` over the evidenced artifact/ledger entry |
+| `signer` | Signer identity (key id) for the detached signature |
+| `signature` | Detached signature over `content_hash` (reuses the v0.9.0 sigstore/minisign mechanism) |
+| `claimed_at` | UTC timestamp |
+
+Each per-item answer gains a `provenance` field with three states:
+`self` (boolean affirmation, current behaviour and the default),
+`evidence` (a well-formed `EvidenceRef` is attached),
+`evidence-verified` (its `content_hash`/`signature` were checked and passed).
+
+### Interface
+```bash
+# Drive affirmations from a signed evidence file (or directory of evidence packs).
+# An item with valid evidence is affirmed and tagged provenance=evidence(-verified).
+iga assess --use-case "fraud-scoring" --risk-class high \
+    --affirm S1,S2,S3 --evidence ./evidence/hardened-ai.json
+
+# Verify evidence hashes/signatures against producer artifacts (fail-closed).
+iga verify --evidence ./evidence/hardened-ai.json --trust ~/.iga/trust/
+
+# Require cryptographic evidence for gate-critical technical-control items at high risk
+# (mirrors the existing --strict skip policy; powerful as a release gate).
+iga gate --gate G4 --risk-class high --affirm … --evidence … --require-evidence \
+    --assert-gate G4
+```
+- New MCP tool `iga_assess_with_evidence` (or an optional `evidence` argument on
+  `iga_assess`) so an agent can chain `presidio-hardened-ai → ikigov` in one session,
+  passing signed refs through without a file hop.
+- Report (`iga report`) and JSON payload: each answer carries its `provenance` and any
+  `evidence` block; the v0.9.0 manifest records which affirmations were evidence-backed and
+  which were verified.
+
+### Evidence coverage (new, orthogonal signal)
+The maturity score answers *"how complete?"*; evidence coverage answers *"how verifiable?"*.
+Reported alongside M1–M6 (not folded into them):
+```
+evidence_coverage = affirmed gate-critical items that are evidence-backed
+                    / affirmed gate-critical items          × 100
+verified_coverage = … that are evidence-verified / …        × 100
+```
+Indicative item→evidence map the first producer (`presidio-hardened-ai`) can satisfy —
+**confident:** `D1` (data inventory & lineage), `D4` (DPIA inputs: DP ε + scrub logs),
+`O5` (immutable audit log); **partial credit (label as such):** `T5` (pipeline/dependency
+security), `T4` (DP-bounded robustness), `D2` (data-quality profiling), `I4` (lifecycle
+documentation). These cluster in M2/M4/M5 — the dimensions weakest under self-attestation.
+The producer owns and versions this map; ikigov treats it as opaque per `EvidenceRef`.
+
+### Security
+- **Fail-closed verification.** A missing/invalid hash or signature downgrades the item to
+  `self` (or denied under `--require-evidence`); it never silently passes as verified.
+- **Commitments only.** `EvidenceRef` carries hashes/URIs, never PII or raw org data. All
+  fields are validated/sanitised (length bounds, allowed `ledger_ref` schemes, hex-format
+  hash/signature) like every other input; HTML/JSON-escaped on export.
+- **Local trust.** Signer public keys are configured locally (`~/.iga/trust/` or
+  `IGA_TRUST_PATH`); no network key resolution by default. Reuses the v0.9.0 detached-
+  signature primitive rather than introducing a second mechanism.
+- **Structured logging.** New events `iga-evidence-attached` / `iga-evidence-verified`
+  record item ids and verification result only — no content, no `ledger_ref` value.
+
+### Dependency
+Builds on **v0.9.0** (signed evidence-pack: hash manifest + detached-signature baseline)
+and **v0.2.0** (MCP). Independent of v0.10.0–v0.12.0. May be sequenced immediately after
+v0.9.0 (see roadmap sequencing note). The `EvidenceRef` schema is the cross-repo contract
+with `presidio-hardened-ai`; pin its version in both repos' `PRESIDIO-REQ.md` once agreed.
+
+---
+
 ## Cross-cutting decisions
 
 | Decision | Rationale |
@@ -684,6 +798,8 @@ Builds on v0.2.0 (MCP), v0.6.0 (persistence), v0.10.0 (content packs).
 | No PDF export | Avoids heavy dependencies (weasyprint/reportlab) in early versions; Markdown→PDF is user's responsibility |
 | Gate exit codes 0/2/3 from v0.2 | Enables CI pipeline integration without string-parsing output |
 | Drop Python 3.9 in v0.9.0 (min → 3.10+) | Patched `urllib3` (2.7.0+) dropped 3.9, leaving the dev/audit chain on a vulnerable pin (audit M-2); 3.9 is also upstream EOL (Oct 2025). Lets the whole locked tree resolve to patched releases. |
+| Evidence is provenance, not score (v0.13) | Maturity (how complete) and evidence coverage (how verifiable) are orthogonal; folding signed evidence into the M-score would conflate two distinct questions and let producers inflate maturity |
+| ikigov defines the consume interface, producers own the map (v0.13) | The spine stays framework-pure; each technical control owns and versions its own item→evidence mapping, so adding a producer needs no ikigov change |
 
 ## SDLC
 
