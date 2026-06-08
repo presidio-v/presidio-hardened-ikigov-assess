@@ -24,6 +24,7 @@ import typer
 from rich.console import Console
 
 from presidio_ikigov_assess import bundle as bundle_mod
+from presidio_ikigov_assess import content as content_mod
 from presidio_ikigov_assess import evidence as evidence_mod
 from presidio_ikigov_assess import store
 from presidio_ikigov_assess.euaiact import evaluate_euaiact
@@ -96,7 +97,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.15.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.16.0."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 
@@ -720,6 +721,121 @@ def verify_bundle(
             )
     if not report["ok"]:
         raise typer.Exit(1)
+
+
+@app.command(name="content-list")
+def content_list(
+    lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
+) -> None:
+    """List installed regulatory-content packs (built-in + external) with versions/hashes."""
+    lang = _validated(lang, validate_lang, lang)
+    try:
+        packs = content_mod.load_packs()
+    except content_mod.ContentError as exc:
+        err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    summary = [
+        {
+            "framework_id": p.framework_id,
+            "version": p.version,
+            "mapping_kind": p.mapping_kind,
+            "targets": len(p.target_order),
+            "source": p.source,
+            "content_hash": p.content_hash,
+        }
+        for p in packs.values()
+    ]
+    log_security_event({"event": "iga-content-list", "count": len(summary), "lang": lang})
+    if quiet:
+        print(json.dumps(summary))
+    else:
+        for s in summary:
+            console.print(
+                f"[bold]{s['framework_id']}[/bold] v{s['version']} "
+                f"({s['mapping_kind']}-mapped, {s['targets']} targets, {s['source']}) "
+                f"[dim]{s['content_hash'][:12]}[/dim]"
+            )
+
+
+@app.command(name="framework-gap")
+def framework_gap(
+    framework: str = typer.Option(
+        ..., "--framework", help="Content-pack framework id (see content-list)."
+    ),
+    use_case: str = typer.Option("unnamed", "--use-case", "-u", help="AI use-case identifier."),
+    risk_class: str = typer.Option(
+        "medium", "--risk-class", "-r", help="Risk class: low|medium|high."
+    ),
+    lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
+    affirm: Optional[str] = typer.Option(
+        None, "--affirm", help="Comma-separated affirmed item IDs."
+    ),
+    skip: Optional[str] = typer.Option(None, "--skip", help="Comma-separated skipped item IDs."),
+    strict: bool = typer.Option(
+        False, "--strict", help="Treat skipped gate-critical items as blocking."
+    ),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
+) -> None:
+    """Coverage gap against any installed content pack (generic over the pack engine)."""
+    lang = _validated(lang, validate_lang, lang)
+    framework = _validated(framework, validate_use_case, lang)
+    use_case = _validated(use_case, validate_use_case, lang)
+    risk_class = _validated(risk_class, validate_risk_class, lang)
+    affirmed, skipped_set = _parse_answers(affirm, skip, lang)
+
+    packs = content_mod.load_packs()
+    pack = packs.get(framework)
+    if pack is None:
+        err_console.print(
+            f"[red]Error:[/red] unknown framework '{framework}'. "
+            f"Available: {', '.join(sorted(packs))}."
+        )
+        raise typer.Exit(1)
+
+    gate_results = None
+    if pack.mapping_kind == "gate":
+        gate_results = evaluate_all_gates(affirmed, skipped_set, risk_class, strict)
+    try:
+        coverage = content_mod.evaluate_coverage(pack, affirmed, gate_results)
+    except content_mod.ContentError as exc:
+        err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    log_security_event({"event": "iga-framework-gap", "framework": framework, "lang": lang})
+    if quiet:
+        print(
+            json.dumps(
+                {
+                    "framework_id": pack.framework_id,
+                    "version": pack.version,
+                    "content_hash": pack.content_hash,
+                    "coverage": {
+                        t: {
+                            "status": c.status.value,
+                            "name": pack.name(t, lang),
+                            "satisfied": c.satisfied,
+                            "total": c.total,
+                            "outstanding": list(c.outstanding),
+                        }
+                        for t, c in coverage.items()
+                    },
+                }
+            )
+        )
+    else:
+        colour = {"covered": "green", "partial": "yellow", "gap": "red"}
+        console.print(f"\n[bold]{pack.framework_id} v{pack.version}[/bold] — {use_case}\n")
+        for t, c in coverage.items():
+            col = colour.get(c.status.value, "white")
+            line = (
+                f"  {t:<4} {pack.name(t, lang):<34} [{col}]{c.status.value.upper():<8}[/{col}] "
+                f"({c.satisfied}/{c.total})"
+            )
+            if c.outstanding:
+                line += f"  — outstanding: {', '.join(c.outstanding)}"
+            console.print(line)
 
 
 @app.command(name="iso-gap")

@@ -88,13 +88,14 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.7.0 | Maturity trending: delta between runs (`iga trend`) | Shipped |
 | v0.8.0 | EU AI Act gate→article mapping (`iga euaiact-gap`) | Shipped |
 | v0.9.0 | Evidence-pack export: signed, audit-ready report bundle + manifest | Shipped as v0.15.0 |
-| v0.10.0 | Pluggable regulatory-content provider interface (versioned content packs) | Planned |
+| v0.10.0 | Pluggable regulatory-content provider interface (versioned content packs) | Shipped as v0.16.0 |
 | v0.11.0 | NIST AI RMF mapping + framework-agnostic coverage core | Planned |
 | v0.12.0 | Remote MCP endpoint: HTTP/SSE transport, org context, auth | Planned |
 | v0.13.0 | External evidence-backed affirmation: consume signed evidence from peer `presidio-hardened-*` controls (first producer: `presidio-hardened-ai`) | Shipped |
 | v0.14.0 | Public-key (Ed25519) evidence verification: trust-store `{alg, public_key}` entries + `verify_ref` dispatch (`[crypto]` extra) | Shipped |
 | v0.14.1 | Key rotation: multiple active public keys per signer (`public_key`/`key` may be a list; verify against any) | Shipped |
-| v0.15.0 | Signed evidence-pack export: `iga export` / `iga verify-bundle` (realises the v0.9.0 feature) | **Current** |
+| v0.15.0 | Signed evidence-pack export: `iga export` / `iga verify-bundle` (realises the v0.9.0 feature) | Shipped |
+| v0.16.0 | Pluggable content packs: `content/` core + `iga content-list` / `iga framework-gap` (realises v0.10.0) | **Current** |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -880,6 +881,50 @@ at load rather than silently failing verification.
 ### Compatibility
 `load_trust_store` now returns normalised `{alg, material}` entries (was raw strings);
 `verify_ref` still accepts bare-string trust values directly, so existing callers work.
+
+---
+
+## v0.16.0 — Pluggable Regulatory-Content Packs (realises v0.10.0)
+
+**Deliberated:** 2026-06-08
+
+### Scope decision
+Decouple a framework's *mapping content* (which checklist items or lifecycle gates
+evidence each clause/article/control) from the coverage engine, so a new framework is
+added as **data, not code**. A `ContentPack` maps each target (clause/article id) to the
+sources that evidence it — checklist items (`mapping_kind='item'`) or gates
+(`mapping_kind='gate'`) — and a single generic engine computes covered/partial/gap over
+any pack. Built-in packs reproduce the ISO/IEC 42001 and EU AI Act mappings **exactly**
+(cross-checked against the legacy `iso`/`euaiact` engines); external packs load from
+`IGA_CONTENT_PATH` (or `~/.iga/content/`) and may override a built-in by `framework_id`.
+
+### Non-breaking
+The legacy `iso-gap` / `euaiact-gap` commands are unchanged (still pass). The new pack
+core is exposed through `iga content-list` and a generic `iga framework-gap --framework
+<id>`; a regression test asserts the packs produce identical coverage to the legacy
+engines. (Folding `iso-gap`/`euaiact-gap` into the generic engine as thin aliases is left
+to a later version to keep this change risk-free.)
+
+### Components
+`content/pack.py` (`ContentPack`, validate, (de)serialise, `content_hash`),
+`content/coverage.py` (generic `evaluate_coverage`), `content/builtin.py` (ISO + EU AI Act
+packs from existing constants), `content/loader.py` (built-in + external packs). CLI:
+`iga content-list`, `iga framework-gap`.
+
+### Acceptance criteria (each maps to a test)
+1. Pack `content_hash` is stable; `validate_pack` rejects bad kind/targets. *(test_content)*
+2. ISO pack coverage matches `evaluate_iso_coverage` across affirmed sets. *(test_content)*
+3. EU AI Act pack coverage matches `evaluate_euaiact` (OPEN↔covered, BLOCKED↔gap,
+   PARTIAL↔partial). *(test_content)*
+4. A gate-mapped pack without gate results fails closed (`ContentError`). *(test_content)*
+5. External packs load from `IGA_CONTENT_PATH` and override built-ins; malformed packs
+   raise. *(test_content)*
+6. CLI `content-list` lists built-ins; `framework-gap` works for both kinds; unknown
+   framework exits 1. *(test_content)*
+
+### Sets up
+v0.17.0 (NIST AI RMF) adds a content pack and works through `framework-gap` with **no
+engine change**.
 
 ---
 

@@ -177,6 +177,22 @@ parsing output:
 
 ---
 
+## Regulatory-Content Packs (v0.16.0)
+
+The ISO/IEC 42001 and EU AI Act mappings are versioned **content packs** behind a generic
+coverage engine, so new frameworks are added as data:
+
+```bash
+iga content-list                              # built-in + external packs (versions, hashes)
+iga framework-gap --framework iso42001 --affirm S1,S2,D1
+iga framework-gap --framework euaiact --risk-class high --affirm S1,S2,D5 --quiet
+```
+
+A pack maps each target (clause/article) to the checklist items or gates that evidence it.
+Drop a JSON pack into `IGA_CONTENT_PATH` (or `~/.iga/content/`) to add or override a
+framework; an external pack with the same `framework_id` overrides the built-in. The
+legacy `iso-gap` / `euaiact-gap` commands are unchanged.
+
 ## ISO/IEC 42001 Coverage
 
 `iga iso-gap` maps the assessment to ISO/IEC 42001 clause-level coverage. Each
