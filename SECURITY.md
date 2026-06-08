@@ -104,6 +104,21 @@ HMAC-sealed audit bundle. The controls in force:
 - **Fail-closed verification** — any missing member, artifact hash mismatch, or bad seal
   yields `ok=false` and a non-zero exit; hash and signature comparisons are constant-time.
 
+
+## Remote MCP Endpoint (v0.18.0)
+
+The networked MCP endpoint (`iga-mcp-remote`, `[mcp]` extra) is multi-tenant:
+
+- **Token authentication** — bearer tokens are stored only as sha256 hashes
+  (`{org: token_hash}`); `resolve_org` is timing-safe and fail-closed (an unknown or empty
+  token authenticates no org).
+- **Per-org isolation** — each org's assessments live in their own SQLite database; the org
+  id is allow-list validated so a tenant cannot traverse out of its store directory.
+- **Per-org rate limiting** — a configurable per-org request cap (`IGA_MCP_MAX_PER_ORG`)
+  generalises the per-session abuse guard.
+- The HTTP transport is thin wiring; the auth/isolation/limit invariants are enforced in
+  `remote.py` and unit-tested. TLS and bind address are deployment configuration.
+
 ## Software Development Lifecycle
 
 This repository is developed under the Presidio hardened-family SDLC. The public report

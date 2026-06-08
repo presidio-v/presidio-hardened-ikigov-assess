@@ -90,14 +90,15 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.9.0 | Evidence-pack export: signed, audit-ready report bundle + manifest | Shipped as v0.15.0 |
 | v0.10.0 | Pluggable regulatory-content provider interface (versioned content packs) | Shipped as v0.16.0 |
 | v0.11.0 | NIST AI RMF mapping + framework-agnostic coverage core | Shipped as v0.17.0 |
-| v0.12.0 | Remote MCP endpoint: HTTP/SSE transport, org context, auth | Planned |
+| v0.12.0 | Remote MCP endpoint: HTTP/SSE transport, org context, auth | Shipped as v0.18.0 |
 | v0.13.0 | External evidence-backed affirmation: consume signed evidence from peer `presidio-hardened-*` controls (first producer: `presidio-hardened-ai`) | Shipped |
 | v0.14.0 | Public-key (Ed25519) evidence verification: trust-store `{alg, public_key}` entries + `verify_ref` dispatch (`[crypto]` extra) | Shipped |
 | v0.14.1 | Key rotation: multiple active public keys per signer (`public_key`/`key` may be a list; verify against any) | Shipped |
 | v0.15.0 | Signed evidence-pack export: `iga export` / `iga verify-bundle` (realises the v0.9.0 feature) | Shipped |
 | v0.16.0 | Pluggable content packs: `content/` core + `iga content-list` / `iga framework-gap` (realises v0.10.0) | Shipped |
 | v0.16.1 | Evidence-pack seal key off argv: `--sign-key-file` / `$IGA_SIGN_KEY` for `export` / `verify-bundle` | Shipped |
-| v0.17.0 | NIST AI RMF built-in content pack (realises v0.11.0; works via `framework-gap`, no engine change) | **Current** |
+| v0.17.0 | NIST AI RMF built-in content pack (realises v0.11.0; works via `framework-gap`, no engine change) | Shipped |
+| v0.18.0 | Remote MCP endpoint: token auth + per-org store isolation + per-org rate limiting (`iga-mcp-remote`, realises v0.12.0) | **Current** |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -883,6 +884,46 @@ at load rather than silently failing verification.
 ### Compatibility
 `load_trust_store` now returns normalised `{alg, material}` entries (was raw strings);
 `verify_ref` still accepts bare-string trust values directly, so existing callers work.
+
+---
+
+## v0.18.0 — Remote MCP Endpoint (realises v0.12.0)
+
+**Deliberated:** 2026-06-08
+
+### Scope decision
+Generalise the stdio MCP server (v0.2.0) and the local SQLite store (v0.6.0) to a
+multi-tenant, networked deployment. Per the SDLC's "verify what ships" principle, the
+**verifiable core** is implemented and fully tested in `remote.py`; the HTTP/SSE
+transport is a thin, lazily-imported layer behind the existing `[mcp]` extra (kept out of
+the dependency-light test lane, exactly like the stdio server's `build_server`).
+
+### Components
+`remote.py`: token auth (`hash_token`, `load_token_store`, `resolve_org` — timing-safe,
+fail-closed), per-org store isolation (`org_db_path` + the `org_store` context that scopes
+the shared store via `IGA_DB_PATH`), and `OrgRateLimiter` (per-org cap generalising the
+session guard). `serve()` wires these into FastMCP streamable-HTTP; `iga-mcp-remote`
+console script.
+
+### Acceptance criteria (each maps to a test)
+1. `resolve_org` returns the org for a valid bearer token and **None** otherwise
+   (wrong/empty token), fail-closed. *(test_remote)*
+2. Token store rejects non-objects and non-sha256 digests; tokens are stored hashed. *(test_remote)*
+3. `org_db_path` is per-org and rejects path traversal via the use-case allow-list. *(test_remote)*
+4. `org_store` isolates persistence — one org never sees another's assessments — and
+   restores `IGA_DB_PATH` afterwards. *(test_remote)*
+5. `OrgRateLimiter` caps per org independently; `enforce` raises past the cap. *(test_remote)*
+
+### Security
+Bearer tokens are stored only as sha256 hashes (`{org: token_hash}`); auth is timing-safe
+and fail-closed. Org ids are allow-list validated, so a tenant cannot escape its store
+directory. Per-org rate limiting bounds abuse. Transport specifics (TLS termination, bind
+address) are deployment configuration; the auth/isolation/limit invariants are enforced in
+code and tested.
+
+### Completes the roadmap
+With v0.18.0 the planned v0.9.0–v0.12.0 line is fully delivered (as v0.15.0–v0.18.0),
+alongside the pulled-forward v0.13.0–v0.14.1.
 
 ---
 
