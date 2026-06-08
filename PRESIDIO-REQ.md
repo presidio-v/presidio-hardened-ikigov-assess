@@ -91,7 +91,8 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.10.0 | Pluggable regulatory-content provider interface (versioned content packs) | Planned |
 | v0.11.0 | NIST AI RMF mapping + framework-agnostic coverage core | Planned |
 | v0.12.0 | Remote MCP endpoint: HTTP/SSE transport, org context, auth | Planned |
-| v0.13.0 | External evidence-backed affirmation: consume signed evidence from peer `presidio-hardened-*` controls (first producer: `presidio-hardened-ai`) | Planned |
+| v0.13.0 | External evidence-backed affirmation: consume signed evidence from peer `presidio-hardened-*` controls (first producer: `presidio-hardened-ai`) | Shipped |
+| v0.14.0 | Public-key (Ed25519) evidence verification: trust-store `{alg, public_key}` entries + `verify_ref` dispatch (`[crypto]` extra) | **Current** |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -783,6 +784,73 @@ Builds on **v0.9.0** (signed evidence-pack: hash manifest + detached-signature b
 and **v0.2.0** (MCP). Independent of v0.10.0–v0.12.0. May be sequenced immediately after
 v0.9.0 (see roadmap sequencing note). The `EvidenceRef` schema is the cross-repo contract
 with `presidio-hardened-ai`; pin its version in both repos' `PRESIDIO-REQ.md` once agreed.
+
+### Implementation (2026-06-08)
+
+Pulled forward ahead of v0.9.0–v0.12.0 to close the `presidio-hardened-ai` loop
+end-to-end. Resolved as follows:
+
+- **`evidence.py`.** `EvidenceRef` (contract fields), `load_evidence` / `parse_document`
+  (schema `presidio-hardened/evidence-ref@1`), `load_trust_store`, `verify_ref`
+  (HMAC-SHA256, timing-safe, fail-closed), `classify` (per-item `evidence` /
+  `evidence-verified` provenance + `require_verified`), `merge_provenance`, and
+  `evidence_coverage`. **Self-contained signature primitive** (the v0.9.0 detached-
+  signature baseline is not yet built); the wire format byte-matches the producer's
+  `sign_evidence` and is locked by a golden test vector.
+- **`assess`** gained `--evidence` / `--trust` / `--require-evidence`. Evidence affirms
+  items (but never an item explicitly `--skip`-ped); the JSON payload carries per-item
+  `provenance` and an `evidence_coverage` block (both additive — legacy schema unchanged
+  when the flags are absent). New **`iga verify-evidence`** command (exit 1 if any ref
+  fails). New MCP tool **`iga_assess_with_evidence`** for agent chaining.
+- **Scope note.** `evidence_coverage` is computed over all affirmed items (every checklist
+  item is gate-mapped). The stricter "gate-critical technical items *must* carry evidence"
+  variant of `--require-evidence`, and a `~/.iga/trust/` directory store (only the inline
+  `--trust` file is supported now), are deferred. Verification reuses an inline HMAC key
+  store pending the v0.9.0 public-key (sigstore/minisign) baseline.
+
+Tests: full suite green (302 passed); `test_evidence.py` covers parse/verify/classify/
+coverage, the producer-cross-validated golden vector, the `assess`/`verify-evidence` CLI,
+and the MCP tool.
+
+---
+
+## v0.14.0 — Public-Key (Ed25519) Evidence Verification
+
+**Deliberated:** 2026-06-08
+
+### Scope decision
+Verify **Ed25519** public-key signatures on evidence, not just shared-secret HMAC — the
+consumer half of the suite's move to asymmetric signing (producer:
+`presidio-hardened-ai` v0.7.0). The **signing algorithm is a property of the trust
+store**, so the `EvidenceRef` contract is unchanged: a trust entry is either a bare HMAC
+secret string (back-compat) or an object `{"alg": "hmac-sha256"|"ed25519",
+"key"|"public_key": "<hex>"}`. `verify_ref` dispatches on the entry's algorithm.
+
+### Components
+`evidence.py`: `load_trust_store` now normalises each entry to `{alg, material}`
+(accepting string or object), `verify_ref` dispatches HMAC vs Ed25519, and
+`_verify_ed25519` verifies via `cryptography` (lazy import; `load_trust_store` fails fast
+with a clear message if an Ed25519 entry is present without the `[crypto]` extra). New
+`[crypto]` extra; `cryptography` added to `[dev]` so the tests run in the default lane.
+
+### Acceptance criteria (each maps to a test)
+1. `load_trust_store` accepts string (→HMAC) and object (`{alg, public_key}`) entries and
+   rejects unknown algorithms. *(test_evidence)*
+2. `verify_ref` cross-validates the producer's Ed25519 **golden vector**; fail-closed on
+   wrong public key or tampered content. *(test_evidence)*
+3. Bare-string trust entries still verify HMAC (back-compat). *(test_evidence)*
+4. `classify` marks Ed25519-verified items `evidence-verified`; the `assess --trust` CLI
+   honours object trust entries. *(test_evidence)*
+
+### Security
+Asymmetric trust: a verifier holds only public keys; no shared secret with the producer.
+Verification reuses the same canonical `{content_hash, signer}` message as HMAC, so the
+two are wire-compatible. Fail-closed throughout; Ed25519 entries without `[crypto]` raise
+at load rather than silently failing verification.
+
+### Compatibility
+`load_trust_store` now returns normalised `{alg, material}` entries (was raw strings);
+`verify_ref` still accepts bare-string trust values directly, so existing callers work.
 
 ---
 

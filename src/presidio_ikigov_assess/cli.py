@@ -16,12 +16,14 @@ Commands:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Optional
 
 import typer
 from rich.console import Console
 
+from presidio_ikigov_assess import evidence as evidence_mod
 from presidio_ikigov_assess import store
 from presidio_ikigov_assess.euaiact import evaluate_euaiact
 from presidio_ikigov_assess.gates import evaluate_all_gates, evaluate_gate
@@ -93,7 +95,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.8.1."""
+    """IKI-Gov Assessment Tool (iga) — v0.14.0."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 
@@ -150,6 +152,56 @@ def _validated(value: str, validator, lang: str) -> str:
         raise typer.Exit(1) from exc
 
 
+def _read_file(path: str, lang: str) -> str:
+    try:
+        return Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        err_console.print(f"[red]Error:[/red] could not read {path}: {exc}")
+        raise typer.Exit(1) from exc
+
+
+def _apply_evidence(
+    affirmed: frozenset[str],
+    skipped: frozenset[str],
+    evidence_path: str,
+    trust_path: Optional[str],
+    require_evidence: bool,
+    lang: str,
+    quiet: bool,
+) -> tuple[frozenset[str], dict[str, str], dict[str, object]]:
+    """Load signed evidence, affirm the items it substantiates, return provenance+coverage."""
+    evidence_path = _validated(evidence_path, validate_output_path, lang)
+    try:
+        refs = evidence_mod.load_evidence(_read_file(evidence_path, lang))
+        trust = None
+        if trust_path is not None:
+            trust_path = _validated(trust_path, validate_output_path, lang)
+            trust = evidence_mod.load_trust_store(_read_file(trust_path, lang))
+        result = evidence_mod.classify(refs, trust, require_verified=require_evidence)
+    except evidence_mod.EvidenceError as exc:
+        err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    # Evidence cannot affirm an item explicitly skipped by the assessor.
+    affirmed_via_evidence = result.affirmed - skipped
+    merged = affirmed | affirmed_via_evidence
+    provenance = evidence_mod.merge_provenance(merged, result.provenance)
+    coverage = evidence_mod.evidence_coverage(provenance)
+
+    log_security_event(
+        {
+            "event": "iga-evidence-attached",
+            "n_refs": result.n_refs,
+            "n_verified": result.n_verified,
+            "n_affirmed": len(affirmed_via_evidence),
+            "require_evidence": require_evidence,
+            "trust": trust_path is not None,
+            "lang": lang,
+        }
+    )
+    return merged, provenance, coverage
+
+
 @app.command()
 def assess(
     use_case: str = typer.Option(
@@ -202,6 +254,21 @@ def assess(
         "--save",
         help="Persist this assessment to the local store (~/.iga/assessments.db).",
     ),
+    evidence: Optional[str] = typer.Option(
+        None,
+        "--evidence",
+        help="Signed EvidenceRef JSON from a presidio-hardened-* control (affirms items).",
+    ),
+    trust: Optional[str] = typer.Option(
+        None,
+        "--trust",
+        help="Trust-store JSON {signer: key} used to verify evidence signatures.",
+    ),
+    require_evidence: bool = typer.Option(
+        False,
+        "--require-evidence",
+        help="Fail-closed: only evidence that verifies against --trust affirms its item.",
+    ),
 ) -> None:
     """Assess an AI use case against the IKI-Gov checklist."""
     lang = _validated(lang, validate_lang, lang)
@@ -224,6 +291,13 @@ def assess(
             raise typer.Exit(0)
     else:
         affirmed, skipped_set = _parse_answers(affirm, skip, lang)
+
+    provenance: dict[str, str] | None = None
+    coverage: dict[str, object] | None = None
+    if evidence is not None:
+        affirmed, provenance, coverage = _apply_evidence(
+            affirmed, skipped_set, evidence, trust, require_evidence, lang, quiet
+        )
 
     scores = compute_scores(affirmed, skipped_set, risk_class)
     gate_results = evaluate_all_gates(affirmed, skipped_set, risk_class, strict)
@@ -259,7 +333,19 @@ def assess(
             err_console.print(f"[green]{t('assessment_saved', lang, use_case=use_case)}[/green]")
 
     if quiet:
-        print(render_json(use_case, risk_class, scores, gate_results, affirmed, skipped_set, lang))
+        print(
+            render_json(
+                use_case,
+                risk_class,
+                scores,
+                gate_results,
+                affirmed,
+                skipped_set,
+                lang,
+                provenance,
+                coverage,
+            )
+        )
         return
 
     print_assessment(
@@ -271,6 +357,63 @@ def assess(
         skipped_ids=skipped_set,
         lang=lang,
     )
+    if coverage is not None:
+        console.print(
+            f"[dim]Evidence coverage: {coverage['evidence_backed']}/{coverage['affirmed_total']} "
+            f"affirmed items backed ({coverage['verified']} verified).[/dim]"
+        )
+
+
+@app.command(name="verify-evidence")
+def verify_evidence(
+    evidence: str = typer.Option(..., "--evidence", help="Signed EvidenceRef JSON to verify."),
+    trust: str = typer.Option(..., "--trust", help="Trust-store JSON {signer: key}."),
+    lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
+) -> None:
+    """Verify the signatures on an evidence document against a trust store (fail-closed).
+
+    Exits 0 only if every reference verifies; exits 1 if any reference fails or the
+    documents are malformed.
+    """
+    lang = _validated(lang, validate_lang, lang)
+    evidence = _validated(evidence, validate_output_path, lang)
+    trust = _validated(trust, validate_output_path, lang)
+    try:
+        refs = evidence_mod.load_evidence(_read_file(evidence, lang))
+        store_keys = evidence_mod.load_trust_store(_read_file(trust, lang))
+    except evidence_mod.EvidenceError as exc:
+        err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    results = []
+    all_ok = bool(refs)
+    for ref in refs:
+        ok = evidence_mod.verify_ref(ref, store_keys)
+        all_ok = all_ok and ok
+        results.append(
+            {
+                "item_id": ref.item_id,
+                "signer": ref.signer,
+                "verified": ok,
+                "ledger_ref": ref.ledger_ref,
+            }
+        )
+    log_security_event(
+        {"event": "iga-evidence-verified", "n_refs": len(refs), "all_ok": all_ok, "lang": lang}
+    )
+
+    if quiet:
+        print(json.dumps({"all_verified": all_ok, "refs": results}, ensure_ascii=False))
+    else:
+        for r in results:
+            mark = "OK  " if r["verified"] else "FAIL"
+            colour = "green" if r["verified"] else "red"
+            console.print(f"[{colour}]{mark}[/{colour}] {r['item_id']}  signer={r['signer']}")
+        if not refs:
+            err_console.print("[yellow]No evidence references found.[/yellow]")
+    if not all_ok:
+        raise typer.Exit(1)
 
 
 @app.command()

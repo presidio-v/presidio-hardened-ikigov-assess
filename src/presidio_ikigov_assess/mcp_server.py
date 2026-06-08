@@ -27,6 +27,7 @@ from __future__ import annotations
 from typing import Optional
 
 from presidio_ikigov_assess import __version__
+from presidio_ikigov_assess import evidence as evidence_mod
 from presidio_ikigov_assess.checklist import (
     CHECKLIST,
     VALID_DIMENSIONS,
@@ -212,6 +213,56 @@ def assess(
     return payload
 
 
+def assess_with_evidence(
+    affirmed: Optional[list[str]] = None,
+    skipped: Optional[list[str]] = None,
+    evidence: Optional[list[dict]] = None,
+    trust: Optional[dict[str, str]] = None,
+    risk_class: str = "medium",
+    lang: str = "en",
+    use_case: str = "unnamed",
+    strict: bool = False,
+    require_evidence: bool = False,
+) -> dict:
+    """Assess a use case, affirming items backed by signed evidence references.
+
+    ``evidence`` is a list of EvidenceRef objects (the producer's export shape);
+    ``trust`` maps signer id -> verification key. Items with valid (and, under
+    ``require_evidence``, verified) evidence are affirmed, and the payload carries
+    per-item provenance plus an ``evidence_coverage`` block.
+    """
+    lang = _validated(lang, validate_lang)
+    risk_class = _validated(risk_class, validate_risk_class)
+    use_case = _validated(use_case, validate_use_case)
+    affirm_ids, skip_ids = _prepare_answers(affirmed, skipped)
+    _guard_session()
+
+    try:
+        refs = evidence_mod.parse_document({"evidence": evidence or []})
+    except evidence_mod.EvidenceError as exc:
+        raise ToolInputError(str(exc)) from exc
+    result = evidence_mod.classify(refs, trust, require_verified=require_evidence)
+    merged = (affirm_ids | result.affirmed) - skip_ids
+    provenance = evidence_mod.merge_provenance(merged, result.provenance)
+    coverage = evidence_mod.evidence_coverage(provenance)
+
+    scores = compute_scores(merged, skip_ids, risk_class)
+    gate_results = evaluate_all_gates(merged, skip_ids, risk_class, strict)
+    payload = build_payload(
+        use_case, risk_class, scores, gate_results, merged, skip_ids, lang, provenance, coverage
+    )
+    log_security_event(
+        {
+            "event": "iga-mcp-evidence-assess",
+            "n_refs": result.n_refs,
+            "n_verified": result.n_verified,
+            "require_evidence": require_evidence,
+            "lang": lang,
+        }
+    )
+    return payload
+
+
 def gate_status(
     gate: str,
     affirmed: Optional[list[str]] = None,
@@ -357,6 +408,32 @@ def build_server():
         OPEN/PARTIAL/BLOCKED under the active risk policy.
         """
         return assess(affirmed, skipped, risk_class, lang, use_case, strict)
+
+    @server.tool()
+    def iga_assess_with_evidence(
+        affirmed: Optional[list[str]] = None,
+        skipped: Optional[list[str]] = None,
+        evidence: Optional[list[dict]] = None,
+        trust: Optional[dict[str, str]] = None,
+        risk_class: str = "medium",
+        lang: str = "en",
+        use_case: str = "unnamed",
+        strict: bool = False,
+        require_evidence: bool = False,
+    ) -> dict:
+        """Assess a use case, affirming items backed by signed evidence references.
+
+        ``evidence`` is a list of EvidenceRef objects emitted by a peer
+        ``presidio-hardened-*`` control (e.g. ``presidio-hardened-ai``); ``trust``
+        maps signer id to verification key. Items carrying valid evidence are
+        affirmed (under ``require_evidence``, only those that verify against
+        ``trust``), and the result adds per-item ``provenance`` (self |
+        evidence | evidence-verified) plus an ``evidence_coverage`` block. Lets an
+        agent chain a control's evidence straight into an IKI-Gov assessment.
+        """
+        return assess_with_evidence(
+            affirmed, skipped, evidence, trust, risk_class, lang, use_case, strict, require_evidence
+        )
 
     @server.tool()
     def iga_check_gate(

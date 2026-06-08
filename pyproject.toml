@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "presidio-hardened-ikigov-assess"
-version = "0.8.1"
+version = "0.14.0"
 description = "IKI-Gov Assessment Tool — operationalises the Integrated KI-Governance Reference Model for AI use-case governance."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -34,12 +34,15 @@ audit = ["pip-audit>=2.6.0"]
 # MCP server extra. The official `mcp` SDK requires Python 3.10+, so this extra
 # is only installable on 3.10+; the core CLI remains 3.9-compatible.
 mcp = ["mcp>=1.2.0; python_version >= '3.10'"]
+# Public-key (Ed25519) evidence verification for v0.14.0 external evidence.
+crypto = ["cryptography>=42"]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "ruff>=0.4.0",
     "pip-audit>=2.6.0",
     "mcp>=1.2.0; python_version >= '3.10'",
+    "cryptography>=42",
 ]
 
 [project.scripts]

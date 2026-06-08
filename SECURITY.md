@@ -65,28 +65,31 @@ within 30 days of a confirmed vulnerability.
 - **Restricted file permissions** — `~/.iga/` is created with mode `700` and the security
   log file with mode `600`.
 
-## Planned — External Evidence Verification (v0.13.0)
+## External Evidence Verification (v0.13.0)
 
-> **Not yet implemented.** The following describes the security model of the planned
-> *external evidence-backed affirmation* feature (PRESIDIO-REQ.md, v0.13.0), recorded here
-> so the design is reviewable ahead of implementation. It is not present in any released
-> version and confers no current guarantee.
+External evidence-backed affirmation (`iga assess --evidence` / `iga verify-evidence` /
+the `iga_assess_with_evidence` MCP tool) lets ikigov attach signed evidence references
+(`EvidenceRef`) from peer `presidio-hardened-*` controls to affirmed checklist items. The
+controls in force:
 
-When shipped, ikigov will be able to attach signed evidence references (`EvidenceRef`) from
-peer `presidio-hardened-*` controls to affirmed checklist items. The intended controls:
-
-- **Fail-closed verification** — a missing, malformed, or invalid hash/signature never
-  passes silently as verified; the item downgrades to self-affirmed, or is denied under
-  `--require-evidence`.
+- **Fail-closed verification** — a missing, malformed, or invalid signature never passes
+  silently as verified; the item stays `evidence` (present, unproven) or, under
+  `--require-evidence`, is not affirmed at all. `verify-evidence` exits non-zero on any
+  failure.
 - **Commitments only** — an `EvidenceRef` carries hashes and opaque ledger URIs, never PII
   or raw organisational data, consistent with the structural-only logging rule. All fields
   are length-bounded, scheme/format-validated, and escaped on export like every other input.
-- **Local trust** — signer public keys are resolved from a local trust store
-  (`~/.iga/trust/` or `IGA_TRUST_PATH`); there is no network key resolution by default.
-  Verification reuses the v0.9.0 detached-signature primitive rather than a second mechanism.
-- **Structured logging** — new `iga-evidence-attached` / `iga-evidence-verified` events
-  record item IDs and the verification result only — no evidence content and no ledger-ref
-  value.
+- **Local trust** — signer keys are resolved from a local trust-store file (`--trust`); no
+  network key resolution. Signatures are over the canonical `{content_hash, signer}`
+  message (byte-matched to the producer and locked by golden test vectors).
+- **Algorithm in the trust store (v0.14.0)** — a trust entry is either a bare HMAC-secret
+  string (back-compat) or an object `{"alg": "hmac-sha256"|"ed25519",
+  "key"|"public_key": "<hex>"}`. `verify_ref` dispatches accordingly. **Ed25519**
+  (RFC 8032) public-key verification means a verifier holds only public keys — no shared
+  secret with the producer. Ed25519 entries require the `[crypto]` extra; `load_trust_store`
+  fails fast with a clear message if it is missing rather than failing verification silently.
+- **Structured logging** — `iga-evidence-attached` / `iga-evidence-verified` events record
+  reference/verification counts only — no evidence content and no ledger-ref value.
 
 ## Software Development Lifecycle
 

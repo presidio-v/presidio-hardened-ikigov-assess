@@ -216,6 +216,7 @@ def test_build_server_registers_tools():
         "iga_framework_info",
         "iga_list_checklist",
         "iga_assess",
+        "iga_assess_with_evidence",
         "iga_check_gate",
         "iga_iso_gap",
         "iga_euaiact_gap",

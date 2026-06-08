@@ -47,22 +47,30 @@ def item_answers(
     affirmed: frozenset[str],
     skipped: frozenset[str],
     lang: str,
+    provenance: dict[str, str] | None = None,
 ) -> list[dict[str, object]]:
-    """Build the per-item answer detail for every checklist item, in order."""
+    """Build the per-item answer detail for every checklist item, in order.
+
+    When ``provenance`` is supplied (v0.13.0 evidence-backed affirmation), each
+    affirmed item carries how it was substantiated: ``self`` | ``evidence`` |
+    ``evidence-verified``. Omitted entirely when ``provenance`` is None, so the
+    legacy schema is unchanged.
+    """
     rows: list[dict[str, object]] = []
     for item in CHECKLIST:
         status = classify_answer(item.id, affirmed, skipped)
-        rows.append(
-            {
-                "id": item.id,
-                "status": status,
-                "status_label": t(f"answer_{status}", lang),
-                "dimension": item.m_dimension,
-                "gates": list(item.gates),
-                "iso_clauses": list(item.iso_clauses),
-                "text": item.text(lang),
-            }
-        )
+        row: dict[str, object] = {
+            "id": item.id,
+            "status": status,
+            "status_label": t(f"answer_{status}", lang),
+            "dimension": item.m_dimension,
+            "gates": list(item.gates),
+            "iso_clauses": list(item.iso_clauses),
+            "text": item.text(lang),
+        }
+        if provenance is not None and status == "affirmed":
+            row["provenance"] = provenance.get(item.id, "self")
+        rows.append(row)
     return rows
 
 
@@ -226,16 +234,22 @@ def build_payload(
     affirmed: frozenset[str],
     skipped: frozenset[str],
     lang: str,
+    provenance: dict[str, str] | None = None,
+    coverage: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Build the structured (JSON-serialisable) assessment payload.
 
     Shared by the CLI JSON report and the MCP server so both front-ends emit
     an identical schema. The use-case name is output-sanitised before inclusion.
+
+    When ``provenance``/``coverage`` are supplied (v0.13.0 evidence-backed
+    affirmation), per-item provenance and an ``evidence_coverage`` block are added.
+    Both default to None, leaving the legacy schema unchanged.
     """
     safe_use_case = escape_for_report(use_case)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    return {
+    payload: dict[str, object] = {
         "use_case": safe_use_case,
         "risk_class": risk_class,
         "lang": lang,
@@ -264,10 +278,13 @@ def build_payload(
         "answers": {
             "affirmed": sorted(affirmed),
             "skipped": sorted(skipped),
-            "items": item_answers(affirmed, skipped, lang),
+            "items": item_answers(affirmed, skipped, lang, provenance),
         },
         "disclaimer": t("report_disclaimer", lang),
     }
+    if coverage is not None:
+        payload["evidence_coverage"] = coverage
+    return payload
 
 
 def render_json(
@@ -278,9 +295,13 @@ def render_json(
     affirmed: frozenset[str],
     skipped: frozenset[str],
     lang: str,
+    provenance: dict[str, str] | None = None,
+    coverage: dict[str, object] | None = None,
 ) -> str:
     """Return the assessment report as a JSON string."""
-    data = build_payload(use_case, risk_class, scores, gate_results, affirmed, skipped, lang)
+    data = build_payload(
+        use_case, risk_class, scores, gate_results, affirmed, skipped, lang, provenance, coverage
+    )
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 

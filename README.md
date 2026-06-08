@@ -306,7 +306,8 @@ Security controls built into the tool:
 | v0.5.0 | ISO/IEC 42001 clause-level gap mapping (`iga iso-gap`) | Released |
 | v0.6.0 | Portfolio mode: persistence, `list`, `portfolio`, `delete` | Released |
 | v0.7.0 | Maturity trending: delta between saved runs (`iga trend`) | Released |
-| v0.8.0 | EU AI Act gate→article mapping for high-risk systems (`iga euaiact-gap`) | Current |
+| v0.8.0 | EU AI Act gate→article mapping for high-risk systems (`iga euaiact-gap`) | Released |
+| v0.13.0 | External evidence-backed affirmation: `iga assess --evidence` / `verify-evidence` + `iga_assess_with_evidence` (first producer: `presidio-hardened-ai`) | Current |
 
 ### Planned
 
@@ -316,7 +317,11 @@ Security controls built into the tool:
 | v0.10.0 | Pluggable regulatory-content provider interface (versioned content packs) | Planned |
 | v0.11.0 | NIST AI RMF mapping + framework-agnostic coverage core | Planned |
 | v0.12.0 | Remote MCP endpoint: HTTP/SSE transport, org context, auth | Planned |
-| v0.13.0 | External evidence-backed affirmation: consume signed evidence from peer `presidio-hardened-*` controls (first producer: `presidio-hardened-ai`) | Planned |
+
+> **v0.13.0 pulled forward** ahead of v0.9.0–v0.12.0 to close the
+> `presidio-hardened-ai` evidence loop end-to-end (the producer already emits the
+> contract format). It ships its own HMAC verification primitive; the broader
+> v0.9.0 signed evidence-pack remains planned.
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 
