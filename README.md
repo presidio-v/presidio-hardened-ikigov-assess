@@ -326,6 +326,12 @@ shared secret with the producer — and requires the `[crypto]` extra. Signature
 canonical `{content_hash, signer}` message; signer keys are resolved from the local trust
 store only (no network). Evidence references carry hashes and opaque ledger URIs, never PII.
 
+> **How this fits the wider suite:** ikigov-assess is the governance *spine* that consumes
+> evidence from peer `presidio-hardened-*` controls. For the cross-repo overview — how the
+> family interlocks and an end-to-end demo — see
+> [presidio-hardened-* Suite Architecture](https://github.com/presidio-v/presidio-hardened-ai/blob/main/docs/ARCHITECTURE.md)
+> (in `presidio-hardened-ai`).
+
 ---
 
 ## MCP Server
