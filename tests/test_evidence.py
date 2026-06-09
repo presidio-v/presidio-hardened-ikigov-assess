@@ -304,3 +304,27 @@ def test_cli_assess_with_ed25519_trust(tmp_path):
     assert "D1" in payload["answers"]["affirmed"]
     by_id = {row["id"]: row for row in payload["answers"]["items"]}
     assert by_id["D1"]["provenance"] == EVIDENCE_VERIFIED
+
+
+def test_consortium_round_d4_evidence_verifies():
+    """A consortium-round D4 (hardened-ai GOD / secure round, ≥ v0.18) is the SAME
+    EvidenceRef@1 shape; ikigov verifies it unchanged — decoupled-by-design (v0.13 decision).
+
+    Regression-pins producer↔consumer interop for the P4 consortium path through
+    hardened-ai v0.30.0 (GOD + L∞/L2 bounded-norm + robustness): the round emits an
+    aggregate-only D4 commitment signed with Ed25519, exactly the contract this verifies.
+    """
+    doc = {
+        "schema": "presidio-hardened/evidence-ref@1",
+        "use_case": "consortium/round-1",
+        "evidence": [_ed_ref("D4").__dict__],
+    }
+    refs = load_evidence(json.dumps(doc))
+    assert len(refs) == 1 and refs[0].item_id == "D4"
+    trust = load_trust_store(json.dumps({GOLDEN_SIGNER: {"alg": "ed25519", "public_key": ED_PUB}}))
+    assert verify_ref(refs[0], trust) is True
+    # fail-closed under a wrong key (no silent pass for consortium evidence either)
+    bad = load_trust_store(
+        json.dumps({GOLDEN_SIGNER: {"alg": "ed25519", "public_key": ED_PUB[:-2] + "00"}})
+    )
+    assert verify_ref(refs[0], bad) is False
