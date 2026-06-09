@@ -99,7 +99,9 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.16.1 | Evidence-pack seal key off argv: `--sign-key-file` / `$IGA_SIGN_KEY` for `export` / `verify-bundle` | Shipped |
 | v0.17.0 | NIST AI RMF built-in content pack (realises v0.11.0; works via `framework-gap`, no engine change) | Shipped |
 | v0.18.0 | Remote MCP endpoint primitives: token auth, per-org store scoping, per-org rate limiting (`remote.py`, realises v0.12.0) | Shipped |
-| v0.19.0 | Remote endpoint enforcement: pure-ASGI `OrgAuthMiddleware` wires auth (401) + per-org rate limit (429) ahead of the MCP app; concurrency-safe context-var store scoping | **Current** |
+| v0.19.0 | Remote endpoint enforcement: pure-ASGI `OrgAuthMiddleware` wires auth (401) + per-org rate limit (429) ahead of the MCP app; concurrency-safe context-var store scoping | Shipped |
+| v0.19.1 | Producer-compat sync: verified interop with `presidio-hardened-ai` v0.30.0 (P4 consortium — GOD + L∞/L2 bounded-norm + robustness); `EvidenceRef@1` unchanged, no engine change; consortium-`D4` regression test | Shipped |
+| v0.19.2 | Dependency maintenance: resolve Dependabot pip + GitHub-Actions updates (typer/rich/prompt-toolkit/pytest/ruff floors, checkout@v6, codecov-action@v7); enforce `requires-python >=3.10` and drop the stale Python 3.9 CI leg | **Current** |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -1062,6 +1064,43 @@ export --bundle DIR [--zip] [--sign-key KEY]` and `iga verify-bundle --bundle �
 ### Deferred (per the original v0.9.0 deliberation)
 PDF rendering (heavy dep) and a public-key (Ed25519/sigstore) manifest signature — the
 HMAC seal is the baseline; Ed25519 signing can reuse the v0.14.x crypto path later.
+
+---
+
+## v0.19.1 — Producer-Compatibility Sync (presidio-hardened-ai v0.30.0)
+
+The producer `presidio-hardened-ai` advanced through its **P4 consortium** arc (v0.21–v0.30):
+malicious-secure secure aggregation, **guaranteed output delivery** (honest-majority robust
+secret-sharing), **L∞/L2 bounded-norm** input validation (DP clip sensitivity *proven*), a
+pluggable Ristretto255+Bulletproofs proof backend, whole-consortium proof aggregation, and a
+Byzantine-ML robustness gate.
+
+**No ikigov engine change is required** — and that is the point. A consortium round emits the
+**same `D4` `EvidenceRef@1`** (an aggregate-only commitment + Ed25519 signature) as a
+single-node `dp-train`; ikigov treats the producer's item→evidence map as opaque (the v0.13.0
+decision), so it verifies consortium evidence with the existing `verify_ref` path. The producer
+hardened P4 across six ADRs without touching the cross-repo contract. Interop is validated
+end-to-end (a GOD round's D4 verifies in ikigov with only the public key) and pinned by the
+`test_consortium_round_d4_evidence_verifies` regression test.
+
+---
+
+## v0.19.2 — Dependency Maintenance + Python 3.10 Floor
+
+Resolves the open Dependabot PRs (which were cut from a stale base and would have regressed
+main) by **applying their intended updates to current main** rather than merging the branches:
+dependency floors raised (`typer>=0.23.2`, `rich>=14.3.4`, `prompt_toolkit>=3.0.52`,
+`pytest>=8.4.2`, `ruff>=0.15.10`), GitHub Actions bumped (`actions/checkout@v6`,
+`codecov/codecov-action@v7`). The obsolete `typer[all]` extra is dropped (modern `typer`
+bundles rich/shellingham).
+
+**CI fix.** The `Tests` workflow was red on the **Python 3.9** matrix leg: the project's modern
+CLI stack (`click`/`typer`/`pytest` latest) now requires Python ≥3.10, so 3.9 can no longer
+resolve a consistent dependency set. The 3.10 minimum was already the documented intent (the
+v0.9.0 platform decision; the `mcp` extra requires 3.10), but `requires-python` and the matrix
+were stale at 3.9. This enforces `requires-python = ">=3.10"` and tests 3.10–3.12 — green on
+3.10/3.11/3.12 (verified in a clean venv). The stale Dependabot branches are superseded and can
+be closed.
 
 ---
 

@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "presidio-hardened-ikigov-assess"
-version = "0.19.0"
+version = "0.19.2"
 description = "IKI-Gov Assessment Tool — operationalises the Integrated KI-Governance Reference Model for AI use-case governance."
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 keywords = ["ai-governance", "iki-gov", "compliance", "iso42001"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -24,9 +24,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "typer[all]>=0.9.0",
-    "rich>=13.0.0",
-    "prompt_toolkit>=3.0.0",
+    "typer>=0.23.2",
+    "rich>=14.3.4",
+    "prompt_toolkit>=3.0.52",
 ]
 
 [project.optional-dependencies]
@@ -37,9 +37,9 @@ mcp = ["mcp>=1.2.0; python_version >= '3.10'"]
 # Public-key (Ed25519) evidence verification for v0.14.0 external evidence.
 crypto = ["cryptography>=42"]
 dev = [
-    "pytest>=7.0",
+    "pytest>=8.4.2",
     "pytest-cov>=4.0",
-    "ruff>=0.4.0",
+    "ruff>=0.15.10",
     "pip-audit>=2.6.0",
     "mcp>=1.2.0; python_version >= '3.10'",
     "cryptography>=42",
@@ -62,7 +62,7 @@ addopts = "--cov=src/presidio_ikigov_assess --cov-report=term-missing --cov-fail
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP"]
