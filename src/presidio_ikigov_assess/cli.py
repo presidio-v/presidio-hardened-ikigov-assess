@@ -28,6 +28,7 @@ from presidio_ikigov_assess import bundle as bundle_mod
 from presidio_ikigov_assess import content as content_mod
 from presidio_ikigov_assess import evidence as evidence_mod
 from presidio_ikigov_assess import store
+from presidio_ikigov_assess.classify import classify_app
 from presidio_ikigov_assess.euaiact import evaluate_euaiact
 from presidio_ikigov_assess.gates import evaluate_all_gates, evaluate_gate
 from presidio_ikigov_assess.i18n import t
@@ -78,6 +79,7 @@ app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
 )
+app.add_typer(classify_app, name="classify")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -98,7 +100,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.19.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.20.0."""
     global _NO_DEP_CHECK
     _NO_DEP_CHECK = no_dep_check
 

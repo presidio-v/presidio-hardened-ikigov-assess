@@ -401,6 +401,113 @@ The seal key is resolved from `--sign-key-file <path>` (preferred), then `--sign
 (inline; avoid — visible in shell history and the process list), then the `$IGA_SIGN_KEY`
 environment variable. Use the same source for `export` and `verify-bundle`.
 
+## Classificator Bridge (eai-classification/v1)
+
+> v0.20.0 — producer-agnostic interchange layer between the Enterprise AI
+> Classification Framework and the IKI-Gov assessment engine.
+
+The bridge accepts documents from **any producer** that conforms to the
+`eai-classification/v1` schema — the research eai-classificator tool, partner
+survey tooling (e.g. kenza), or hand-crafted JSON. The schema is keyed to the
+*model* (6×6 matrix: types T1–T6 × autonomy levels L1–L6), not to any one
+tool's output format.
+
+### Example classification document
+
+```json
+{
+  "schema": "eai-classification/v1",
+  "producer": {"tool": "eai-classificator", "version": "1.0.0"},
+  "use_cases": [
+    {
+      "id": "fraud-scoring",
+      "type": "T1",
+      "level": "L4",
+      "name": {"de": "Betrugserkennung", "en": "Fraud Scoring"},
+      "confidence": 0.92,
+      "tags": ["finance", "high-risk"]
+    },
+    {
+      "id": "customer-chat",
+      "type": "T4",
+      "level": "L3",
+      "ecosystem": true
+    }
+  ]
+}
+```
+
+**L6 / ecosystem regime:** level L6 is the non-ordinal ecosystem/multi-system
+coordination overlay. Set `"ecosystem": true` on any L1–L5 use case to indicate
+it participates in a multi-system coordination regime — the parser normalises the
+effective cell level to L6 and retains `base_level` for the record.
+`level=L6` combined with `ecosystem=false` is a contradiction and is rejected.
+
+### Ingest a classification document
+
+```bash
+# Human table: use case, cell, risk presumption, strict, obligations, note
+iga classify ingest --file classification.json --lang de
+
+# Machine JSON: includes pack content_hash and producer echo
+iga classify ingest --file classification.json --quiet
+```
+
+### Run a profiled assessment from a classification document
+
+```bash
+# Resolve the selected use case's profile, then run the full assess pipeline
+iga classify assess \
+    --file classification.json \
+    --select fraud-scoring \
+    --affirm S1,S2,D1,D2,T1 \
+    --lang de \
+    --quiet \
+    --save
+
+# The profile's risk_class and strict flag are pre-set from the classification
+# pack. --strict may further tighten; profile strict=true cannot be loosened.
+```
+
+The `classify assess` command reuses the full existing pipeline
+(`compute_scores`, `evaluate_all_gates`, `render_json`, `store.save_assessment`,
+`log_security_event`) and logs a `iga-classify-assess` security event including
+the cell id and the profile pack `content_hash`.
+
+### Classification-profile pack override
+
+The built-in pack (`eai-classification-default`, **DRAFT semantics**) is
+automatically loaded. To override it, drop a JSON file with
+`"pack_kind": "classification-profile"` into `IGA_CONTENT_PATH`
+(default `~/.iga/content/`). The file must cover all 36 cells; a pack with the
+same `framework_id` overrides the built-in.
+
+```json
+{
+  "pack_kind": "classification-profile",
+  "framework_id": "eai-classification-default",
+  "version": "my-org-1.0",
+  "profiles": {
+    "T1.L1": {"risk_presumption": "low", "strict": false,
+               "obligations": ["iso42001", "euaiact"],
+               "notes": {"en": "Minimal oversight required."}},
+    "T1.L2": { "..." : "..." }
+  }
+}
+```
+
+ContentPacks (regulatory framework gap mappings) and ProfilePacks coexist in the
+same directory — the loader discriminates by `pack_kind`.
+
+### JSON Schema for external producers
+
+`schemas/eai-classification.v1.schema.json` (repo root) provides a JSON Schema
+draft/2020-12 definition that partner producers (kenza, nusi) can use for
+pre-publication validation. The Python parser in `classification.py` is the
+authoritative source; `jsonschema` is not a declared project dependency.
+
+---
+
 ## Security
 
 See [SECURITY.md](SECURITY.md) for the full security policy.

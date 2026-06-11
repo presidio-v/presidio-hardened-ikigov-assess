@@ -1,0 +1,59 @@
+{
+  "schema": "eai-classification/v1",
+  "producer": {
+    "tool": "eai-classificator",
+    "version": "1.0.0",
+    "assessed_by": "clinical-ai-team"
+  },
+  "use_cases": [
+    {
+      "id": "infusion-pump-dosing",
+      "type": "T1",
+      "level": "L4",
+      "name": {
+        "de": "Infusionspumpen-Dosierungsassistent",
+        "en": "Infusion Pump Dosing Assistant"
+      },
+      "confidence": 0.92,
+      "rationale": "Autonomous dose calculation decisions about patients with limited human override window.",
+      "tags": ["medical-device", "high-risk", "eu-mdr"]
+    },
+    {
+      "id": "infusion-pump-predict",
+      "type": "T2",
+      "level": "L4",
+      "name": {
+        "de": "Infusionspumpen-Vorhersagemodell",
+        "en": "Infusion Pump Predictive Model"
+      },
+      "confidence": 0.88,
+      "rationale": "Predictive dosing adjustments at high autonomy level for critical care.",
+      "tags": ["medical-device", "predictive", "critical-care"]
+    },
+    {
+      "id": "dialysis-remote-service",
+      "type": "T2",
+      "level": "L3",
+      "ecosystem": true,
+      "name": {
+        "de": "Dialyse-Fernwartungsservice",
+        "en": "Dialysis Remote Service"
+      },
+      "confidence": 0.85,
+      "rationale": "Remote predictive maintenance integrated with hospital ecosystem coordination.",
+      "tags": ["dialysis", "remote", "ecosystem"]
+    },
+    {
+      "id": "surgical-robotics",
+      "type": "T6",
+      "level": "L3",
+      "name": {
+        "de": "Chirurgische Robotik",
+        "en": "Surgical Robotics"
+      },
+      "confidence": 0.79,
+      "rationale": "Physical robotic system with conditional autonomy in surgical procedures.",
+      "tags": ["robotics", "surgical", "physical-actuation"]
+    }
+  ]
+}

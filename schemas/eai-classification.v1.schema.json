@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://presidio-group.eu/schemas/eai-classification/v1",
+  "title": "EAI Classification Document v1",
+  "description": "Producer-agnostic interchange schema for Enterprise AI Classification Framework documents. Both the eai-classificator research artefact and third-party tooling (e.g. partner 'kenza' conversational survey tooling) produce documents conforming to this schema. NOTE: jsonschema is not a declared project dependency; this file is documentation-grade. Validation is performed by the Python parser in src/presidio_ikigov_assess/classification.py, which is the authoritative source of truth.",
+  "type": "object",
+  "required": ["schema", "use_cases"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "eai-classification/v1",
+      "description": "Schema version identifier. Must be exactly 'eai-classification/v1'."
+    },
+    "producer": {
+      "description": "Optional free-form producer identification (name, version, tool). Not validated.",
+      "additionalProperties": true
+    },
+    "use_cases": {
+      "type": "array",
+      "description": "List of classified AI use cases. Maximum 200 entries.",
+      "maxItems": 200,
+      "items": {
+        "$ref": "#/$defs/UseCase"
+      }
+    }
+  },
+  "$defs": {
+    "UseCase": {
+      "type": "object",
+      "required": ["id", "type", "level"],
+      "additionalProperties": true,
+      "description": "A single AI use-case classification entry. Unknown fields are silently ignored (forward compatibility).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]{1,128}$",
+          "description": "Use-case identifier. Same validation rules as IKI-Gov use-case names."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["T1", "T2", "T3", "T4", "T5", "T6"],
+          "description": "AI system type: T1=Decision, T2=Predictive, T3=Generative, T4=Conversational, T5=Visual, T6=Physical."
+        },
+        "level": {
+          "type": "string",
+          "enum": ["L1", "L2", "L3", "L4", "L5", "L6"],
+          "description": "Autonomy level. L1-L5 are ordinal (increasing autonomy). L6 is the ecosystem/multi-system coordination regime (non-ordinal overlay). When ecosystem=true, the effective cell level is normalised to L6 regardless of the declared base level. level=L6 combined with ecosystem=false is a contradiction and is rejected."
+        },
+        "name": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 256,
+              "description": "Use-case display name (monolingual string)."
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "description": "Use-case display name as a {lang: str} dict, e.g. {\"de\": \"...\", \"en\": \"...\"}."
+            }
+          ]
+        },
+        "ecosystem": {
+          "type": "boolean",
+          "description": "Whether this use case operates in the L6 ecosystem/multi-system coordination regime. When true, effective cell level is normalised to L6. level=L6 + ecosystem=false is a contradiction."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Producer confidence score for the classification, in [0, 1]."
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Producer rationale for the classification (length-capped)."
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "description": "Optional short descriptive tags."
+        }
+      }
+    }
+  }
+}

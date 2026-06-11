@@ -325,6 +325,44 @@ STRINGS: dict[str, dict[str, str]] = {
         "de": "Ungültige Sprache: '{value}'. Erlaubt: de, en.",
         "en": "Invalid language: '{value}'. Allowed: de, en.",
     },
+    # ── Classificator bridge (v0.20.0) ────────────────────────────────────────
+    "classify_ingest_title": {
+        "de": "EAI-Klassifikation — Ergebnisse",
+        "en": "EAI Classification — Ingest Results",
+    },
+    "classify_col_id": {"de": "Anwendungsfall-ID", "en": "Use-Case ID"},
+    "classify_col_cell": {"de": "Zelle", "en": "Cell"},
+    "classify_col_risk": {"de": "Risikovermutung", "en": "Risk Presumption"},
+    "classify_col_strict": {"de": "Strikt", "en": "Strict"},
+    "classify_col_obligations": {"de": "Pflichten", "en": "Obligations"},
+    "classify_col_note": {"de": "Hinweis", "en": "Note"},
+    "classify_err_file": {
+        "de": "Klassifikationsdatei konnte nicht gelesen werden: {path}",
+        "en": "Cannot read classification file: {path}",
+    },
+    "classify_err_parse": {
+        "de": "Klassifikationsdokument ungültig: {detail}",
+        "en": "Invalid classification document: {detail}",
+    },
+    "classify_err_use_case_not_found": {
+        "de": "Anwendungsfall-ID '{id}' nicht im Klassifikationsdokument gefunden.",
+        "en": "Use-case id '{id}' not found in the classification document.",
+    },
+    "classify_err_no_profile": {
+        "de": "Kein Profil-Pack verfügbar (Framework: '{fid}').",
+        "en": "No profile pack available (framework: '{fid}').",
+    },
+    "classify_assess_event": {
+        "de": "iga-classify-assess",
+        "en": "iga-classify-assess",
+    },
+    "classify_profile_strict_locked": {
+        "de": "Profilpflicht: 'strict=true' — kann nicht durch Flags aufgehoben werden.",
+        "en": "Profile mandates strict=true — cannot be overridden by flags.",
+    },
+    "classify_risk_low": {"de": "niedrig", "en": "low"},
+    "classify_risk_medium": {"de": "mittel", "en": "medium"},
+    "classify_risk_high": {"de": "hoch", "en": "high"},
 }
 
 SECTION_FOR_PREFIX: dict[str, str] = {

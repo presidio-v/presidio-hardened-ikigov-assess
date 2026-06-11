@@ -101,7 +101,8 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.18.0 | Remote MCP endpoint primitives: token auth, per-org store scoping, per-org rate limiting (`remote.py`, realises v0.12.0) | Shipped |
 | v0.19.0 | Remote endpoint enforcement: pure-ASGI `OrgAuthMiddleware` wires auth (401) + per-org rate limit (429) ahead of the MCP app; concurrency-safe context-var store scoping | Shipped |
 | v0.19.1 | Producer-compat sync: verified interop with `presidio-hardened-ai` v0.30.0 (P4 consortium — GOD + L∞/L2 bounded-norm + robustness); `EvidenceRef@1` unchanged, no engine change; consortium-`D4` regression test | Shipped |
-| v0.19.2 | Dependency maintenance: resolve Dependabot pip + GitHub-Actions updates (typer/rich/prompt-toolkit/pytest/ruff floors, checkout@v6, codecov-action@v7); enforce `requires-python >=3.10` and drop the stale Python 3.9 CI leg | **Current** |
+| v0.19.2 | Dependency maintenance: resolve Dependabot pip + GitHub-Actions updates (typer/rich/prompt-toolkit/pytest/ruff floors, checkout@v6, codecov-action@v7); enforce `requires-python >=3.10` and drop the stale Python 3.9 CI leg | Shipped |
+| v0.20.0 | Classificator bridge (eai-classification/v1): producer-agnostic interchange schema, 36-cell classification-profile pack, `iga classify ingest` / `iga classify assess` CLI | **Current** |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -1101,6 +1102,115 @@ v0.9.0 platform decision; the `mcp` extra requires 3.10), but `requires-python` 
 were stale at 3.9. This enforces `requires-python = ">=3.10"` and tests 3.10–3.12 — green on
 3.10/3.11/3.12 (verified in a clean venv). The stale Dependabot branches are superseded and can
 be closed.
+
+---
+
+## v0.20.0 — Classificator Bridge (eai-classification/v1)
+
+**Deliberated:** 2026-06-11
+
+### Scope decision
+
+Implement the "classificator bridge" (task T-B1): a producer-agnostic interchange
+layer between the Enterprise AI Classification Framework 6×6 matrix model and the
+IKI-Gov assessment engine. Multiple producers will emit classifications conforming
+to this model (the eai-classificator research artefact AND partner tooling such as
+"kenza" conversational survey tooling). The interface is **keyed to the model**
+(schema version `eai-classification/v1`), not to any one tool's output format.
+
+### Components
+
+**`classification.py`** — Interchange schema `eai-classification/v1`:
+- Parses+validates a JSON document: `{"schema", "producer" (opt), "use_cases": []}`.
+- Each use case: `id` (same pattern as `validate_use_case`), `type` (T1–T6), `level`
+  (L1–L6), optional `name`/`ecosystem`/`confidence`/`rationale`/`tags`.
+- `ecosystem` flag: L6 is the non-ordinal overlay regime. `ecosystem=true` normalises
+  effective level to L6 regardless of declared base level; `level=L6 + ecosystem=false`
+  is a contradiction → rejected.
+- Forward-compatible: unknown fields at any level are silently ignored. Unknown schema
+  versions fail closed with a clear error naming the supported version.
+- Hard limits: max 200 use cases, max 1 MB document, length-capped fields.
+
+**`content/profile.py`** — `ProfilePack` frozen dataclass (v0.16.0 pattern):
+- `pack_kind="classification-profile"`, `framework_id`, `version`, `profiles` dict
+  keyed by cell id `T{1-6}.L{1-6}` — all 36 cells required (`validate_profile_pack`
+  enforces completeness).
+- Per-cell profile: `risk_presumption` (low/medium/high), `strict` (bool), `obligations`
+  (list of framework ids), `notes` ({lang: str}).
+- `content_hash` over canonical JSON (sha256, deterministic). `profile_pack_from_dict`
+  / `profile_pack_to_dict` for serialisation.
+
+**`content/profile_builtin.py`** — Built-in default pack:
+- **DRAFT mapping semantics — founder review required before merge (Humboldt discipline).**
+- Risk presumption by autonomy: L1–L2 low, L3–L4 medium, L5 high, L6 high+strict=true.
+- Type modifiers: T6 Physical floors at medium from L2, high from L4; T1 Decision floors
+  at medium from L3.
+- All cells: obligations `["iso42001","euaiact"]`, bilingual de/en notes per level band.
+
+**`content/loader.py`** (extended):
+- `load_external_profile_packs` / `load_profile_packs`: loads ProfilePacks from
+  `IGA_CONTENT_PATH` discriminated by `pack_kind="classification-profile"`.
+- `load_external_packs` updated to skip profile packs, keeping ContentPack loading
+  unchanged (non-breaking).
+- Same `framework_id` override: external pack replaces built-in.
+
+**`classify.py`** — `iga classify` sub-app:
+- `iga classify ingest --file <path> [--lang] [--quiet] [--profile <framework_id>]`:
+  validate document → resolve each use case → cell → profile; human table or
+  machine JSON (with `pack content_hash` and producer echo).
+- `iga classify assess --file <path> --select <id> [--lang] [--quiet] [--save]
+  [--affirm] [--skip] [--strict] [--evidence] [--trust] [--require-evidence]
+  [--profile <framework_id>]`: resolve profile → run full existing pipeline
+  (`compute_scores`, `evaluate_all_gates`, `render_json`, `store.save_assessment`,
+  `log_security_event`). Profile `strict=true` cannot be loosened by flags.
+  Security event `iga-classify-assess` logs cell + pack `content_hash`.
+
+### Schema file
+
+`schemas/eai-classification.v1.schema.json` — JSON Schema draft/2020-12 for external
+producers (kenza/nusi). Documentation-grade; the Python parser is authoritative.
+`jsonschema` is not a declared project dependency (test validates against parser only).
+
+### Security
+
+- All document and field inputs are validated/length-bounded before use (fail-closed).
+- Profile `strict=true` cannot be loosened; flags can only further tighten.
+- `log_security_event("iga-classify-assess")` includes cell id and pack `content_hash`
+  (structural metadata only — no document content).
+- Same session rate-limit and security posture as existing `iga assess`.
+
+### Acceptance criteria (each maps to a test in `test_classify.py`)
+
+1. Schema happy path — minimal and full-field documents parse correctly.
+2. Unknown top-level and use-case fields are silently ignored.
+3. Unknown schema version fails closed with a clear error message.
+4. Every malformed field (bad id, type, level, confidence, rationale, tags, name) → error.
+5. `ecosystem=true` normalises level to L6; `base_level` retains the declared level.
+6. `level=L6 + ecosystem=false` → contradiction error.
+7. Size limits: max 200 use cases, max 1 MB document.
+8. ProfilePack completeness: 36 cells required; missing cells → ProfileError.
+9. `content_hash` is stable (deterministic across two identical constructions).
+10. Builtin draft semantics: T6.L4→high, T1.L1→low, T1.L3→medium, all L6→strict+high.
+11. Obligations and bilingual notes present in all 36 cells.
+12. External override: a profile pack in `IGA_CONTENT_PATH` overrides the builtin.
+13. Loader coexistence: ContentPacks and ProfilePacks in the same directory do not
+    interfere; each loads correctly via their respective `load_*` function.
+14. CLI `ingest --quiet` returns JSON with schema, producer echo, pack content_hash.
+15. CLI `ingest` table renders cell, risk presumption, obligations, note.
+16. CLI `assess --quiet --save --lang de` returns augmented JSON + `classification` block
+    with cell, profile pack content_hash, ecosystem, producer.
+17. `classify assess` with ecosystem=true use case: cell resolved as L6, strict applied.
+18. `iga-classify-assess` security event logged with cell and full pack content_hash.
+19. `profile_pack_from_dict` / `profile_pack_to_dict` round-trip preserves content_hash.
+
+### Implementation (2026-06-11)
+
+Built as specified. The existing `iga assess` behaviour is byte-identical (the classify
+assess command composes the same engine functions rather than duplicating them). No
+new dependencies introduced. The schema file is documentation-grade with an explicit
+note that `jsonschema` is not a declared dependency; tests validate against the parser.
+
+Tests: 419 total (61 new), 91% coverage. Full existing suite passes unchanged.
 
 ---
 
