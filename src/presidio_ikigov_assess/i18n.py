@@ -218,6 +218,18 @@ STRINGS: dict[str, dict[str, str]] = {
     "col_risk": {"de": "Risiko", "en": "Risk"},
     "col_overall": {"de": "Gesamt", "en": "Overall"},
     "col_time": {"de": "Zeitstempel", "en": "Timestamp"},
+    "col_field": {"de": "Feld", "en": "Field"},
+    "col_value": {"de": "Wert", "en": "Value"},
+    "col_risk_class": {"de": "Risikoklasse", "en": "Risk Class"},
+    "col_tool_version": {"de": "Tool-Version", "en": "Tool Version"},
+    "col_gate": {"de": "Gate", "en": "Gate"},
+    "col_blocking_skipped": {
+        "de": "Blockierende / übersprungene Elemente",
+        "en": "Blocking / Skipped Items",
+    },
+    "col_name": {"de": "Name", "en": "Name"},
+    "col_score": {"de": "Score", "en": "Score"},
+    "col_bar": {"de": "Balken", "en": "Bar"},
     "assessment_saved": {
         "de": "Bewertung für '{use_case}' gespeichert.",
         "en": "Assessment saved for '{use_case}'.",
@@ -363,6 +375,208 @@ STRINGS: dict[str, dict[str, str]] = {
     "classify_risk_low": {"de": "niedrig", "en": "low"},
     "classify_risk_medium": {"de": "mittel", "en": "medium"},
     "classify_risk_high": {"de": "hoch", "en": "high"},
+    # ── Workshop subcommand (T-B3) ────────────────────────────────────────────
+    "workshop_panel_title": {
+        "de": "IKI-Gov Workshop — Anwendungsfall",
+        "en": "IKI-Gov Workshop — Use Case",
+    },
+    "workshop_header_title": {
+        "de": "IKI-Gov Kunden-Workshop",
+        "en": "IKI-Gov Customer Workshop",
+    },
+    "workshop_header_use_cases": {
+        "de": "Anwendungsfälle",
+        "en": "use cases",
+    },
+    "workshop_header_lang": {
+        "de": "Sprache",
+        "en": "Language",
+    },
+    "workshop_header_signed": {
+        "de": "Signiert",
+        "en": "Signed",
+    },
+    "workshop_unsigned_marker": {
+        "de": "UNSIGNIERT",
+        "en": "UNSIGNED",
+    },
+    "workshop_cell_label": {
+        "de": "Zelle",
+        "en": "Cell",
+    },
+    "workshop_risk_label": {
+        "de": "Risikovermutung",
+        "en": "Risk presumption",
+    },
+    "workshop_strict_label": {
+        "de": "STRIKT",
+        "en": "STRICT",
+    },
+    "workshop_gates_header": {
+        "de": "Gate-Bereitschaft (Ausgangsbewertung)",
+        "en": "Gate Readiness (initial)",
+    },
+    "workshop_artifact_written": {
+        "de": "Unterlage geschrieben",
+        "en": "Artifact written",
+    },
+    "workshop_done": {
+        "de": "{n} Unterlagen geschrieben → {dir}",
+        "en": "{n} artifact(s) written → {dir}",
+    },
+    "workshop_warn_unsigned": {
+        "de": (
+            "Warnung: Kein Signierungsschlüssel angegeben. "
+            "Unterlagen werden unsigniert erstellt. "
+            "Schlüssel über --sign-key oder $IGA_WORKSHOP_SIGN_KEY angeben."
+        ),
+        "en": (
+            "Warning: No signing key provided. "
+            "Artifacts will be unsigned. "
+            "Provide a key via --sign-key or $IGA_WORKSHOP_SIGN_KEY."
+        ),
+    },
+    "workshop_warn_sign_failed": {
+        "de": "Warnung: Signierung für '{uc}' fehlgeschlagen: {err}",
+        "en": "Warning: signing failed for '{uc}': {err}",
+    },
+    "workshop_warn_key_permissions": {
+        "de": (
+            "Warnung: Schlüsseldatei '{path}' ist für Gruppe/Andere lesbar. "
+            "Empfehlung: chmod 600 {path}"
+        ),
+        "en": (
+            "Warning: key file '{path}' is readable by group/others. "
+            "Recommendation: chmod 600 {path}"
+        ),
+    },
+    "workshop_err_file": {
+        "de": "Klassifikationsdatei konnte nicht gelesen werden: {path}",
+        "en": "Cannot read classification file: {path}",
+    },
+    "workshop_err_parse": {
+        "de": "Klassifikationsdokument ungültig: {detail}",
+        "en": "Invalid classification document: {detail}",
+    },
+    "workshop_err_no_pack": {
+        "de": "Kein Klassifikations-Profilpaket verfügbar.",
+        "en": "No classification profile pack available.",
+    },
+    "workshop_err_select_not_found": {
+        "de": "Anwendungsfall-ID '{id}' nicht im Klassifikationsdokument gefunden.",
+        "en": "Use-case id '{id}' not found in the classification document.",
+    },
+    "workshop_err_no_use_cases": {
+        "de": "Keine Anwendungsfälle zur Verarbeitung ausgewählt.",
+        "en": "No use cases selected for processing.",
+    },
+    "workshop_err_answers_read": {
+        "de": "Antwortdatei konnte nicht gelesen werden: {path}",
+        "en": "Cannot read answers file: {path}",
+    },
+    "workshop_err_answers_too_large": {
+        "de": "Antwortdatei zu groß (Limit: 65.536 Bytes).",
+        "en": "Answers file too large (limit: 65,536 bytes).",
+    },
+    "workshop_err_answers_json": {
+        "de": "Antwortdatei enthält ungültiges JSON: {err}",
+        "en": "Answers file contains invalid JSON: {err}",
+    },
+    "workshop_err_answers_format": {
+        "de": "Antwortdatei muss ein JSON-Objekt sein: {use_case_id: {affirm: [...], skip: [...]}}",
+        "en": "Answers file must be a JSON object: {use_case_id: {affirm: [...], skip: [...]}}",
+    },
+    "workshop_err_answers_bad_id": {
+        "de": "Ungültige Anwendungsfall-ID in Antwortdatei: '{id}'",
+        "en": "Invalid use-case id in answers file: '{id}'",
+    },
+    "workshop_err_answers_unknown_uc": {
+        "de": "Anwendungsfall-ID '{id}' aus Antwortdatei nicht im Klassifikationsdokument gefunden.",
+        "en": "Use-case id '{id}' in answers file not found in the classification document.",
+    },
+    "workshop_err_answers_item_id": {
+        "de": "Ungültige Checklisten-ID in Antwortdatei: {err}",
+        "en": "Invalid checklist item id in answers file: {err}",
+    },
+    "workshop_err_key_read": {
+        "de": "Signierschlüsseldatei konnte nicht gelesen werden: {path}",
+        "en": "Cannot read signing key file: {path}",
+    },
+    "workshop_err_write": {
+        "de": "Unterlagen für '{uc}' konnten nicht geschrieben werden: {err}",
+        "en": "Cannot write artifact for '{uc}': {err}",
+    },
+    "workshop_verify_err_not_dir": {
+        "de": "Pfad ist kein Verzeichnis: {path}",
+        "en": "Path is not a directory: {path}",
+    },
+    "workshop_verify_err_no_manifest": {
+        "de": "manifest.json nicht im Verzeichnis gefunden.",
+        "en": "manifest.json not found in directory.",
+    },
+    "workshop_verify_err_bad_manifest": {
+        "de": "manifest.json enthält ungültiges JSON: {err}",
+        "en": "manifest.json contains invalid JSON: {err}",
+    },
+    "workshop_verify_sig_ok": {
+        "de": "Signatur gültig",
+        "en": "Signature valid",
+    },
+    "workshop_verify_sig_fail": {
+        "de": "SIGNATUR UNGÜLTIG",
+        "en": "SIGNATURE INVALID",
+    },
+    "workshop_verify_unsigned": {
+        "de": "Keine Signatur vorhanden (UNSIGNIERT)",
+        "en": "No signature present (UNSIGNED)",
+    },
+    # ── German localisation sweep (T1.4) — additional runtime strings ─────────
+    # These cover strings that were English-only at runtime; help text is left
+    # in English per the no-existing-pattern rule.
+    "evidence_coverage_line": {
+        "de": "Nachweisabdeckung: {backed}/{total} bestätigte Elemente belegt ({verified} verifiziert).",
+        "en": "Evidence coverage: {backed}/{total} affirmed items backed ({verified} verified).",
+    },
+    "export_written": {
+        "de": "Nachweispaket geschrieben nach: {path}",
+        "en": "Evidence pack written to: {path}",
+    },
+    "verify_bundle_ok": {
+        "de": "Manifest-Signatur: gültig",
+        "en": "manifest signature: valid",
+    },
+    "verify_bundle_invalid": {
+        "de": "Manifest-Signatur: UNGÜLTIG",
+        "en": "manifest signature: INVALID",
+    },
+    "verify_evidence_no_refs": {
+        "de": "Keine Nachweisreferenzen gefunden.",
+        "en": "No evidence references found.",
+    },
+    "content_list_item": {
+        "de": "{fid} v{version} ({kind}-verknüpft, {targets} Ziele, {source})",
+        "en": "{fid} v{version} ({kind}-mapped, {targets} targets, {source})",
+    },
+    "framework_gap_header": {
+        "de": "{fid} v{version}",
+        "en": "{fid} v{version}",
+    },
+    "cell_info_line": {
+        "de": "Zelle: {cell}  |  Profil: {fid} ({hash})",
+        "en": "cell: {cell}  |  profile: {fid} ({hash})",
+    },
+    "assessment_cancelled": {
+        "de": "Bewertung abgebrochen.",
+        "en": "Assessment cancelled.",
+    },
+    "verify_evidence_ok": {
+        "de": "OK  ",
+        "en": "OK  ",
+    },
+    "verify_evidence_fail": {
+        "de": "FEHL",
+        "en": "FAIL",
+    },
 }
 
 SECTION_FOR_PREFIX: dict[str, str] = {

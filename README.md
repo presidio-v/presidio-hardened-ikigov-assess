@@ -508,6 +508,128 @@ authoritative source; `jsonschema` is not a declared project dependency.
 
 ---
 
+## Workshop Mode (T-B3)
+
+`iga workshop run` is the live **customer-workshop tool**: run it on a laptop
+connected to a projector, point it at a classification document, and it renders
+each use case in large-format, high-contrast rich output while simultaneously
+writing a signed leave-behind artifact (the "Übergabeunterlage") per use case to
+disk.  The whole cycle — projector rendering plus artifact generation — targets
+**under 2 minutes per use case**.
+
+### Offline-capable
+
+Workshop mode is designed for **air-gapped customer sites**.  It explicitly
+bypasses the startup CVE / dependency check (`pip-audit` requires network access;
+on an air-gapped site it would hang, time out, and emit a noisy "inconclusive"
+warning). The dep-check bypass is automatic when the `workshop` subcommand is
+detected — no `--no-dep-check` flag required.  Security posture is maintained by
+running `pip-audit` on the founder's machine before the session.
+
+### Example
+
+```bash
+# Generate signed leave-behind artifacts for all use cases in a classification
+# document, in German (default), writing to ./workshop-out/<date>/.
+iga workshop run \
+    --file classification.json \
+    --sign-key ~/.iga/workshop.key \
+    --signer "Presidio Group" \
+    --lang de
+
+# Generate for selected use cases only.
+iga workshop run \
+    --file medical.json \
+    --select infusion-pump-dosing \
+    --select surgical-robotics \
+    --sign-key ~/.iga/workshop.key \
+    --out /tmp/workshop-2026/
+
+# Pre-populate answers (assessor filled a form earlier).
+iga workshop run \
+    --file classification.json \
+    --answers answers.json \
+    --sign-key ~/.iga/workshop.key
+
+# Quiet: write artifacts only, no projector output.
+iga workshop run --file classification.json --quiet
+```
+
+The `answers.json` format is:
+
+```json
+{
+  "fraud-scoring": {
+    "affirm": ["S1", "S2", "S3", "D1", "D2"],
+    "skip":   ["I4", "I5"]
+  }
+}
+```
+
+### Artifact layout per use case
+
+```
+workshop-out/<date>/<use_case_id>/
+  report.de.md       Markdown leave-behind (localised)
+  report.json        Full assessment JSON + classification provenance block
+  manifest.json      Content-hashed manifest (presidio-hardened/workshop-leavebehind@1)
+  manifest.sig       Ed25519 detached signature (UNSIGNED marker if no key provided)
+```
+
+`manifest.json` records: tool version, cell id, risk class, language, profile-pack
+content hash, SHA-256 of every artifact, and whether the artifact is signed.
+
+### Key generation (founder setup)
+
+Generate a **dedicated** Ed25519 keypair for workshop use.  Keep the private key
+at mode `0600`; distribute only the public key to customers for verification:
+
+```bash
+# Python one-liner — generates a 32-byte private key and the matching public key
+python3 - <<'EOF'
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+sk = Ed25519PrivateKey.generate()
+priv = sk.private_bytes_raw().hex()
+pub  = sk.public_key().public_bytes_raw().hex()
+print("private (keep secret, chmod 600):", priv)
+print("public  (share with customers):  ", pub)
+EOF
+
+# Write the private key to a file and lock it.
+echo "<private-hex>" > ~/.iga/workshop.key
+chmod 600 ~/.iga/workshop.key
+```
+
+Key can also be provided via `$IGA_WORKSHOP_SIGN_KEY` to keep it out of the
+process list entirely:
+
+```bash
+export IGA_WORKSHOP_SIGN_KEY="<private-hex>"
+iga workshop run --file classification.json
+```
+
+### Verify a leave-behind (customer side)
+
+The customer can verify the artifact using the public key the founder provided:
+
+```bash
+# Verify the artifact in the infusion-pump-dosing/ directory.
+iga workshop verify \
+    --dir workshop-out/2026-06-11/infusion-pump-dosing/ \
+    --pubkey <64-hex-char-public-key>
+
+# Machine-readable JSON result.
+iga workshop verify \
+    --dir workshop-out/2026-06-11/infusion-pump-dosing/ \
+    --pubkey <public-key> \
+    --quiet
+```
+
+Exit 0 if all artifact hashes and the signature verify; exit 1 otherwise
+(fail-closed).
+
+---
+
 ## Security
 
 See [SECURITY.md](SECURITY.md) for the full security policy.
@@ -534,22 +656,10 @@ Security controls built into the tool:
 | v0.7.0 | Maturity trending: delta between saved runs (`iga trend`) | Released |
 | v0.8.0 | EU AI Act gate→article mapping for high-risk systems (`iga euaiact-gap`) | Released |
 | v0.13.0 | External evidence-backed affirmation: `iga assess --evidence` / `verify-evidence` + `iga_assess_with_evidence` (first producer: `presidio-hardened-ai`) | Released |
-| v0.14.0 | Public-key (Ed25519) evidence verification: trust-store `{alg, public_key}` entries + `verify_ref` dispatch (`[crypto]` extra) | Current |
-
-### Planned
-
-| Version | Theme | Status |
-|---------|-------|--------|
-| v0.9.0 | Evidence-pack export: signed, audit-ready report bundle + manifest | Planned |
-| v0.10.0 | Pluggable regulatory-content provider interface (versioned content packs) | Planned |
-| v0.11.0 | NIST AI RMF mapping + framework-agnostic coverage core | Planned |
-| v0.12.0 | Remote MCP endpoint: HTTP/SSE transport, org context, auth | Planned |
-
-> **v0.13.0–v0.14.0 pulled forward** ahead of v0.9.0–v0.12.0 to close the
-> `presidio-hardened-ai` evidence loop end-to-end (the producer already emits the
-> contract format). v0.13.0 ships an HMAC verification primitive; v0.14.0 adds
-> Ed25519 public-key verification (optional `[crypto]` extra) so a verifier can
-> hold only public keys. The broader v0.9.0 signed evidence-pack remains planned.
+| v0.14.0 | Public-key (Ed25519) evidence verification: trust-store `{alg, public_key}` entries + `verify_ref` dispatch (`[crypto]` extra) | Released |
+| v0.20.0 | Classificator bridge (eai-classification/v1), 36-cell profile pack, `iga classify` | Released |
+| v0.20.0 T-B3 | `iga workshop` — offline customer-workshop tool, Ed25519 signed leave-behind artifacts, `workshop verify` | Released |
+| v0.20.0 T1.4 | Full German localisation sweep: all runtime output through `t()`, no English-only sentinels under `--lang de` | Released |
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

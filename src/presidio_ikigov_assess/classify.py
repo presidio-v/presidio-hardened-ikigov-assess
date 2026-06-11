@@ -468,11 +468,9 @@ def classify_assess(
         lang=lang,
     )
     _console.print(
-        f"[dim]cell: {cid}  |  profile: {pack.framework_id} ({pack.content_hash[:12]})[/dim]"
+        f"[dim]{t('cell_info_line', lang, cell=cid, fid=pack.framework_id, hash=pack.content_hash[:12])}[/dim]"
     )
     if ev_coverage is not None:
         _console.print(
-            f"[dim]Evidence coverage: {ev_coverage['evidence_backed']}/"
-            f"{ev_coverage['affirmed_total']} affirmed items backed "
-            f"({ev_coverage['verified']} verified).[/dim]"
+            f"[dim]{t('evidence_coverage_line', lang, backed=ev_coverage['evidence_backed'], total=ev_coverage['affirmed_total'], verified=ev_coverage['verified'])}[/dim]"
         )

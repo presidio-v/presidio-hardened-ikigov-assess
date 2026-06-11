@@ -102,7 +102,9 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.19.0 | Remote endpoint enforcement: pure-ASGI `OrgAuthMiddleware` wires auth (401) + per-org rate limit (429) ahead of the MCP app; concurrency-safe context-var store scoping | Shipped |
 | v0.19.1 | Producer-compat sync: verified interop with `presidio-hardened-ai` v0.30.0 (P4 consortium — GOD + L∞/L2 bounded-norm + robustness); `EvidenceRef@1` unchanged, no engine change; consortium-`D4` regression test | Shipped |
 | v0.19.2 | Dependency maintenance: resolve Dependabot pip + GitHub-Actions updates (typer/rich/prompt-toolkit/pytest/ruff floors, checkout@v6, codecov-action@v7); enforce `requires-python >=3.10` and drop the stale Python 3.9 CI leg | Shipped |
-| v0.20.0 | Classificator bridge (eai-classification/v1): producer-agnostic interchange schema, 36-cell classification-profile pack, `iga classify ingest` / `iga classify assess` CLI | **Current** |
+| v0.20.0 | Classificator bridge (eai-classification/v1): producer-agnostic interchange schema, 36-cell classification-profile pack, `iga classify ingest` / `iga classify assess` CLI | Shipped |
+| v0.21.0 T-B3 | `iga workshop` — offline customer-workshop tool, Ed25519 signed leave-behind artifacts, `workshop verify` | **Current** |
+| v0.21.0 T1.4 | Full German localisation sweep — all runtime output fully bilingual via `t()`, no English sentinel strings under `--lang de` | **Current** |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -1211,6 +1213,207 @@ new dependencies introduced. The schema file is documentation-grade with an expl
 note that `jsonschema` is not a declared dependency; tests validate against the parser.
 
 Tests: 419 total (61 new), 91% coverage. Full existing suite passes unchanged.
+
+---
+
+## v0.21.0 T-B3 — `iga workshop`: Offline Customer-Workshop Tool
+
+**Deliberated:** 2026-06-11
+
+### Rationale
+
+Enterprise AI assessment workshops require:
+1. **Offline operation** — many customer sites are air-gapped or have strict network
+   restrictions; `pip-audit` would hang and emit inconclusive warnings.
+2. **Projector-quality output** — live facilitator needs large-format, high-contrast
+   Rich panels readable from the back of a room, not dense terminal tables.
+3. **Signed leave-behind artifacts** — after the session the customer receives a per-use-case
+   folder with a verifiable, tamper-evident set of artifacts they can file as evidence.
+4. **Pre-filled answers** — facilitator can prepare `answers.json` ahead of the session
+   from earlier elicitation (kenza/nusi output) so the projector walkthrough starts with
+   a populated state rather than blank.
+
+### Scope decision
+
+New `iga workshop run` and `iga workshop verify` commands implemented in a dedicated module
+(`workshop.py`) and wired into the main app as a sub-app. The commands compose existing
+engine functions (`compute_scores`, `evaluate_all_gates`) — no engine duplication.
+
+The dep-check bypass is structural: `main_callback` detects
+`ctx.invoked_subcommand == "workshop"` and sets `_NO_DEP_CHECK = True` **before** the dep
+check runs. The `IGA_NO_DEP_CHECK=1` env var additionally bypasses it for CI/test use.
+This is the correct point-of-interception: Typer's Click wrapper evaluates the parent
+callback (with `ctx.invoked_subcommand`) before any sub-app callback, so the bypass is
+guaranteed to fire before `_run_dep_check_quietly()`.
+
+### Ed25519 signing design
+
+- Private key: raw 32-byte Ed25519 scalar in hex (64 hex chars). This is the `from_private_bytes`
+  encoding required by `cryptography.hazmat.primitives.asymmetric.ed25519.Ed25519PrivateKey`.
+- Key source: `--sign-key <file>` (mode-0600 check; warn not abort) or `$IGA_WORKSHOP_SIGN_KEY`
+  env var. The environment path lets CI/CD inject the key without a disk file.
+- Signing target: canonical JSON bytes of `manifest.json`
+  (`json.dumps(sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")`).
+  Using the in-memory dict's canonical form ensures the verifier can reconstruct the exact
+  signed bytes from the file on disk.
+- UNSIGNED path: if no key is provided, `manifest.sig` contains `{"UNSIGNED": true}` and
+  `manifest.json` carries `"UNSIGNED": true` + `"signed": false`. Workshop does **not** fail;
+  a stderr warning is emitted. The operator decides whether unsigned artifacts are acceptable.
+- `workshop verify --dir <use_case_dir> --pubkey <hex>`: re-hashes all artifacts, verifies
+  the Ed25519 signature, returns a JSON summary and exits non-zero on any failure.
+- Same `cryptography` optional extra (`[crypto]`) as `evidence.py` / `bundle.py`. No new
+  dependencies.
+
+### Manifest schema and artifact layout
+
+Per-use-case output directory (under `--out DIR/<uc_id>/`):
+
+```
+<use_case_id>/
+  report.<lang>.md      Markdown leave-behind for the customer
+  report.json           Full JSON payload + classification provenance block
+  manifest.json         Schema presidio-hardened/workshop-leavebehind@1
+                        (per-artifact SHA-256, pack info, signed flag, timestamps)
+  manifest.sig          Ed25519 detached signature (hex in JSON) or UNSIGNED marker
+```
+
+The `report.json` `payload["classification"]` block mirrors the format written by
+`classify assess`, providing full classification provenance to downstream tools.
+
+### answers.json format and validation
+
+```json
+{
+  "use_case_id": {
+    "affirm": ["S1", "S2"],
+    "skip": ["I4"]
+  }
+}
+```
+
+Validated: top-level must be an object; each value must have `affirm`/`skip` as lists of
+strings; all use-case IDs checked against the classification document (fail-closed on unknown
+ID); all item IDs validated via `validate_item_ids` from `sanitize.py` (fail-closed on any
+invalid ID). Document size-capped at 64 KiB to prevent DoS.
+
+### Projector rendering
+
+Rich `Panel` per use case, with:
+- Large heading: use-case name in bold green, cell and risk class in cyan/yellow
+- Strict-mode indicator (red if strict=True)
+- Score summary row (overall maturity + per-gate readiness)
+- Gate status as `Table.grid` rows with status colour coding (green/yellow/red)
+
+Non-quiet path only; `--quiet` suppresses the projector output and proceeds to artifact
+writing only (suitable for CI or batch pre-generation).
+
+### Security
+
+- `log_security_event("iga-workshop-run")` emits cell, risk_class, lang, selected UC ids,
+  and signed flag (structural metadata only, no use-case content).
+- File-permission check on `--sign-key` (mode 0600); `os.stat().st_mode & 0o777 != 0o600`
+  → `typer.echo(warning, err=True)` and continue.
+- All inputs validated before use (classification document via existing `classification.py`
+  parser; answers.json validated field-by-field).
+
+### Acceptance criteria (each maps to a test in `test_workshop.py`)
+
+1. Full run produces `report.<lang>.md`, `report.json`, `manifest.json`, `manifest.sig`.
+2. `manifest.json` schema matches `"presidio-hardened/workshop-leavebehind@1"`.
+3. SHA-256 hashes in manifest match actual files on disk.
+4. Unsigned run writes `{"UNSIGNED": true}` to `manifest.sig`, emits warning on stderr.
+5. Signed run: valid Ed25519 signature round-trip with generated keypair.
+6. Wrong pubkey → `workshop verify` returns failure.
+7. Tampered artifact file → `workshop verify` returns failure.
+8. `workshop verify` with unsigned artifact (no pubkey provided) returns `ok=True, signature=None`.
+9. `answers.json` applied: affirmed/skipped items reflected in score computation.
+10. Bad item id in answers.json → fails closed with error exit code.
+11. Unknown use-case id in answers.json → fails closed with error exit code.
+12. `--select <id>` filters to a single use case.
+13. `--select <id1> --select <id2>` filters to the named use cases.
+14. Non-existent `--select` id → fails closed.
+15. Offline dep-check bypass: `dep_check_status` monkeypatched to raise — not called.
+16. Missing classification file → fails closed.
+17. Invalid JSON → fails closed.
+18. Bad `--lang` value → fails closed.
+19. Wrong schema version → fails closed.
+20. `report.json` contains `payload["classification"]` provenance block.
+21. German run: `report.de.md` contains German-language content.
+22. Performance: 4-use-case medical fixture completes in < 10 seconds.
+23. English run produces `report.en.md`.
+24. Low-level Ed25519 sign/verify unit test (independent of CLI).
+25. `$IGA_WORKSHOP_SIGN_KEY` env var used when `--sign-key` not provided.
+26. German output sentinel: no "Overall maturity", "Measurement Dimensions", "Gate Readiness"
+    under `--lang de`.
+
+### Implementation (2026-06-11)
+
+Built as specified. The workshop module is 372 lines after ruff formatting. Dep-check bypass
+redesigned from a workshop sub-app callback approach to parent `ctx.invoked_subcommand`
+detection after discovering Typer runs the parent callback before sub-app callbacks.
+All import order and formatting issues resolved via ruff. 31 new tests; all 450 tests pass.
+Coverage: 88.52%. No new required dependencies.
+
+---
+
+## v0.21.0 T1.4 — Full German Localisation Sweep
+
+**Deliberated:** 2026-06-11
+
+### Scope decision
+
+Audit and patch all user-facing runtime strings so `--lang de` produces fully German output
+with no English-only sentinel strings. Help text is excluded (no existing pattern in the repo;
+Typer does not support runtime-switchable help text without significant restructuring). Security
+log events are excluded (structural metadata, language-neutral by design).
+
+### Affected paths
+
+**New i18n.py strings (runtime output):**
+- `evidence_coverage_line` — evidence backing summary line after assessment
+- `export_written` — "Evidence pack written to: <path>"
+- `verify_bundle_ok` / `verify_bundle_invalid` — bundle verify outcome
+- `verify_evidence_no_refs` — when no evidence refs present
+- `verify_evidence_ok` / `verify_evidence_fail` — per-item status marks
+- `assessment_cancelled` — wizard cancellation message
+- `cell_info_line` — cell/profile info line under `classify assess`
+- Workshop strings (40+ keys): all `workshop_*` prefixed keys for panel output,
+  error/warning messages, artifact paths, done message, verify output
+
+**cli.py patches:**
+- `assess`: wizard cancellation → `t('assessment_cancelled', lang)`
+- `assess`: evidence coverage line → `t('evidence_coverage_line', ...)`
+- `verify-evidence`: item marks, "no refs" → `t(...)`
+- `export`: "Evidence pack written" → `t('export_written', ...)`
+- `verify-bundle`: outcome and marks → `t(...)`
+
+**classify.py patches:**
+- `classify assess`: cell/profile dim line → `t('cell_info_line', ...)`
+- `classify assess`: evidence coverage → `t('evidence_coverage_line', ...)`
+
+### Deliberate exclusions
+
+| Exclusion | Justification |
+|---|---|
+| `--help` texts | Typer help is compile-time; no `t()` pattern exists in the repo for help strings |
+| Dep-check output | Fires before `--lang` is parsed; `'en'` is hard-coded in `_run_dep_check_quietly` by design |
+| Security log events | Language-neutral structural metadata per secure-logging policy |
+| Raw exception messages | OS/JSON errors from Python stdlib are not localised; they surface the raw message which is itself language-neutral |
+
+### Acceptance criteria
+
+1. `iga assess --lang de` output does not contain "Overall maturity".
+2. `iga assess --lang de` output does not contain "Measurement Dimensions".
+3. `iga assess --lang de` output does not contain "Gate Readiness".
+4. `iga workshop run --lang de` output does not contain "Assessment" as a standalone English word.
+5. Evidence coverage line appears in German under `--lang de`.
+6. "Assessment cancelled" appears in German under `--lang de` in wizard mode.
+
+### Implementation (2026-06-11)
+
+All output paths swept. String count in `i18n.py` grew by ~50 entries (de+en pairs).
+No mechanical translation errors introduced (all German strings reviewed against the IKI-Gov
+book terminology). The T-B3 workshop strings were added in the same pass.
 
 ---
 

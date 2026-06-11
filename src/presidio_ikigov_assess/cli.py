@@ -72,6 +72,7 @@ from presidio_ikigov_assess.security import (
     session_limit,
 )
 from presidio_ikigov_assess.trend import TrendError, compute_trend, select_trend_pair
+from presidio_ikigov_assess.workshop import workshop_app
 
 app = typer.Typer(
     name="iga",
@@ -80,11 +81,17 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(classify_app, name="classify")
+app.add_typer(workshop_app, name="workshop")
 
 console = Console()
 err_console = Console(stderr=True)
 
 _NO_DEP_CHECK: bool = False
+
+# Env-var bypass: set IGA_NO_DEP_CHECK=1 to suppress the dep check without
+# passing --no-dep-check on the command line.  Used internally by workshop mode
+# (air-gapped customer sites) and testable via monkeypatch.
+_ENV_NO_DEP_CHECK = "IGA_NO_DEP_CHECK"
 
 # CI exit codes for --assert-gate (v0.3.0): distinct from the general error
 # code 1, so pipelines can branch on gate status without parsing output.
@@ -93,6 +100,7 @@ GATE_EXIT_CODES: dict[str, int] = {"OPEN": 0, "PARTIAL": 2, "BLOCKED": 3}
 
 @app.callback()
 def main_callback(
+    ctx: typer.Context,
     no_dep_check: bool = typer.Option(
         False,
         "--no-dep-check",
@@ -100,11 +108,20 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.20.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.21.0."""
     global _NO_DEP_CHECK
-    _NO_DEP_CHECK = no_dep_check
+    # IGA_NO_DEP_CHECK=1 bypasses the dep check without --no-dep-check on argv.
+    # Workshop mode automatically sets this env var (air-gapped customer sites:
+    # pip-audit requires network access which would hang then time out, emitting
+    # a noisy "inconclusive" warning — the opposite of a smooth projector demo).
+    env_bypass = os.environ.get(_ENV_NO_DEP_CHECK, "").strip() == "1"
+    # Auto-bypass for workshop subcommand: check if the invoked sub-command group
+    # is "workshop" so no explicit --no-dep-check is required on the customer site.
+    invoked = ctx.invoked_subcommand or ""
+    workshop_bypass = invoked == "workshop"
+    _NO_DEP_CHECK = no_dep_check or env_bypass or workshop_bypass
 
-    if not no_dep_check:
+    if not _NO_DEP_CHECK:
         _run_dep_check_quietly()
 
 
@@ -311,7 +328,7 @@ def assess(
         try:
             affirmed, skipped_set = run_wizard(lang=lang, risk_class=risk_class, use_case=use_case)
         except (EOFError, KeyboardInterrupt):
-            err_console.print("\n[yellow]Assessment cancelled.[/yellow]")
+            err_console.print(f"\n[yellow]{t('assessment_cancelled', lang)}[/yellow]")
             raise typer.Exit(0)
     else:
         affirmed, skipped_set = _parse_answers(affirm, skip, lang)
@@ -383,8 +400,7 @@ def assess(
     )
     if coverage is not None:
         console.print(
-            f"[dim]Evidence coverage: {coverage['evidence_backed']}/{coverage['affirmed_total']} "
-            f"affirmed items backed ({coverage['verified']} verified).[/dim]"
+            f"[dim]{t('evidence_coverage_line', lang, backed=coverage['evidence_backed'], total=coverage['affirmed_total'], verified=coverage['verified'])}[/dim]"
         )
 
 
@@ -431,11 +447,13 @@ def verify_evidence(
         print(json.dumps({"all_verified": all_ok, "refs": results}, ensure_ascii=False))
     else:
         for r in results:
-            mark = "OK  " if r["verified"] else "FAIL"
+            mark = (
+                t("verify_evidence_ok", lang) if r["verified"] else t("verify_evidence_fail", lang)
+            )
             colour = "green" if r["verified"] else "red"
             console.print(f"[{colour}]{mark}[/{colour}] {r['item_id']}  signer={r['signer']}")
         if not refs:
-            err_console.print("[yellow]No evidence references found.[/yellow]")
+            err_console.print(f"[yellow]{t('verify_evidence_no_refs', lang)}[/yellow]")
     if not all_ok:
         raise typer.Exit(1)
 
@@ -717,7 +735,7 @@ def export(
     if quiet:
         print(json.dumps({"bundle": str(out), "signed": seal_key is not None, "zip": as_zip}))
     else:
-        console.print(f"[green]Evidence pack written to: {out}[/green]")
+        console.print(f"[green]{t('export_written', lang, path=str(out))}[/green]")
 
 
 @app.command(name="verify-bundle")
@@ -750,13 +768,12 @@ def verify_bundle(
     else:
         for name, ok in report["artifacts"].items():
             colour = "green" if ok else "red"
-            console.print(f"[{colour}]{'OK  ' if ok else 'FAIL'}[/{colour}] {name}")
+            mark = t("verify_evidence_ok", "en") if ok else t("verify_evidence_fail", "en")
+            console.print(f"[{colour}]{mark}[/{colour}] {name}")
         if report["signature"] is not None:
             sig_ok = report["signature"]
-            console.print(
-                f"[{'green' if sig_ok else 'red'}]manifest signature: "
-                f"{'valid' if sig_ok else 'INVALID'}[/]"
-            )
+            sig_label = t("verify_bundle_ok", "en") if sig_ok else t("verify_bundle_invalid", "en")
+            console.print(f"[{'green' if sig_ok else 'red'}]{sig_label}[/]")
     if not report["ok"]:
         raise typer.Exit(1)
 

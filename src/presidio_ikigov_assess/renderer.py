@@ -169,16 +169,17 @@ def render_markdown(
     lines: list[str] = [
         f"# {title} — {safe_use_case}",
         "",
-        "| Field | Value |",
+        f"| {t('col_field', lang)} | {t('col_value', lang)} |",
         "|---|---|",
-        f"| Use Case | {safe_use_case} |",
-        f"| Risk Class | {risk_label} |",
-        f"| Timestamp | {ts} |",
-        f"| Tool Version | {__version__} |",
+        f"| {t('col_use_case', lang)} | {safe_use_case} |",
+        f"| {t('col_risk_class', lang)} | {risk_label} |",
+        f"| {t('col_time', lang)} | {ts} |",
+        f"| {t('col_tool_version', lang)} | {__version__} |",
         "",
         f"## {t('dimensions_header', lang)}",
         "",
-        "| Dimension | Name | Score | Bar |",
+        f"| {t('col_dimension', lang)} | {t('col_name', lang)} |"
+        f" {t('col_score', lang)} | {t('col_bar', lang)} |",
         "|---|---|---|---|",
     ]
 
@@ -193,7 +194,7 @@ def render_markdown(
         "",
         f"## {t('gates_header', lang)}",
         "",
-        "| Gate | Status | Blocking / Skipped Items |",
+        f"| {t('col_gate', lang)} | {t('col_status', lang)} | {t('col_blocking_skipped', lang)} |",
         "|---|---|---|",
     ]
 
