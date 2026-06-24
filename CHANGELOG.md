@@ -6,6 +6,28 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ---
 
+## [0.21.1] — 2026-06-24
+
+First public **PyPI** release. No functional change versus 0.21.0 — the source is
+equivalent; this cut packages the public-launch hygiene and the release infrastructure.
+
+### Going public
+- Scrubbed internal/partner references and moved the internal audit out of the public
+  tree (the repo went public on 2026-06-24).
+- README: added a **The book** section sourcing the IKI-Gov model to the forthcoming
+  Springer monograph (*AI and IT-Governance* / *KI und IT-Governance*); prose pass to trim
+  em-dash overuse.
+
+### Build & release
+- Trusted-Publishing workflow (`.github/workflows/publish.yml`): OIDC, no stored secrets,
+  SBOM + PEP 740 attestations, fired by a signed `v*` tag.
+- CodeQL analysis no longer masks failures (`continue-on-error` dropped) now that Advanced
+  Security is available on the public repo.
+- Documented the fail-open swallows and screened the `pip-audit` subprocess with justified
+  `# nosec` markers (no behaviour change).
+- Packaging metadata: corrected the repository URL to the `presidio-v` org and dropped the
+  stale Python 3.9 classifier (the package already requires ≥3.10).
+
 ## [0.21.0] — 2026-06-11
 
 ### fix(i18n): Markdown report headers localised

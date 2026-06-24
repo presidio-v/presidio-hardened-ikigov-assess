@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Name-reservation placeholder for the short alias `iki-gov`.
+# Builds an empty wheel (no Python package) whose only job is to claim the name
+# on PyPI ahead of the book launch. Pre-release version (`.dev0`) means
+# `pip install iki-gov` resolves nothing unless `--pre` is passed, so the real
+# release supersedes it cleanly. See ../README.md for the runbook.
+[project]
+name = "iki-gov"
+version = "0.0.1.dev0"
+description = "Reserved — IKI-Gov AI-governance assessment tooling. Full release at the book launch."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Vladimir Stantchev" }]
+keywords = ["ai-governance", "iki-gov", "iso42001", "placeholder"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://github.com/presidio-v/presidio-hardened-ikigov-assess"
+
+[tool.hatch.build.targets.wheel]
+# No package to ship — reserve the name with a metadata-only placeholder.
+bypass-selection = true

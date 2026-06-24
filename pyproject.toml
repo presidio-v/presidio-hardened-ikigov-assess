@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "presidio-hardened-ikigov-assess"
-version = "0.21.0"
+version = "0.21.1"
 description = "IKI-Gov Assessment Tool — operationalises the Integrated KI-Governance Reference Model for AI use-case governance."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -17,7 +17,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -51,10 +50,14 @@ iga-mcp = "presidio_ikigov_assess.mcp_server:main"
 iga-mcp-remote = "presidio_ikigov_assess.remote:main"
 
 [project.urls]
-Repository = "https://github.com/vstantch/presidio-hardened-ikigov-assess"
+Repository = "https://github.com/presidio-v/presidio-hardened-ikigov-assess"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/presidio_ikigov_assess"]
+
+[tool.hatch.build.targets.sdist]
+# Keep the name-reservation placeholders out of the real distribution.
+exclude = ["pypi-reserve/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -108,7 +108,7 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.21.0."""
+    """IKI-Gov Assessment Tool (iga) — v0.21.1."""
     global _NO_DEP_CHECK
     # IGA_NO_DEP_CHECK=1 bypasses the dep check without --no-dep-check on argv.
     # Workshop mode automatically sets this env var (air-gapped customer sites:
