@@ -658,8 +658,8 @@ Security controls built into the tool:
 | v0.13.0 | External evidence-backed affirmation: `iga assess --evidence` / `verify-evidence` + `iga_assess_with_evidence` (first producer: `presidio-hardened-ai`) | Released |
 | v0.14.0 | Public-key (Ed25519) evidence verification: trust-store `{alg, public_key}` entries + `verify_ref` dispatch (`[crypto]` extra) | Released |
 | v0.20.0 | Classificator bridge (eai-classification/v1), 36-cell profile pack, `iga classify` | Released |
-| v0.20.0 T-B3 | `iga workshop` — offline customer-workshop tool, Ed25519 signed leave-behind artifacts, `workshop verify` | Released |
-| v0.20.0 T1.4 | Full German localisation sweep: all runtime output through `t()`, no English-only sentinels under `--lang de` | Released |
+| v0.21.0 T-B3 | `iga workshop` — offline customer-workshop tool, Ed25519 signed leave-behind artifacts, `workshop verify` | Released |
+| v0.21.0 T1.4 | Full German localisation sweep: all runtime output through `t()`, no English-only sentinels under `--lang de` | Released |
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 
