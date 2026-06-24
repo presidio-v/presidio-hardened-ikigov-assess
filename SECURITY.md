@@ -4,8 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.8.x   | Yes       |
-| < 0.8   | No        |
+| 0.21.x  | Yes       |
+| < 0.21  | No        |
 
 ### Supported Python runtimes
 

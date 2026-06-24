@@ -408,7 +408,7 @@ environment variable. Use the same source for `export` and `verify-bundle`.
 
 The bridge accepts documents from **any producer** that conforms to the
 `eai-classification/v1` schema — the research eai-classificator tool, partner
-survey tooling (e.g. kenza), or hand-crafted JSON. The schema is keyed to the
+survey tooling, or hand-crafted JSON. The schema is keyed to the
 *model* (6×6 matrix: types T1–T6 × autonomy levels L1–L6), not to any one
 tool's output format.
 
@@ -502,7 +502,7 @@ same directory — the loader discriminates by `pack_kind`.
 ### JSON Schema for external producers
 
 `schemas/eai-classification.v1.schema.json` (repo root) provides a JSON Schema
-draft/2020-12 definition that partner producers (kenza, nusi) can use for
+draft/2020-12 definition that partner producers can use for
 pre-publication validation. The Python parser in `classification.py` is the
 authoritative source; `jsonschema` is not a declared project dependency.
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://presidio-group.eu/schemas/eai-classification/v1",
   "title": "EAI Classification Document v1",
-  "description": "Producer-agnostic interchange schema for Enterprise AI Classification Framework documents. Both the eai-classificator research artefact and third-party tooling (e.g. partner 'kenza' conversational survey tooling) produce documents conforming to this schema. NOTE: jsonschema is not a declared project dependency; this file is documentation-grade. Validation is performed by the Python parser in src/presidio_ikigov_assess/classification.py, which is the authoritative source of truth.",
+  "description": "Producer-agnostic interchange schema for Enterprise AI Classification Framework documents. Both the eai-classificator research artefact and third-party partner survey tooling produce documents conforming to this schema. NOTE: jsonschema is not a declared project dependency; this file is documentation-grade. Validation is performed by the Python parser in src/presidio_ikigov_assess/classification.py, which is the authoritative source of truth.",
   "type": "object",
   "required": ["schema", "use_cases"],
   "additionalProperties": true,

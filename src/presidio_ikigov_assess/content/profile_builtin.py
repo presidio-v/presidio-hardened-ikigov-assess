@@ -1,6 +1,6 @@
 """Built-in classification-profile pack — DRAFT mapping semantics.
 
-DRAFT mapping semantics — founder review required before merge (Humboldt discipline).
+DRAFT mapping semantics — founder review required before merge.
 
 Risk-presumption rules (as data, not code):
   Base by autonomy level:
@@ -17,8 +17,8 @@ Risk-presumption rules (as data, not code):
 
   All cells carry obligations: ["iso42001", "euaiact"]
 
-Notes (de/en) per level band, explaining the presumption (Humboldt discipline:
-clearly labelled draft — the rationale is explicit so the founder can refine it).
+Notes (de/en) per level band, explaining the presumption (clearly labelled
+draft — the rationale is explicit so the founder can refine it).
 """
 
 from __future__ import annotations

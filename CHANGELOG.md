@@ -147,7 +147,7 @@ Runtime strings localised in the sweep (de+en):
 
 Implements task T-B1: a producer-agnostic interchange layer between the
 Enterprise AI Classification Framework (eai-classificator research artefact +
-partner tooling, e.g. kenza conversational survey) and the IKI-Gov assessment
+partner survey tooling) and the IKI-Gov assessment
 engine. The schema is keyed to the *model* (eai-classification/v1), not to any
 one tool's output format.
 
@@ -166,8 +166,8 @@ one tool's output format.
   Validates completeness; `content_hash` over canonical JSON.
 
 - **`src/presidio_ikigov_assess/content/profile_builtin.py`** — Built-in default
-  pack with **DRAFT mapping semantics** (founder review required before merge,
-  Humboldt discipline). Risk presumption by autonomy: L1–L2 low, L3–L4 medium,
+  pack with **DRAFT mapping semantics** (founder review required before merge).
+  Risk presumption by autonomy: L1–L2 low, L3–L4 medium,
   L5 high, L6 high+strict. Type modifiers: T6 Physical floors at medium from
   L2 and high from L4; T1 Decision floors at medium from L3. All cells carry
   obligations `["iso42001","euaiact"]` and bilingual (de/en) notes.
@@ -198,7 +198,7 @@ one tool's output format.
 #### New files
 
 - **`schemas/eai-classification.v1.schema.json`** — JSON Schema (draft/2020-12)
-  for external producers (kenza/nusi) to validate against. Documentation-grade;
+  for external partner producers to validate against. Documentation-grade;
   authoritative validation is the Python parser. Note in the schema explains that
   `jsonschema` is not a declared dependency.
 

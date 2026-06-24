@@ -1116,8 +1116,8 @@ be closed.
 Implement the "classificator bridge" (task T-B1): a producer-agnostic interchange
 layer between the Enterprise AI Classification Framework 6×6 matrix model and the
 IKI-Gov assessment engine. Multiple producers will emit classifications conforming
-to this model (the eai-classificator research artefact AND partner tooling such as
-"kenza" conversational survey tooling). The interface is **keyed to the model**
+to this model (the eai-classificator research artefact AND partner survey
+tooling). The interface is **keyed to the model**
 (schema version `eai-classification/v1`), not to any one tool's output format.
 
 ### Components
@@ -1143,7 +1143,7 @@ to this model (the eai-classificator research artefact AND partner tooling such 
   / `profile_pack_to_dict` for serialisation.
 
 **`content/profile_builtin.py`** — Built-in default pack:
-- **DRAFT mapping semantics — founder review required before merge (Humboldt discipline).**
+- **DRAFT mapping semantics — founder review required before merge.**
 - Risk presumption by autonomy: L1–L2 low, L3–L4 medium, L5 high, L6 high+strict=true.
 - Type modifiers: T6 Physical floors at medium from L2, high from L4; T1 Decision floors
   at medium from L3.
@@ -1170,7 +1170,7 @@ to this model (the eai-classificator research artefact AND partner tooling such 
 ### Schema file
 
 `schemas/eai-classification.v1.schema.json` — JSON Schema draft/2020-12 for external
-producers (kenza/nusi). Documentation-grade; the Python parser is authoritative.
+partner producers. Documentation-grade; the Python parser is authoritative.
 `jsonschema` is not a declared project dependency (test validates against parser only).
 
 ### Security
@@ -1230,7 +1230,7 @@ Enterprise AI assessment workshops require:
 3. **Signed leave-behind artifacts** — after the session the customer receives a per-use-case
    folder with a verifiable, tamper-evident set of artifacts they can file as evidence.
 4. **Pre-filled answers** — facilitator can prepare `answers.json` ahead of the session
-   from earlier elicitation (kenza/nusi output) so the projector walkthrough starts with
+   from earlier elicitation (partner survey tooling output) so the projector walkthrough starts with
    a populated state rather than blank.
 
 ### Scope decision
