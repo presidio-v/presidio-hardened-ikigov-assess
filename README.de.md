@@ -1,6 +1,6 @@
 # presidio-hardened-ikigov-assess
 
-[🇬🇧 English](README.md) · 🇩🇪 **Deutsch**
+[🇬🇧 English](https://github.com/presidio-v/presidio-hardened-ikigov-assess/blob/main/README.md) · 🇩🇪 **Deutsch**
 
 [![PyPI version](https://img.shields.io/pypi/v/presidio-hardened-ikigov-assess.svg)](https://pypi.org/project/presidio-hardened-ikigov-assess/)
 [![Python](https://img.shields.io/pypi/pyversions/presidio-hardened-ikigov-assess.svg)](https://pypi.org/project/presidio-hardened-ikigov-assess/)
