@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
+import subprocess  # nosec B404 — used only for the fixed-argv pip-audit call in dep_check_status
 import sys
 import threading
 import time
@@ -93,7 +93,7 @@ def dep_check_status(verbose: bool = False) -> DepCheckResult:
     if not dep_check_available():
         return DepCheckResult.UNAVAILABLE
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 — fixed argv, no shell, no user-controlled input
             [sys.executable, "-m", "pip_audit", "--format", "json", "--progress-spinner", "off"],
             capture_output=True,
             text=True,
@@ -157,6 +157,8 @@ def log_security_event(event: dict[str, object]) -> None:
         try:
             _SECURITY_LOG.chmod(0o600)  # belt-and-suspenders for pre-existing files
         except OSError:
+            # Best-effort tightening only: the file was already created 0o600 via
+            # os.open above, so a failed re-chmod cannot widen its permissions.
             pass
     except OSError:
         pass  # logging must never crash the main flow
@@ -198,6 +200,10 @@ def _write_session_state(state: dict) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(state, fh)
     except OSError:
+        # Best-effort persistence: a failed state write degrades the cross-process
+        # limiter to its in-process default rather than crashing the CLI. The guard
+        # is an abuse throttle on a local single-user tool, so availability wins
+        # over strict enforcement of a non-security-critical counter.
         pass
 
 

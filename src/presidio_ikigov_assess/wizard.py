@@ -29,7 +29,7 @@ _WIZARD_STYLE = Style.from_dict(
 _YES_TOKENS = {"y", "j", "yes", "ja"}
 _NO_TOKENS = {"n", "no", "nein"}
 _SKIP_TOKENS = {"s", "ü", "u", "skip", "überspringen"}
-_HELP_TOKEN = "?"
+_HELP_TOKEN = "?"  # nosec B105 — interactive help-command token, not a credential
 
 
 def _item_help(item: ChecklistItem, lang: str) -> str:
