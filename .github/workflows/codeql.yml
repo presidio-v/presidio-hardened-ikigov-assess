@@ -29,12 +29,10 @@ jobs:
       - name: Autobuild
         uses: github/codeql-action/autobuild@v4
 
-      # continue-on-error is scoped to this step only: the SARIF upload requires
-      # GitHub Advanced Security (free on public repos), so without GHAS the
-      # upload — not the analysis itself — fails. Checkout/init/autobuild
-      # failures still fail the job.
+      # The repo is public, so GitHub Advanced Security (and the SARIF upload it
+      # gates) is available; the analysis and its upload now fail the job honestly
+      # instead of being masked by continue-on-error.
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
-        continue-on-error: true
         with:
           category: "/language:python"
