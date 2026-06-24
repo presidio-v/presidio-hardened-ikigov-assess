@@ -1,5 +1,14 @@
 # presidio-hardened-ikigov-assess
 
+🇬🇧 **English** · [🇩🇪 Deutsch](README.de.md)
+
+[![PyPI version](https://img.shields.io/pypi/v/presidio-hardened-ikigov-assess.svg)](https://pypi.org/project/presidio-hardened-ikigov-assess/)
+[![Python](https://img.shields.io/pypi/pyversions/presidio-hardened-ikigov-assess.svg)](https://pypi.org/project/presidio-hardened-ikigov-assess/)
+[![GitHub release](https://img.shields.io/github/v/release/presidio-v/presidio-hardened-ikigov-assess.svg)](https://github.com/presidio-v/presidio-hardened-ikigov-assess/releases)
+[![Tests](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/pytest.yml/badge.svg)](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/pytest.yml)
+[![CodeQL](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/codeql.yml/badge.svg)](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **IKI-Gov Assessment Tool** — operationalises the IKI-Gov-Referenzmodell (Integrated KI-Governance Reference Model) as a practical CLI tool for assessing AI use cases against a structured governance framework.
 
 The IKI-Gov framework structures AI governance along a central lifecycle
