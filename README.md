@@ -11,6 +11,29 @@ Reference: Stantchev, V. *IKI-Gov-Referenzmodell* — Integrated KI-Governance R
 
 ---
 
+## The book
+
+This tool implements the **IKI-Gov reference model**, introduced in the forthcoming
+Springer monograph by Vladimir Stantchev — published in two editions:
+
+- **AI and IT-Governance** (English)
+- **KI und IT-Governance** (German)
+
+The book works from classical IT governance (COBIT, ITIL, ISO/IEC 38500) toward AI
+governance across ethics, law, risk, and data, then assembles IKI-Gov: the lifecycle,
+six domains, six measurement dimensions (M1–M6), and six quality gates (G0–G5). The 25
+checklist items scored here are drawn from the book's framework chapter and its
+workshop/approval-gate appendix; the ISO/IEC 42001 and EU AI Act mappings follow its
+orientation tables.
+
+The book presents the model as a reasoned synthesis and a working heuristic for
+orientation — not legal advice and not a conformity assessment. This tool holds the same
+line (see the disclaimers on the `euaiact-gap` and `iso-gap` commands). Publication
+details (ISBN, dates, Springer link) are finalised at the publisher and will be added
+here once they are public.
+
+---
+
 ## Installation
 
 ```bash
@@ -256,7 +279,7 @@ commands then work across saved use cases:
 `list` and `portfolio` support `--quiet` for JSON. Only what you provide is stored
 (use-case name, risk class, language, answers/scores/gates); the database file is
 created with `0600` permissions and the `~/.iga` directory with `0700`. `delete` is
-a hard delete — no soft-delete log is retained.
+a hard delete; no soft-delete log is retained.
 
 ---
 
@@ -321,14 +344,14 @@ overlap window; revoke by removing the key from the store:
 }
 ```
 
-Ed25519 (RFC 8032) public-key verification lets a verifier hold **only public keys** — no
-shared secret with the producer — and requires the `[crypto]` extra. Signatures are over the
+Ed25519 (RFC 8032) public-key verification lets a verifier hold **only public keys** (no
+shared secret with the producer) and requires the `[crypto]` extra. Signatures are over the
 canonical `{content_hash, signer}` message; signer keys are resolved from the local trust
 store only (no network). Evidence references carry hashes and opaque ledger URIs, never PII.
 
 > **How this fits the wider suite:** ikigov-assess is the governance *spine* that consumes
-> evidence from peer `presidio-hardened-*` controls. For the cross-repo overview — how the
-> family interlocks and an end-to-end demo — see
+> evidence from peer `presidio-hardened-*` controls. For the cross-repo overview (how the
+> family interlocks and an end-to-end demo), see
 > [presidio-hardened-* Suite Architecture](https://github.com/presidio-v/presidio-hardened-ai/blob/main/docs/ARCHITECTURE.md)
 > (in `presidio-hardened-ai`).
 
@@ -497,7 +520,7 @@ same `framework_id` overrides the built-in.
 ```
 
 ContentPacks (regulatory framework gap mappings) and ProfilePacks coexist in the
-same directory — the loader discriminates by `pack_kind`.
+same directory; the loader discriminates by `pack_kind`.
 
 ### JSON Schema for external producers
 
@@ -514,7 +537,7 @@ authoritative source; `jsonschema` is not a declared project dependency.
 connected to a projector, point it at a classification document, and it renders
 each use case in large-format, high-contrast rich output while simultaneously
 writing a signed leave-behind artifact (the "Übergabeunterlage") per use case to
-disk.  The whole cycle — projector rendering plus artifact generation — targets
+disk.  The whole cycle (projector rendering plus artifact generation) targets
 **under 2 minutes per use case**.
 
 ### Offline-capable
@@ -523,7 +546,7 @@ Workshop mode is designed for **air-gapped customer sites**.  It explicitly
 bypasses the startup CVE / dependency check (`pip-audit` requires network access;
 on an air-gapped site it would hang, time out, and emit a noisy "inconclusive"
 warning). The dep-check bypass is automatic when the `workshop` subcommand is
-detected — no `--no-dep-check` flag required.  Security posture is maintained by
+detected; no `--no-dep-check` flag required.  Security posture is maintained by
 running `pip-audit` on the founder's machine before the session.
 
 ### Example
@@ -683,7 +706,7 @@ ruff check . --fix
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
 
 ---
 
