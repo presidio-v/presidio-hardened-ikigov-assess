@@ -103,8 +103,9 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.19.1 | Producer-compat sync: verified interop with `presidio-hardened-ai` v0.30.0 (P4 consortium — GOD + L∞/L2 bounded-norm + robustness); `EvidenceRef@1` unchanged, no engine change; consortium-`D4` regression test | Shipped |
 | v0.19.2 | Dependency maintenance: resolve Dependabot pip + GitHub-Actions updates (typer/rich/prompt-toolkit/pytest/ruff floors, checkout@v6, codecov-action@v7); enforce `requires-python >=3.10` and drop the stale Python 3.9 CI leg | Shipped |
 | v0.20.0 | Classificator bridge (eai-classification/v1): producer-agnostic interchange schema, 36-cell classification-profile pack, `iga classify ingest` / `iga classify assess` CLI | Shipped |
-| v0.21.0 T-B3 | `iga workshop` — offline customer-workshop tool, Ed25519 signed leave-behind artifacts, `workshop verify` | **Current** |
-| v0.21.0 T1.4 | Full German localisation sweep — all runtime output fully bilingual via `t()`, no English sentinel strings under `--lang de` | **Current** |
+| v0.21.0 T-B3 | `iga workshop` — offline customer-workshop tool, Ed25519 signed leave-behind artifacts, `workshop verify` | Shipped |
+| v0.21.0 T1.4 | Full German localisation sweep — all runtime output fully bilingual via `t()`, no English sentinel strings under `--lang de` | Shipped |
+| v0.22.0 T-B4 | Workshop evidence sovereignty — customer-anchored manifest signing (`workshop keygen` / `workshop sign` + standalone signer), presidio countersignature as `workshop-attestation@1` attestation document (evidence ADR-0002 parents convention) | Shipped v0.22.0 (2026-07-04); R1–R6 delivered, golden-vector pinned, founder release gate closed |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -1431,6 +1432,116 @@ book terminology). The T-B3 workshop strings were added in the same pass.
 | Drop Python 3.9 in v0.9.0 (min → 3.10+) | Patched `urllib3` (2.7.0+) dropped 3.9, leaving the dev/audit chain on a vulnerable pin (audit M-2); 3.9 is also upstream EOL (Oct 2025). Lets the whole locked tree resolve to patched releases. |
 | Evidence is provenance, not score (v0.13) | Maturity (how complete) and evidence coverage (how verifiable) are orthogonal; folding signed evidence into the M-score would conflate two distinct questions and let producers inflate maturity |
 | ikigov defines the consume interface, producers own the map (v0.13) | The spine stays framework-pure; each technical control owns and versions its own item→evidence mapping, so adding a producer needs no ikigov change |
+
+## v0.22.0 T-B4 — Workshop Evidence Sovereignty: Customer Anchors, Presidio Attests
+
+**Deliberated:** 2026-07-02 (suite-strategy session, open item O5 in
+`presidio-projects-overview/analysis/strategy-2026-07-02-suite-coherence.md`;
+founder decisions recorded same day: attestation-document mechanism;
+keygen/sign commands + standalone signer).
+
+### Rationale
+
+T-B3's signing model is presidio-anchored: the facilitator holds the only
+Ed25519 key, the customer verifies our signature but *owns* nothing
+cryptographically. The funnel strategy requires the inverse: the workshop
+deliverable is the customer's first evidence-spine entries — theirs to keep,
+anchor, and later operate against. Presidio's role is **assessor**, expressed
+as a countersignature, which is also the certifiable artifact the
+certification monetisation track charges for. EU-sovereignty story: customer
+evidence stays customer-anchored even if they never buy anything else.
+
+### Decision 1 — countersignature as attestation document, not dual signature
+
+A second signature over the same manifest bytes cannot express *why* each
+party signed (owner vs assessor) inside the signed content. Instead presidio
+emits a separate **`workshop-attestation@1`** payload, wrapped in a standard
+`evidence-ref@1` envelope signed with the presidio assessor key:
+
+```json
+{
+  "role": "assessor",
+  "attests": "<content_hash of the customer-signed manifest>",
+  "parents": ["<same manifest content_hash>"],
+  "engagement": "<engagement id>",
+  "scope": "facilitation + methodology conformance",
+  "workshop_date": "YYYY-MM-DD"
+}
+```
+
+No new envelope, no `workshop-leavebehind@2`: role semantics live inside the
+attestation's own signed content; `parents` (evidence ADR-0002, Accepted
+2026-07-02) chains the attestation to the manifest, activating the provenance
+DAG at the funnel's first touchpoint. This realises evidence backlog
+**L-EV-6** (edge documents for third-party countersigned relationships).
+
+### Decision 2 — customer signs on customer hardware
+
+- **`iga workshop keygen`** — generates the customer Ed25519 keypair on
+  customer hardware at workshop start; private key to a 0600 file, never
+  leaves the customer machine; pubkey printed/exported for presidio's
+  engagement trust store (`trust-store@1` entry under the customer signer id).
+- **`iga workshop sign --dir <uc_dir> --key <file>`** — customer signs the
+  manifest canonical bytes (same bytes as T-B3; only the key holder changes).
+  Manifest gains an *optional additive* `owner` block (signer id + pubkey)
+  inside the signed content — additive optional fields stay within
+  `workshop-leavebehind@1` per evidence ADR-0001 D5 (no removals, no type
+  changes, no new *required* fields).
+- **Standalone `sign.py`** shipped inside the leave-behind (stdlib +
+  `cryptography` only, self-contained) for customers who cannot install
+  `iga`; its SHA-256 is listed among the manifest artifacts. USB round-trip
+  ceremony documented (manifest out → signature back).
+- **`iga workshop verify`** extended: verifies owner signature, and the
+  attestation when present; `--require-attestation` fails closed.
+
+### Fallback ladder (offline realities, in order of preference)
+
+1. **Full dual:** customer-signed manifest + presidio `workshop-attestation@1`.
+2. **Presidio-signed only** (T-B3 model), manifest marked `owner_signed:
+   false` — when the customer cannot perform key operations on site.
+3. **Unsigned** (existing `UNSIGNED` marker) — facilitator's call, warning
+   emitted.
+
+Air-gap note: the attestation needs only the manifest *hash*, so presidio may
+countersign on-site (key on facilitator laptop) or back-office after the
+workshop; neither requires connectivity, and deferred countersigning does not
+delay the customer leave-behind.
+
+### Requirements
+
+- R1 `workshop keygen` / `workshop sign` commands + `owner` block (additive,
+  optional) in the manifest; owner-signature verification in
+  `workshop verify` — **Delivered 2026-07-03** (`sovereignty.py` +
+  `workshop.py`; owner-pubkey consistency check fail-closed; replacement of a
+  tier-2 facilitator signature warns and names the previous signer).
+- R2 `workshop-attestation@1` schema + `iga workshop attest` (presidio-side)
+  emitting the evidence-ref@1-enveloped attestation; `--require-attestation`
+  verify mode — **Delivered 2026-07-03**, built against the family golden
+  vector as required: the conformance test reproduces the vector's content
+  hash AND deterministic Ed25519 signature byte-for-byte. Implementation
+  note: attestation envelope verification constructs `EvidenceRef` directly
+  instead of `parse_document`, whose `item_id` domain check is scoped to
+  checklist items by design; the attestation domain is
+  `workshop-attestation/<engagement>`. The shared cryptographic path
+  (`verify_ref`) is unchanged.
+- R3 Standalone `sign.py` generator + artifact-hash inclusion; USB ceremony
+  documented bilingually (workshop runbook) — **Delivered 2026-07-03**
+  (`sign.py` + `SIGNING.md` in every leave-behind, manifest-hashed;
+  subprocess-tested end-to-end: keygen + sign via the standalone script,
+  then `iga workshop verify` green).
+- R4 Engagement trust-store handling: record customer pubkey; ship presidio
+  assessor pubkey in the leave-behind for the customer's own verification —
+  **Delivered 2026-07-03** (`keygen` prints the `trust-store@1` snippet;
+  `assessor.pub` shipped, derived from `--sign-key` or `--assessor-pubkey`).
+- R5 Golden vector for a `workshop-attestation@1` payload in
+  `presidio-evidence` — **Delivered 2026-07-02** (`vectors/workshop-attestation/`,
+  schema frozen by the vector; Rust lane first green run same day, 9/9
+  conformance incl. the DAG-edge assertion — see presidio-evidence
+  `docs/conformance/full-run-conformance-suite-2026-07-02T234741+0200.md`).
+  T-B4 implementation (R2) builds against this vector.
+- R6 Gate: land before the first healthcare workshop (planning starts
+  ~mid-August 2026) — **met early**: implemented 2026-07-03, six weeks before
+  the planning freeze; release cut prepared for v0.22.0 on 2026-07-04.
 
 ## SDLC
 

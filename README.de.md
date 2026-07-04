@@ -544,13 +544,15 @@ Projektabhängigkeit.
 
 ---
 
-## Workshop-Modus (T-B3)
+## Workshop-Modus (T-B3/T-B4)
 
 `iga workshop run` ist das Live-**Kunden-Workshop-Werkzeug**: auf einem Laptop am Beamer ausführen,
 auf ein Klassifikationsdokument richten. Es stellt jeden Anwendungsfall großformatig und kontraststark
-dar und schreibt zugleich pro Anwendungsfall eine signierte Übergabeunterlage auf die Platte. Der
-gesamte Zyklus (Beamer-Darstellung plus Artefakterzeugung) zielt auf **unter 2 Minuten je
-Anwendungsfall**.
+dar und schreibt zugleich pro Anwendungsfall eine Übergabeunterlage auf die Platte. Der gesamte
+Zyklus (Beamer-Darstellung plus Artefakterzeugung) zielt auf **unter 2 Minuten je Anwendungsfall**.
+Seit v0.22.0 ist das empfohlene Verwahrmodell **kundenverankert**: Der Kunde signiert das Manifest
+mit einem auf seiner Hardware erzeugten Schlüssel; presidio gegensigniert als Assessor in einem
+separaten Attestierungsdokument.
 
 ### Offline-fähig
 
@@ -564,12 +566,10 @@ Sitzung auf der Maschine des Betreibers läuft.
 ### Beispiel
 
 ```bash
-# Signierte Übergabeunterlagen für alle Anwendungsfälle eines Klassifikationsdokuments erzeugen,
+# Übergabeunterlagen für alle Anwendungsfälle eines Klassifikationsdokuments erzeugen,
 # auf Deutsch (Standard), Ausgabe nach ./workshop-out/<datum>/.
 iga workshop run \
     --file classification.json \
-    --sign-key ~/.iga/workshop.key \
-    --signer "Presidio Group" \
     --lang de
 
 # Nur für ausgewählte Anwendungsfälle erzeugen.
@@ -577,14 +577,12 @@ iga workshop run \
     --file medical.json \
     --select infusion-pump-dosing \
     --select surgical-robotics \
-    --sign-key ~/.iga/workshop.key \
     --out /tmp/workshop-2026/
 
 # Antworten vorbelegen (ein Assessor hat zuvor ein Formular ausgefüllt).
 iga workshop run \
     --file classification.json \
-    --answers answers.json \
-    --sign-key ~/.iga/workshop.key
+    --answers answers.json
 
 # Leise: nur Artefakte schreiben, keine Beamer-Ausgabe.
 iga workshop run --file classification.json --quiet
@@ -607,57 +605,69 @@ Das Format von `answers.json` lautet:
 workshop-out/<datum>/<use_case_id>/
   report.de.md       Markdown-Übergabe (lokalisiert)
   report.json        Volles Bewertungs-JSON + Klassifikations-Provenienzblock
+  sign.py            Eigenständiger Owner-Signer für Kunden
+  SIGNING.md         Zweisprachiges Signier-Zeremonie-Runbook
+  assessor.pub       Öffentlicher Presidio-Assessor-Schlüssel, falls mitgeliefert/abgeleitet
   manifest.json      Inhaltlich gehashtes Manifest (presidio-hardened/workshop-leavebehind@1)
   manifest.sig       Ed25519-Detached-Signatur (UNSIGNED-Marker, falls kein Schlüssel angegeben)
+  attestation.json   Optionale Presidio-Assessor-Attestierung
+  attestation.content.json
 ```
 
 `manifest.json` hält fest: Werkzeugversion, Zell-ID, Risikoklasse, Sprache, content_hash des
 Profil-Packs, SHA-256 jedes Artefakts und ob das Artefakt signiert ist.
 
-### Schlüsselerzeugung (Einrichtung durch den Betreiber)
+### Customer-Owner-Signatur und Presidio-Attestierung
 
-Erzeugen Sie ein **dediziertes** Ed25519-Schlüsselpaar für den Workshop-Einsatz. Halten Sie den
-privaten Schlüssel auf Modus `0600`; geben Sie nur den öffentlichen Schlüssel zur Prüfung an Kunden
-weiter:
+Erzeugen Sie das Customer-Owner-Schlüsselpaar auf Kunden-Hardware. Der private Schlüssel wird mit
+Modus `0600` erstellt; nur der öffentliche Schlüssel geht an presidio für den Engagement-Trust-Store:
 
 ```bash
-# Python-Einzeiler — erzeugt einen 32-Byte-Privatschlüssel und den passenden öffentlichen Schlüssel
-python3 - <<'EOF'
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-sk = Ed25519PrivateKey.generate()
-priv = sk.private_bytes_raw().hex()
-pub  = sk.public_key().public_bytes_raw().hex()
-print("private (keep secret, chmod 600):", priv)
-print("public  (share with customers):  ", pub)
-EOF
-
-# Den privaten Schlüssel in eine Datei schreiben und sperren.
-echo "<private-hex>" > ~/.iga/workshop.key
-chmod 600 ~/.iga/workshop.key
+iga workshop keygen --out customer-key.hex --signer "ACME GmbH"
 ```
 
-Der Schlüssel kann auch über `$IGA_WORKSHOP_SIGN_KEY` bereitgestellt werden, um ihn ganz aus der
-Prozessliste herauszuhalten:
+Nachdem `iga workshop run` die Übergabeunterlage geschrieben hat, signiert der Kunde das Manifest
+als Owner:
 
 ```bash
-export IGA_WORKSHOP_SIGN_KEY="<private-hex>"
-iga workshop run --file classification.json
+iga workshop sign \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --key customer-key.hex \
+    --signer "ACME GmbH"
+```
+
+Presidio gegensigniert anschließend das kundensignierte Manifest als Assessor. Die Attestierung ist
+ein separates `workshop-attestation@1`-Nachweisdokument, das an den Manifest-Hash gebunden ist:
+
+```bash
+iga workshop attest \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --engagement hc-workshop-2026-001 \
+    --sign-key ~/.iga/workshop-assessor.key \
+    --signer presidio-hardened-ikigov-assess
 ```
 
 ### Eine Übergabeunterlage prüfen (Kundenseite)
 
-Der Kunde kann das Artefakt mit dem vom Betreiber bereitgestellten öffentlichen Schlüssel prüfen:
+Der Kunde prüft seine Owner-Signatur und, wenn erforderlich, die Presidio-Assessor-Attestierung:
 
 ```bash
 # Das Artefakt im Verzeichnis infusion-pump-dosing/ prüfen.
 iga workshop verify \
-    --dir workshop-out/2026-06-11/infusion-pump-dosing/ \
-    --pubkey <64-hex-char-public-key>
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --pubkey <customer-public-key>
+
+# Eine gültige, an das Manifest gebundene Presidio-Attestierung verlangen.
+iga workshop verify \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --pubkey <customer-public-key> \
+    --require-attestation \
+    --attestation-pubkey <presidio-assessor-public-key>
 
 # Maschinenlesbares JSON-Ergebnis.
 iga workshop verify \
-    --dir workshop-out/2026-06-11/infusion-pump-dosing/ \
-    --pubkey <public-key> \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --pubkey <customer-public-key> \
     --quiet
 ```
 
@@ -695,6 +705,7 @@ In das Werkzeug eingebaute Sicherheitskontrollen:
 | v0.20.0 | Classificator-Bridge (eai-classification/v1), 36-Zellen-Profil-Pack, `iga classify` | Veröffentlicht |
 | v0.21.0 T-B3 | `iga workshop`: Offline-Kunden-Workshop-Werkzeug, Ed25519-signierte Übergabeunterlagen, `workshop verify` | Veröffentlicht |
 | v0.21.0 T1.4 | Vollständige deutsche Lokalisierung: alle Laufzeitausgaben über `t()`, keine rein englischen Platzhalter unter `--lang de` | Veröffentlicht |
+| v0.22.0 T-B4 | Workshop-Nachweis-Souveränität: Customer-Owner-Signaturen, Standalone-Signer, Presidio-Assessor-Attestierung | Veröffentlicht |
 
 Vollständiges Versions-Deliberationslog: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

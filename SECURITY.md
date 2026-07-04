@@ -4,6 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
+| 0.22.x  | Yes       |
 | 0.21.x  | Yes       |
 | < 0.21  | No        |
 
@@ -103,6 +104,30 @@ HMAC-sealed audit bundle. The controls in force:
   option. The same source must be used for `export` and `verify-bundle`.
 - **Fail-closed verification** — any missing member, artifact hash mismatch, or bad seal
   yields `ok=false` and a non-zero exit; hash and signature comparisons are constant-time.
+
+
+## Workshop Evidence Sovereignty (v0.22.0)
+
+`iga workshop keygen` / `iga workshop sign` / `iga workshop attest` let the
+customer anchor workshop leave-behinds while presidio countersigns as assessor:
+
+- **Customer-held owner key** — `workshop keygen` creates a raw Ed25519 private
+  key file with mode `0600` and a `.pub` companion. Only the public key is shared
+  into the engagement trust store; the owner private key never needs to leave the
+  customer's machine.
+- **Owner block inside signed content** — `workshop sign` embeds the signer,
+  public key, and timestamp in the manifest before signing the canonical manifest
+  bytes. Verification checks that an owner-role signature uses the same public key
+  embedded in the manifest.
+- **Separate assessor attestation** — `workshop attest` emits a
+  `workshop-attestation@1` reading wrapped in an `evidence-ref@1` envelope. The
+  signed attestation content carries `attests` and `parents[0]` equal to the
+  canonical manifest hash, so the assessor statement is a provenance edge rather
+  than an ambiguous second manifest signature.
+- **Fail-closed verification** — `workshop verify` re-hashes all manifest-listed
+  artifacts, validates the leave-behind schema/tool identifier, validates Ed25519
+  public-key inputs, and verifies the optional attestation when
+  `--require-attestation` is supplied.
 
 
 ## Remote MCP Endpoint (v0.18.0 primitives, v0.19.0 enforcement)
