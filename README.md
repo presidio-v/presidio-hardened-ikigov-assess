@@ -22,11 +22,11 @@ Reference: Stantchev, V. *IKI-Gov-Referenzmodell* — Integrated KI-Governance R
 
 ## The book
 
-This tool implements the **IKI-Gov reference model**, introduced in the forthcoming
+This tool implements the **IKI-Gov reference model**, introduced in the
 Springer monograph by Vladimir Stantchev — published in two editions:
 
-- **AI and IT-Governance** (English)
-- **KI und IT-Governance** (German)
+- **AI and IT Governance** (English) — Springer, Berlin; ISBN 978-3-662-74001-9; forthcoming 11 January 2027
+- **KI und IT-Governance** (German) — Springer, Berlin; ISBN 978-3-662-74093-4; forthcoming 28 December 2026
 
 The book works from classical IT governance (COBIT, ITIL, ISO/IEC 38500) toward AI
 governance across ethics, law, risk, and data, then assembles IKI-Gov: the lifecycle,
@@ -37,9 +37,9 @@ orientation tables.
 
 The book presents the model as a reasoned synthesis and a working heuristic for
 orientation — not legal advice and not a conformity assessment. This tool holds the same
-line (see the disclaimers on the `euaiact-gap` and `iso-gap` commands). Publication
-details (ISBN, dates, Springer link) are finalised at the publisher and will be added
-here once they are public.
+line (see the disclaimers on the `euaiact-gap` and `iso-gap` commands). Both editions are
+now available for preorder from Springer (Berlin); the Springer catalogue page and DOI
+will be added here once live.
 
 ---
 
