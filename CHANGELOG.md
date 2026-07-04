@@ -6,6 +6,68 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ---
 
+## [Unreleased]
+
+---
+
+## [0.22.0] — 2026-07-04
+
+**T-B4 · Workshop evidence sovereignty — "customer anchors, presidio attests"**
+(v0.22.0 arc; deliberated 2026-07-02, O5 resolution; implemented 2026-07-03).
+The T-B3 leave-behind was presidio-anchored (facilitator held the only key).
+This arc inverts custody: the customer signs their own workshop evidence with
+a key generated on their hardware; presidio countersigns as assessor in a
+separate attestation document, chained to the manifest via the ADR-0002
+provenance-parents convention (L-EV-6 first instance).
+
+### Added
+
+- **`iga workshop keygen`** (R1) — customer Ed25519 keypair on customer
+  hardware: private key to a 0600 file (never leaves the machine), `.pub`
+  companion, printed `trust-store@1` snippet for the engagement trust store
+  (R4). Refuses overwrite without `--force`.
+- **`iga workshop sign`** (R1) — customer-side owner signing: embeds the
+  additive `owner` block (signer, public key, timestamp) *inside* the signed
+  manifest content (stays within `workshop-leavebehind@1` per evidence
+  ADR-0001 D5), writes a role-tagged `manifest.sig` (`role: owner`), warns
+  when replacing a facilitator signature (fallback tier 2 → tier 1). Key via
+  `--key` or `$IGA_WORKSHOP_OWNER_KEY`.
+- **`iga workshop attest`** (R2) — presidio-side countersignature as a
+  **separate document**, not a second signature over the same bytes: a
+  `presidio-hardened/workshop-attestation@1` payload (`role`, `attests`,
+  `parents`, `engagement`, `scope`, `workshop_date`) in a signed
+  `evidence-ref@1` envelope. `attests`/`parents[0]` carry the manifest's
+  canonical content hash — the provenance-DAG edge. Fail-closed: no key, no
+  attestation. Offline-capable (needs only the manifest hash). **Schema
+  frozen by the family golden vector** (`presidio-evidence
+  vectors/workshop-attestation/`); the conformance test pins the vector's
+  content hash and deterministic Ed25519 signature byte-for-byte.
+- **`iga workshop verify` extensions** — reports signature role and owner
+  block; owner-pubkey consistency check (fail-closed when the verifying key
+  does not match the embedded owner block); `--require-attestation
+  --attestation-pubkey <hex>` verifies the attestation chain (structure,
+  hash recompute, signature via the family trust-store path, role, manifest
+  binding); `--lang de|en` (replaces hardcoded German output).
+- **Leave-behind additions** (R3/R4) — every use-case folder now ships
+  `sign.py` (self-contained standalone owner signer for customers who cannot
+  install `iga`; stdlib + `cryptography` only), `SIGNING.md` (bilingual USB
+  signing-ceremony runbook), and `assessor.pub` (presidio assessor public key,
+  derived from `--sign-key` or supplied via `--assessor-pubkey`) — all
+  content-hashed in the manifest.
+- **`sovereignty.py`** — core module (keypair generation, family Layer-1
+  signing, attestation build/verify, standalone-signer template); attestation
+  envelope verification deliberately bypasses the checklist-item `item_id`
+  domain check (correct domain: `workshop-attestation/<engagement>`) while
+  reusing the family cryptographic path (`verify_ref`, timing-safe,
+  fail-closed).
+- **Tests** — 18 new in `test_sovereignty.py` (golden-vector byte-identity,
+  keygen permissions, dual-signature round-trips, tamper/wrong-key/missing
+  fail-closed paths, schema/public-key/version remediation regressions,
+  standalone-signer subprocess ceremony, bilingual i18n coverage); full suite
+  468 passed.
+
+---
+
 ## [0.21.1] — 2026-06-24
 
 First public **PyPI** release. No functional change versus 0.21.0 — the source is

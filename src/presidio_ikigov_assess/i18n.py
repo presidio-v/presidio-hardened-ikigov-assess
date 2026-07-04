@@ -577,6 +577,102 @@ STRINGS: dict[str, dict[str, str]] = {
         "de": "FEHL",
         "en": "FAIL",
     },
+    "workshop_verify_schema_fail": {
+        "de": "Manifest-Schema oder Werkzeugkennung ungültig.",
+        "en": "Manifest schema or tool identifier is invalid.",
+    },
+    # ── T-B4: workshop evidence sovereignty ──────────────────────────────────
+    "keygen_done": {
+        "de": (
+            "Kundenschlüsselpaar erzeugt. Privater Schlüssel: {priv} (Modus 0600, "
+            "verlässt diesen Rechner nicht). Öffentlicher Schlüssel: {pub}"
+        ),
+        "en": (
+            "Customer keypair generated. Private key: {priv} (mode 0600, never "
+            "leaves this machine). Public key: {pub}"
+        ),
+    },
+    "keygen_pubkey_label": {
+        "de": "Öffentlicher Schlüssel (an Presidio für den Engagement-Trust-Store geben)",
+        "en": "Public key (hand to presidio for the engagement trust store)",
+    },
+    "keygen_trust_snippet_label": {
+        "de": "Trust-Store-Eintrag (trust-store@1)",
+        "en": "Trust-store entry (trust-store@1)",
+    },
+    "keygen_err_exists": {
+        "de": (
+            "Schlüsseldatei existiert bereits: {path} (kein Überschreiben; --force zum Erzwingen)"
+        ),
+        "en": "Key file already exists: {path} (no overwrite; use --force to override)",
+    },
+    "sign_done": {
+        "de": "Manifest als Eigentümer signiert (Signatar: {signer}). Owner-Block eingebettet.",
+        "en": "Manifest signed as owner (signer: {signer}). Owner block embedded.",
+    },
+    "sign_warn_replaces": {
+        "de": (
+            "Warnung: Bestehende Signatur in manifest.sig wird ersetzt "
+            "(vorheriger Signatar: {signer})."
+        ),
+        "en": "Warning: replacing existing signature in manifest.sig (previous signer: {signer}).",
+    },
+    "sign_err_no_key": {
+        "de": (
+            "Kein Schlüssel angegeben. Privaten Schlüssel über --key oder "
+            "$IGA_WORKSHOP_OWNER_KEY bereitstellen (auf Kunden-Hardware erzeugt "
+            "mit `iga workshop keygen`)."
+        ),
+        "en": (
+            "No key provided. Supply the private key via --key or "
+            "$IGA_WORKSHOP_OWNER_KEY (generated on customer hardware with "
+            "`iga workshop keygen`)."
+        ),
+    },
+    "attest_done": {
+        "de": "Attestierung erstellt: {path} (attestiert Manifest-Hash {hash})",
+        "en": "Attestation written: {path} (attests manifest hash {hash})",
+    },
+    "attest_err_no_key": {
+        "de": (
+            "Attestierung erfordert den Presidio-Assessor-Schlüssel (--sign-key oder "
+            "$IGA_WORKSHOP_SIGN_KEY). Es gibt keine unsignierte Attestierung (fail-closed)."
+        ),
+        "en": (
+            "Attestation requires the presidio assessor key (--sign-key or "
+            "$IGA_WORKSHOP_SIGN_KEY). There is no unsigned attestation (fail-closed)."
+        ),
+    },
+    "attest_warn_no_owner": {
+        "de": (
+            "Warnung: Manifest trägt keinen Owner-Block (nicht kundensigniert). "
+            "Attestierung eines presidio-signierten Manifests ist Rückfallstufe 2."
+        ),
+        "en": (
+            "Warning: manifest carries no owner block (not customer-signed). "
+            "Attesting a presidio-signed manifest is fallback tier 2."
+        ),
+    },
+    "attest_err_bad_field": {
+        "de": "Ungültiges Attestierungsfeld {name}: {detail}",
+        "en": "Invalid attestation field {name}: {detail}",
+    },
+    "verify_attestation_ok": {
+        "de": "Attestierung: Signatur und Manifest-Bindung gültig (Assessor: {signer})",
+        "en": "Attestation: signature and manifest binding valid (assessor: {signer})",
+    },
+    "verify_attestation_fail": {
+        "de": "Attestierung: UNGÜLTIG ({reason})",
+        "en": "Attestation: INVALID ({reason})",
+    },
+    "verify_attestation_missing": {
+        "de": "Attestierung fehlt (attestation.json / attestation.content.json nicht gefunden)",
+        "en": "Attestation missing (attestation.json / attestation.content.json not found)",
+    },
+    "verify_owner_label": {
+        "de": "Manifest-Signatur: Rolle {role}, Signatar {signer}",
+        "en": "Manifest signature: role {role}, signer {signer}",
+    },
 }
 
 SECTION_FOR_PREFIX: dict[str, str] = {
