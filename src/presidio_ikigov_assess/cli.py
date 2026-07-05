@@ -459,6 +459,229 @@ def verify_evidence(
 
 
 @app.command()
+def certify(
+    gate_id: str = typer.Option(..., "--gate", "-g", help="Gate identifier: G0–G5."),
+    use_case: str = typer.Option("unnamed", "--use-case", "-u", help="AI use-case identifier."),
+    risk_class: str = typer.Option(
+        "medium", "--risk-class", "-r", help="Risk class: low | medium | high."
+    ),
+    lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
+    affirm: Optional[str] = typer.Option(
+        None, "--affirm", help="Comma-separated affirmed item IDs."
+    ),
+    skip: Optional[str] = typer.Option(None, "--skip", help="Comma-separated skipped item IDs."),
+    strict: bool = typer.Option(
+        False, "--strict", help="Treat skipped gate-critical items as blocking."
+    ),
+    evidence: Optional[str] = typer.Option(
+        None,
+        "--evidence",
+        help="Signed EvidenceRef JSON; refs affirming gate items are embedded in the certificate.",
+    ),
+    trust: Optional[str] = typer.Option(
+        None,
+        "--trust",
+        help="Trust-store JSON required when --evidence is supplied.",
+    ),
+    require_evidence: bool = typer.Option(
+        False,
+        "--require-evidence",
+        help="Deprecated for certificates: --evidence is always verified fail-closed.",
+    ),
+    issuer: str = typer.Option(
+        ..., "--issuer", help="Issuer id embedded in the certificate and signed over."
+    ),
+    sign_alg: str = typer.Option(
+        "ed25519", "--sign-alg", help="Issuer signature algorithm: ed25519 | hmac-sha256."
+    ),
+    sign_key: Optional[str] = typer.Option(
+        None,
+        "--sign-key",
+        help="Issuer signing key, inline. Prefer --sign-key-file or $IGA_SIGN_KEY.",
+    ),
+    sign_key_file: Optional[str] = typer.Option(
+        None,
+        "--sign-key-file",
+        help="File holding the issuer signing key (keeps it off argv; also reads $IGA_SIGN_KEY).",
+    ),
+    output: Optional[str] = typer.Option(
+        None, "--output", "-o", help="Write the certificate JSON here instead of stdout."
+    ),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit the certificate JSON only."),
+) -> None:
+    """Emit a signed gate certificate — the certificate IS the proof of the decision.
+
+    Recomputes the gate decision, records the sufficient affirmation set with any
+    embedded signed evidence-refs, embeds the decision predicate inputs so any
+    third party can recompute the decision locally (no DB, no engine), and signs
+    it as *issuer*. Verify with ``iga verify-certificate``.
+    """
+    from presidio_ikigov_assess import certificate as cert_mod
+
+    lang = _validated(lang, validate_lang, lang)
+    gate_id = _validated(gate_id, validate_gate, lang)
+    use_case = _validated(use_case, validate_use_case, lang)
+    risk_class = _validated(risk_class, validate_risk_class, lang)
+    out_path = _validated(output, validate_output_path, lang) if output is not None else None
+
+    seal_key = _resolve_sign_key(sign_key, sign_key_file, lang)
+    if seal_key is None:
+        err_console.print(f"[red]{t('cert_err_no_key', lang)}[/red]")
+        raise typer.Exit(1)
+
+    affirmed, skipped_set = _parse_answers(affirm, skip, lang)
+
+    # Load evidence refs so verified refs can be embedded verbatim in the cert.
+    refs_by_item: dict[str, evidence_mod.EvidenceRef] = {}
+    if evidence is not None:
+        if trust is None:
+            err_console.print("[red]Error:[/red] --trust is required when --evidence is supplied")
+            raise typer.Exit(1)
+        ev_path = _validated(evidence, validate_output_path, lang)
+        try:
+            refs = evidence_mod.load_evidence(_read_file(ev_path, lang))
+            tr_path = _validated(trust, validate_output_path, lang)
+            trust_store = evidence_mod.load_trust_store(_read_file(tr_path, lang))
+            failed_ref = next(
+                (ref for ref in refs if not evidence_mod.verify_ref(ref, trust_store)), None
+            )
+            if failed_ref is not None:
+                err_console.print(
+                    "[red]Error:[/red] evidence ref failed verification: "
+                    f"item_id={failed_ref.item_id} signer={failed_ref.signer} "
+                    f"content_hash={failed_ref.content_hash}"
+                )
+                raise typer.Exit(1)
+            result = evidence_mod.classify(refs, trust_store, require_verified=True)
+        except evidence_mod.EvidenceError as exc:
+            err_console.print(f"[red]Error:[/red] {exc}")
+            raise typer.Exit(1) from exc
+        affirmed_via_evidence = result.affirmed - skipped_set
+        affirmed = affirmed | affirmed_via_evidence
+        refs_by_item = dict(result.refs_by_item)
+
+    try:
+        document = cert_mod.build_certificate(
+            use_case=use_case,
+            gate=gate_id,
+            risk_class=risk_class,
+            affirmed=affirmed,
+            skipped=skipped_set,
+            strict=strict,
+            evidence_refs=refs_by_item,
+            issuer=issuer,
+        )
+        cert_mod.sign(document, alg=sign_alg, key_hex_or_secret=seal_key, signer=issuer)
+    except cert_mod.CertificateError as exc:
+        err_console.print(f"[red]{t('cert_err_build', lang, detail=str(exc))}[/red]")
+        raise typer.Exit(1) from exc
+
+    cert_text = json.dumps(document, indent=2, ensure_ascii=False)
+
+    log_security_event(
+        {
+            "event": "iga-certify",
+            "gate": gate_id,
+            "decision": document["decision"],
+            "risk_class": risk_class,
+            "sign_alg": sign_alg,
+            "embedded_evidence": len(refs_by_item),
+            "lang": lang,
+        }
+    )
+
+    if out_path is not None:
+        if Path(out_path).is_symlink():
+            err_console.print(f"[red]Error:[/red] {t('output_is_symlink', lang, path=out_path)}")
+            raise typer.Exit(1)
+        try:
+            Path(out_path).write_text(cert_text + "\n", encoding="utf-8")
+        except OSError as exc:
+            err_console.print(f"[red]Error:[/red] could not write certificate: {exc}")
+            raise typer.Exit(1) from exc
+        if not quiet:
+            console.print(f"[green]{t('cert_written', lang, path=out_path)}[/green]")
+            console.print(
+                f"[dim]{t('cert_decision_label', lang, gate=gate_id, decision=document['decision'])}[/dim]"
+            )
+        return
+
+    print(cert_text)
+
+
+@app.command(name="verify-certificate")
+def verify_certificate_cmd(
+    certificate: str = typer.Option(..., "--certificate", help="Gate certificate JSON to verify."),
+    trust: str = typer.Option(..., "--trust", help="Trust-store JSON {signer: key|entry}."),
+    lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
+) -> None:
+    """Verify a gate certificate against a trust store — locally, fail-closed, DB-free.
+
+    Verifies the issuer signature, re-verifies every embedded evidence-ref, and
+    recomputes the gate decision from the embedded predicate inputs, comparing it
+    to the claim. Never reads the assessments DB. Exits 0 only if every check
+    passes; exits 1 with a distinct reason otherwise (bad signature, evidence-ref
+    failure, decision mismatch, unknown schema, ...).
+    """
+    from presidio_ikigov_assess import certificate as cert_mod
+
+    lang = _validated(lang, validate_lang, lang)
+    cert_path = _validated(certificate, validate_output_path, lang)
+    trust_path = _validated(trust, validate_output_path, lang)
+
+    try:
+        document = json.loads(_read_file(cert_path, lang))
+    except json.JSONDecodeError as exc:
+        err_console.print(f"[red]Error:[/red] invalid certificate JSON: {exc.msg}")
+        raise typer.Exit(1) from exc
+    try:
+        trust_store = evidence_mod.load_trust_store(_read_file(trust_path, lang))
+    except evidence_mod.EvidenceError as exc:
+        err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    result = cert_mod.verify_certificate(document, trust_store)
+
+    log_security_event(
+        {
+            "event": "iga-verify-certificate",
+            "ok": result.ok,
+            "reason": result.reason,
+            "signer": result.signer or None,
+            "evidence_checked": result.evidence_checked,
+            "lang": lang,
+        }
+    )
+
+    if quiet:
+        print(
+            json.dumps(
+                {
+                    "ok": result.ok,
+                    "reason": result.reason,
+                    "signer": result.signer or None,
+                    "decision_claimed": result.decision_claimed or None,
+                    "decision_recomputed": result.decision_recomputed or None,
+                    "evidence_checked": result.evidence_checked,
+                    "evidence_ok": result.evidence_ok,
+                },
+                ensure_ascii=False,
+            )
+        )
+    elif result.ok:
+        console.print(
+            f"[green]{t('cert_verify_ok', lang, signer=result.signer, decision=result.decision_recomputed)}[/green]"
+        )
+    else:
+        reason_label = t(f"cert_verify_reason_{result.reason}", lang)
+        console.print(f"[red]{t('cert_verify_fail', lang, reason=reason_label)}[/red]")
+
+    if not result.ok:
+        raise typer.Exit(1)
+
+
+@app.command()
 def gate(
     gate_id: str = typer.Option(
         ...,
