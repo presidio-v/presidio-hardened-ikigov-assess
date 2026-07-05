@@ -317,6 +317,156 @@ def verify_attestation(uc_dir: Path, assessor_public_key_hex: str) -> tuple[bool
     return True, "", ref.signer
 
 
+# ── Named delegation chain (T-B5) ─────────────────────────────────────────────
+# The customer-signature → manifest-hash → presidio-attestation lineage made
+# EXPLICIT as an ordered chain of named links, each stating its role, signer,
+# and what it signs / references. Verification walks the chain link-by-link with
+# a distinct failure reason per link. This is *additive and derived*: the chain
+# is assembled at verify time from the existing on-disk artifacts (owner block,
+# manifest.sig, attestation.json), so manifests produced before T-B5 — which
+# never carried a `delegation_chain` key — verify unchanged (grandfathered).
+
+#: Chain-link roles, in lineage order.
+CHAIN_ROLE_OWNER = "owner"
+CHAIN_ROLE_ASSESSOR = "assessor"
+
+
+def build_delegation_chain(uc_dir: Path) -> list[dict]:
+    """Assemble the explicit delegation chain from a use-case artifact directory.
+
+    Each link is ``{role, signer, signs, reference}``:
+
+    * **owner** — the customer owner-signature over the manifest canonical bytes
+      (``signs`` = ``manifest-canonical-bytes``; ``reference`` = the manifest
+      content hash the signature covers).
+    * **assessor** — the presidio attestation, an ``evidence-ref@1`` envelope
+      whose ``attests`` binds the manifest content hash (``signs`` =
+      ``attestation-content``; ``reference`` = the attestation content hash).
+
+    Returns only the links that are present on disk (owner may be absent for an
+    unsigned or pre-T-B5 manifest; assessor absent when not yet attested). This
+    is a *view*; it reads, never writes.
+    """
+    chain: list[dict] = []
+    try:
+        manifest = json.loads((uc_dir / "manifest.json").read_text("utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return chain
+    manifest_hash = sha256_hex(manifest)
+
+    owner = manifest.get("owner")
+    sig_path = uc_dir / "manifest.sig"
+    if isinstance(owner, dict) and sig_path.exists():
+        try:
+            sig = json.loads(sig_path.read_text("utf-8"))
+        except (OSError, json.JSONDecodeError):
+            sig = {}
+        if sig.get("role") == CHAIN_ROLE_OWNER and not sig.get("UNSIGNED"):
+            chain.append(
+                {
+                    "role": CHAIN_ROLE_OWNER,
+                    "signer": str(owner.get("signer", "")),
+                    "signs": "manifest-canonical-bytes",
+                    "reference": manifest_hash,
+                }
+            )
+
+    att_path = uc_dir / "attestation.content.json"
+    if att_path.exists():
+        try:
+            reading = json.loads(att_path.read_text("utf-8"))
+            content = reading.get("attested_content", {})
+        except (OSError, json.JSONDecodeError):
+            content = {}
+        if isinstance(content, dict) and content.get("role") == CHAIN_ROLE_ASSESSOR:
+            chain.append(
+                {
+                    "role": CHAIN_ROLE_ASSESSOR,
+                    "signer": str(reading.get("source", "")),
+                    "signs": "attestation-content",
+                    "reference": str(reading.get("content_hash", "")),
+                }
+            )
+    return chain
+
+
+def verify_delegation_chain(
+    uc_dir: Path,
+    owner_public_key_hex: str,
+    assessor_public_key_hex: str | None = None,
+) -> tuple[bool, list[dict]]:
+    """Walk the delegation chain link-by-link. Returns ``(ok, link_results)``.
+
+    Each result is ``{role, signer, ok, reason}`` with a *distinct* reason per
+    failure mode:
+
+    * owner link — ``owner-sig-invalid`` (signature does not verify),
+      ``owner-key-mismatch`` (verifying key differs from the embedded owner
+      public key).
+    * assessor link — ``assessor-missing-key`` (no assessor key supplied but an
+      assessor link exists), plus every :func:`verify_attestation` reason
+      (``signature-invalid``, ``attests-manifest-mismatch``, ...).
+
+    ``ok`` is the conjunction of every present link (fail-closed). An empty chain
+    (unsigned / pre-T-B5 manifest) is ``ok = True`` with no links — additive,
+    grandfathered: the caller decides whether to *require* links.
+    """
+    chain = build_delegation_chain(uc_dir)
+    results: list[dict] = []
+    ok = True
+    try:
+        manifest = json.loads((uc_dir / "manifest.json").read_text("utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False, [{"role": "manifest", "signer": "", "ok": False, "reason": "unreadable"}]
+    manifest_canonical = canonical_bytes(manifest)
+
+    for link in chain:
+        role = link["role"]
+        signer = link["signer"]
+        if role == CHAIN_ROLE_OWNER:
+            owner = manifest.get("owner", {})
+            embedded = str(owner.get("public_key", "")).lower()
+            if embedded and embedded != owner_public_key_hex.strip().lower():
+                results.append(
+                    {"role": role, "signer": signer, "ok": False, "reason": "owner-key-mismatch"}
+                )
+                ok = False
+                continue
+            sig_ok = _verify_owner_sig(manifest_canonical, uc_dir, owner_public_key_hex)
+            reason = "" if sig_ok else "owner-sig-invalid"
+            results.append({"role": role, "signer": signer, "ok": sig_ok, "reason": reason})
+            ok = ok and sig_ok
+        elif role == CHAIN_ROLE_ASSESSOR:
+            if not assessor_public_key_hex:
+                results.append(
+                    {"role": role, "signer": signer, "ok": False, "reason": "assessor-missing-key"}
+                )
+                ok = False
+                continue
+            att_ok, reason, _signer = verify_attestation(uc_dir, assessor_public_key_hex)
+            results.append({"role": role, "signer": signer, "ok": att_ok, "reason": reason})
+            ok = ok and att_ok
+    return ok, results
+
+
+def _verify_owner_sig(manifest_canonical: bytes, uc_dir: Path, public_key_hex: str) -> bool:
+    """Verify the owner signature in manifest.sig over the manifest canonical bytes."""
+    try:
+        sig = json.loads((uc_dir / "manifest.sig").read_text("utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if sig.get("UNSIGNED") or sig.get("role") != CHAIN_ROLE_OWNER:
+        return False
+    signature_hex = sig.get("signature", "")
+    ed25519 = _require_ed25519()
+    try:
+        pub = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key_hex))
+        pub.verify(bytes.fromhex(signature_hex), manifest_canonical)
+        return True
+    except Exception:
+        return False
+
+
 # ── Owner signing (R1) ────────────────────────────────────────────────────────
 
 

@@ -8,6 +8,57 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-07-05
+
+**T-B5 · Gate certificates — "the certificate is the proof"** (v0.23.0 arc).
+A gate decision (`OPEN` / `PARTIAL` / `BLOCKED`) becomes a compact, signed
+artifact any third party verifies locally against a trust store, without
+running ikigov-assess and without the assessments database — the product-form
+of the Computational Jurisprudence program (Stantchev, arXiv 2026): local
+verification, no engine in the trust path, fail-closed. Additive only; existing
+public APIs and workshop-manifest verification are unbroken.
+
+### Added
+
+- **`presidio-hardened/gate-certificate@1`** (`certificate.py`) — a signed gate
+  certificate carrying `schema`, `use_case`, `framework_content_hash`, `gate`,
+  `risk_class`, `decision`, the **sufficient affirmation set** (per gate item:
+  `affirmed` / `skipped` / `denied`, with any signed evidence-ref embedded
+  verbatim so the certificate carries its own grounding), the **decision
+  predicate inputs** (gate item ids, risk class, effective strict flag,
+  predicate content hash) so a verifier recomputes the decision from the
+  certificate alone, `assessed_at`, `issuer`, and a detached `signature`.
+  Canonical-JSON + SHA-256 + detached Ed25519/HMAC-SHA256, reusing the family
+  conventions in `evidence.py` / `sovereignty.py`. The signature covers the
+  canonical bytes of the document **minus the `signature` field**.
+- **`iga certify`** — emit a signed gate certificate after a gate evaluation
+  (embeds verified evidence-refs; DE/EN output; `--output` or stdout). When
+  `--evidence` is supplied, `--trust` is required and every evidence-ref is
+  verified before embedding; a failing ref rejects the certify run.
+- **`iga verify-certificate`** — verify a certificate against a trust store,
+  **fail-closed with distinct reasons** (`unknown-schema`, `bad-signature`,
+  `unknown-issuer`, `evidence-ref-failure`, `predicate-content-mismatch`,
+  `decision-mismatch`): it verifies the issuer signature, re-verifies every
+  embedded evidence-ref against the verifier's trust store, and recomputes the
+  gate decision from the embedded predicate inputs — **never reading the
+  assessments DB** (certificate + trust store only).
+- **Named workshop delegation chain** (`sovereignty.build_delegation_chain` /
+  `verify_delegation_chain`) — the customer-signature → manifest-hash →
+  presidio-attestation lineage exposed as an explicit ordered chain (each link:
+  `role`, `signer`, `signs`, `reference`). `iga workshop verify --show-chain`
+  walks it link-by-link with a distinct failure reason per link;
+  `--require-chain` fails closed unless an owner link is present. **Additive and
+  derived**: assembled at verify time from existing artifacts, so pre-v0.23.0
+  manifests (which carry no chain) verify unchanged.
+
+### Notes
+
+- No overclaiming: a gate certificate proves the gate decision under the
+  declared predicate and embedded evidence; it does **not** prove the underlying
+  controls are effective. `assurance_tier` (evidence-ref@2 / presidio-evidence
+  ADR-0003) is a **planned** field — evidence-ref@1 here does not model tiers,
+  so certificates do not carry one.
+
 ---
 
 ## [0.22.0] — 2026-07-04

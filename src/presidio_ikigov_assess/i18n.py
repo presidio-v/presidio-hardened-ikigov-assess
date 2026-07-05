@@ -673,6 +673,68 @@ STRINGS: dict[str, dict[str, str]] = {
         "de": "Manifest-Signatur: Rolle {role}, Signatar {signer}",
         "en": "Manifest signature: role {role}, signer {signer}",
     },
+    # ── Gate certificate (v0.23.0, T-B5) ─────────────────────────────────────
+    "cert_written": {
+        "de": "Gate-Zertifikat geschrieben: {path}",
+        "en": "Gate certificate written: {path}",
+    },
+    "cert_decision_label": {
+        "de": "Gate {gate}: Entscheidung {decision}",
+        "en": "Gate {gate}: decision {decision}",
+    },
+    "cert_err_no_key": {
+        "de": "Kein Signaturschlüssel angegeben (--sign-key / --sign-key-file / $IGA_SIGN_KEY).",
+        "en": "No signing key provided (--sign-key / --sign-key-file / $IGA_SIGN_KEY).",
+    },
+    "cert_err_build": {
+        "de": "Zertifikat kann nicht erstellt werden: {detail}",
+        "en": "Cannot build certificate: {detail}",
+    },
+    "cert_verify_ok": {
+        "de": "Zertifikat GÜLTIG — Aussteller {signer}, Entscheidung {decision} (lokal nachgerechnet)",
+        "en": "Certificate VALID — issuer {signer}, decision {decision} (recomputed locally)",
+    },
+    "cert_verify_fail": {
+        "de": "Zertifikat UNGÜLTIG — Grund: {reason}",
+        "en": "Certificate INVALID — reason: {reason}",
+    },
+    "cert_verify_reason_unknown-schema": {
+        "de": "unbekanntes Schema",
+        "en": "unknown schema",
+    },
+    "cert_verify_reason_malformed-certificate": {
+        "de": "fehlerhaftes Zertifikat",
+        "en": "malformed certificate",
+    },
+    "cert_verify_reason_bad-signature": {
+        "de": "Ausstellersignatur ungültig",
+        "en": "issuer signature invalid",
+    },
+    "cert_verify_reason_unknown-issuer": {
+        "de": "Aussteller nicht im Trust-Store",
+        "en": "issuer not in trust store",
+    },
+    "cert_verify_reason_evidence-ref-failure": {
+        "de": "eingebetteter Evidence-Ref schlug fehl",
+        "en": "embedded evidence-ref failed",
+    },
+    "cert_verify_reason_decision-mismatch": {
+        "de": "Entscheidung stimmt nicht mit den Prädikat-Eingaben überein",
+        "en": "decision does not match the predicate inputs",
+    },
+    "cert_verify_reason_predicate-content-mismatch": {
+        "de": "Prädikat-Inhalts-Hash stimmt nicht überein",
+        "en": "predicate content hash mismatch",
+    },
+    # ── Named workshop delegation chain (v0.23.0, T-B5) ──────────────────────
+    "chain_link_ok": {
+        "de": "Kettenglied OK — {role} ({signer})",
+        "en": "Chain link OK — {role} ({signer})",
+    },
+    "chain_link_fail": {
+        "de": "Kettenglied FEHLGESCHLAGEN — {role}: {reason}",
+        "en": "Chain link FAILED — {role}: {reason}",
+    },
 }
 
 SECTION_FOR_PREFIX: dict[str, str] = {

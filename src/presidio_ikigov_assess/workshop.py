@@ -1062,6 +1062,16 @@ def workshop_verify(
         "--attestation-pubkey",
         help="Presidio assessor public key (hex); required with --require-attestation.",
     ),
+    show_chain: bool = typer.Option(
+        False,
+        "--show-chain",
+        help="Walk the named delegation chain (owner → manifest-hash → assessor) link-by-link.",
+    ),
+    require_chain: bool = typer.Option(
+        False,
+        "--require-chain",
+        help="Fail-closed unless the delegation chain has an owner link (implies --show-chain).",
+    ),
     lang: str = typer.Option("de", "--lang", "-l", help="Output language: de | en."),
     quiet: bool = typer.Option(
         False,
@@ -1177,12 +1187,30 @@ def workshop_verify(
                 artifact_dir, attestation_pubkey_validated or ""
             )
 
+    # T-B5: named delegation-chain walk (additive, derived). Grandfathered:
+    # a pre-T-B5 / unsigned manifest yields an empty chain that verifies unless
+    # --require-chain demands an owner link.
+    chain_results: list[dict] | None = None
+    chain_ok: bool | None = None
+    if show_chain or require_chain:
+        from presidio_ikigov_assess.sovereignty import verify_delegation_chain
+
+        chain_ok, chain_results = verify_delegation_chain(
+            artifact_dir, pubkey, attestation_pubkey_validated
+        )
+        if require_chain and not any(link.get("role") == "owner" for link in chain_results):
+            chain_ok = False
+            chain_results = list(chain_results) + [
+                {"role": "owner", "signer": "", "ok": False, "reason": "owner-link-missing"}
+            ]
+
     all_artifacts_ok = all(artifact_results.values()) if artifact_results else False
     ok = (
         schema_ok
         and all_artifacts_ok
         and (signature_ok is not False)
         and (attestation_ok is not False)
+        and (chain_ok is not False)
     )
 
     log_security_event(
@@ -1194,6 +1222,7 @@ def workshop_verify(
             "signature_ok": signature_ok,
             "signature_role": sig_role or None,
             "attestation_ok": attestation_ok,
+            "chain_ok": chain_ok,
         }
     )
 
@@ -1209,6 +1238,8 @@ def workshop_verify(
                     "owner_signed": isinstance(owner_block, dict),
                     "attestation": attestation_ok,
                     "attestation_reason": attestation_reason or None,
+                    "chain": chain_ok,
+                    "chain_links": chain_results,
                 }
             )
         )
@@ -1240,6 +1271,16 @@ def workshop_verify(
                 _console.print(
                     f"[red]{t('verify_attestation_fail', lang, reason=attestation_reason)}[/red]"
                 )
+        if chain_results is not None:
+            for link in chain_results:
+                if link["ok"]:
+                    _console.print(
+                        f"[green]{t('chain_link_ok', lang, role=link['role'], signer=link['signer'])}[/green]"
+                    )
+                else:
+                    _console.print(
+                        f"[red]{t('chain_link_fail', lang, role=link['role'], reason=link['reason'])}[/red]"
+                    )
 
     if not ok:
         raise typer.Exit(1)

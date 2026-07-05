@@ -633,6 +633,162 @@ def test_standalone_signer_works_on_customer_machine(tmp_path, _no_dep_check):
 # ── Localisation ──────────────────────────────────────────────────────────────
 
 
+# ── Named delegation chain (T-B5) ─────────────────────────────────────────────
+
+
+def test_delegation_chain_full_walk_ok(tmp_path, _no_dep_check):
+    from presidio_ikigov_assess.sovereignty import (
+        build_delegation_chain,
+        verify_delegation_chain,
+    )
+
+    uc_dir, cust_pub, ass_pub = _dual_sign_and_attest(tmp_path)
+    chain = build_delegation_chain(uc_dir)
+    roles = [link["role"] for link in chain]
+    assert roles == ["owner", "assessor"]  # explicit lineage, in order
+
+    ok, results = verify_delegation_chain(uc_dir, cust_pub, ass_pub)
+    assert ok is True
+    assert all(link["ok"] for link in results)
+    assert {link["role"] for link in results} == {"owner", "assessor"}
+
+
+def test_delegation_chain_owner_key_mismatch(tmp_path, _no_dep_check):
+    from presidio_ikigov_assess.sovereignty import verify_delegation_chain
+
+    uc_dir, _cust_pub, ass_pub = _dual_sign_and_attest(tmp_path)
+    _other_priv, other_pub = _gen_keypair()
+    ok, results = verify_delegation_chain(uc_dir, other_pub, ass_pub)
+    assert ok is False
+    owner_link = next(link for link in results if link["role"] == "owner")
+    assert owner_link["reason"] == "owner-key-mismatch"
+
+
+def test_delegation_chain_assessor_link_fails_on_tampered_manifest(tmp_path, _no_dep_check):
+    from presidio_ikigov_assess.sovereignty import verify_delegation_chain
+
+    uc_dir, cust_pub, ass_pub = _dual_sign_and_attest(tmp_path)
+    manifest = json.loads((uc_dir / "manifest.json").read_text())
+    manifest["risk_class"] = "low"  # tamper after attestation
+    (uc_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+
+    ok, results = verify_delegation_chain(uc_dir, cust_pub, ass_pub)
+    assert ok is False
+    # owner link now fails (sig over changed bytes) AND assessor link fails with
+    # its own distinct reason.
+    assessor_link = next(link for link in results if link["role"] == "assessor")
+    assert assessor_link["reason"] == "attests-manifest-mismatch"
+
+
+def test_delegation_chain_missing_assessor_key(tmp_path, _no_dep_check):
+    from presidio_ikigov_assess.sovereignty import verify_delegation_chain
+
+    uc_dir, cust_pub, _ass_pub = _dual_sign_and_attest(tmp_path)
+    ok, results = verify_delegation_chain(uc_dir, cust_pub, assessor_public_key_hex=None)
+    assert ok is False
+    assessor_link = next(link for link in results if link["role"] == "assessor")
+    assert assessor_link["reason"] == "assessor-missing-key"
+
+
+def test_old_manifest_grandfathered_empty_chain(tmp_path, _no_dep_check):
+    """A pre-T-B5 / unsigned manifest carries no owner block: empty chain, ok=True."""
+    from presidio_ikigov_assess.sovereignty import (
+        build_delegation_chain,
+        verify_delegation_chain,
+    )
+
+    uc_dir = _run_workshop(tmp_path)  # unsigned run, no owner block
+    assert build_delegation_chain(uc_dir) == []
+    _priv, pub = _gen_keypair()
+    ok, results = verify_delegation_chain(uc_dir, pub)
+    assert ok is True and results == []
+
+
+def test_workshop_verify_show_chain_cli(tmp_path, _no_dep_check):
+    uc_dir, cust_pub, ass_pub = _dual_sign_and_attest(tmp_path)
+    verify = runner.invoke(
+        app,
+        [
+            "--no-dep-check",
+            "workshop",
+            "verify",
+            "--dir",
+            str(uc_dir),
+            "--pubkey",
+            cust_pub,
+            "--attestation-pubkey",
+            ass_pub,
+            "--show-chain",
+            "--quiet",
+        ],
+    )
+    assert verify.exit_code == 0, verify.output
+    payload = json.loads(verify.output.strip().splitlines()[-1])
+    assert payload["chain"] is True
+    assert [link["role"] for link in payload["chain_links"]] == ["owner", "assessor"]
+
+
+def test_workshop_verify_require_chain_fails_on_unsigned(tmp_path, _no_dep_check):
+    uc_dir = _run_workshop(tmp_path)  # unsigned, no owner link
+    _priv, pub = _gen_keypair()
+    verify = runner.invoke(
+        app,
+        [
+            "--no-dep-check",
+            "workshop",
+            "verify",
+            "--dir",
+            str(uc_dir),
+            "--pubkey",
+            pub,
+            "--require-chain",
+            "--quiet",
+        ],
+    )
+    assert verify.exit_code == 1
+    payload = json.loads(verify.output.strip().splitlines()[-1])
+    assert payload["chain"] is False
+
+
+def test_old_manifest_verifies_unchanged_without_chain_flags(tmp_path, _no_dep_check):
+    """Additive guarantee: verify without any chain flag behaves exactly as before."""
+    uc_dir = _run_workshop(tmp_path)
+    priv_hex, pub_hex = _gen_keypair()
+    key_file = tmp_path / "ck.hex"
+    key_file.write_text(priv_hex)
+    runner.invoke(
+        app,
+        [
+            "--no-dep-check",
+            "workshop",
+            "sign",
+            "--dir",
+            str(uc_dir),
+            "--key",
+            str(key_file),
+            "--signer",
+            "ACME",
+        ],
+    )
+    verify = runner.invoke(
+        app,
+        [
+            "--no-dep-check",
+            "workshop",
+            "verify",
+            "--dir",
+            str(uc_dir),
+            "--pubkey",
+            pub_hex,
+            "--quiet",
+        ],
+    )
+    assert verify.exit_code == 0
+    payload = json.loads(verify.output.strip().splitlines()[-1])
+    assert payload["ok"] is True
+    assert "chain" in payload and payload["chain"] is None  # chain not walked unless requested
+
+
 def test_new_i18n_keys_bilingual():
     keys = [
         "keygen_done",

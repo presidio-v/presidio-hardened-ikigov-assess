@@ -372,6 +372,62 @@ Hashes und opake Ledger-URIs, niemals personenbezogene Daten.
 
 ---
 
+## Gate-Zertifikate (v0.23.0)
+
+Ein **Gate-Zertifikat** (`presidio-hardened/gate-certificate@1`) macht *das Zertifikat
+zum Beweis*. Heute wird eine Gate-Entscheidung (`OPEN` / `PARTIAL` / `BLOCKED`) geglaubt,
+weil `iga` sie berechnet hat. Ein Zertifikat kehrt das um: es ist ein kompaktes, signiertes
+Artefakt, das jede dritte Partei **lokal** gegen einen Trust-Store prüft — **ohne
+ikigov-assess auszuführen und ohne die Bewertungsdatenbank**. Das ist der Gegensatz zu
+zentralen Policy-Decision-Points (Klasse Cedar / Zanzibar), bei denen das Urteil geglaubt
+wird, weil ein Dienst es zurückgegeben hat. Es ist die Produktform des Programms der
+Computational Jurisprudence (Stantchev, arXiv 2026): lokale Verifikation, keine Engine im
+Vertrauenspfad, fail-closed.
+
+Das Zertifikat trägt seine eigene Verankerung: das **hinreichende Bestätigungsset**
+(pro Gate-Item `affirmed` / `skipped` / `denied`), etwaige **eingebettete Evidence-Refs**
+wortgetreu und die **Prädikat-Eingaben der Entscheidung** — die Item-IDs des Gates, die
+Risikoklasse, das effektive Strict-Flag und den Prädikat-Inhalts-Hash — sodass ein Prüfer
+die Entscheidung allein aus dem Zertifikat nachrechnet und mit der Behauptung vergleicht.
+
+```bash
+# Signiertes Gate-Zertifikat nach der Gate-Auswertung ausstellen
+iga certify --gate G2 --use-case "fraud-scoring" --risk-class high \
+    --affirm S1,S2,D1,D2,D3,D4,D5,T1,T2,T3 \
+    --evidence evidence.json --trust trust.json \
+    --issuer "presidio-assessor" --sign-alg ed25519 \
+    --sign-key-file issuer.key --output cert.json
+
+# Lokal gegen einen Trust-Store prüfen — ohne DB, ohne Engine, fail-closed
+iga verify-certificate --certificate cert.json --trust trust.json
+```
+
+Wenn `--evidence` an `iga certify` übergeben wird, ist `--trust` verpflichtend und jeder
+Evidence-Ref muss vor dem Einbetten verifizieren; ein fehlschlagender Ref bricht die
+Ausstellung ab. Die Verifikation führt danach unabhängig fünf Prüfungen mit je **eigenem
+Fehlergrund** durch: unbekanntes Schema → `unknown-schema`; die Ausstellersignatur
+(detached, über die kanonischen Bytes des Zertifikats **ohne das Feld `signature`**) →
+`bad-signature` / `unknown-issuer`; Prädikat-Identität →
+`predicate-content-mismatch`; jeder eingebettete Evidence-Ref gegen den Trust-Store des
+Prüfers neu geprüft → `evidence-ref-failure`; und die aus den eingebetteten
+Prädikat-Eingaben nachgerechnete Entscheidung gegen die Behauptung →
+`decision-mismatch`. Gelesen werden nur Zertifikat und Trust-Store.
+
+Kanonisierung und Signatur nutzen dieselben Familienkonventionen wie Evidence-Refs und das
+Workshop-Manifest: kanonisches JSON `json.dumps(sort_keys=True, separators=(",", ":"),
+ensure_ascii=False)` (UTF-8), SHA-256; die Ausstellersignatur ist HMAC-SHA256 oder Ed25519
+(RFC 8032), aufgelöst über dieselbe Trust-Store-Form wie Evidence-Refs.
+
+> **Umfang der Aussage (kein Overclaiming):** ein Gate-Zertifikat beweist, dass *unter dem
+> deklarierten Prädikat und dem eingebetteten Bestätigungsset / den eingebetteten Nachweisen*
+> die Gate-Entscheidung auf den behaupteten Wert nachrechnet. Es beweist **nicht**, dass die
+> zugrunde liegenden Controls wirksam sind, noch dass die reale Aussage des Nachweises wahr
+> ist. Assurance-Tiers (`assurance_tier`, evidence-ref@2 / presidio-evidence ADR-0003) sind
+> ein **geplantes** Feld: die Evidence-Schicht dieses Repos (evidence-ref@1) modelliert noch
+> keine Tiers, daher tragen Zertifikate keinen Tier.
+
+---
+
 ## MCP-Server
 
 Die Bewertungs-Engine steht auch als [Model-Context-Protocol](https://modelcontextprotocol.io)-Server
@@ -673,6 +729,27 @@ iga workshop verify \
 
 Exit 0, wenn alle Artefakt-Hashes und die Signatur verifizieren; sonst Exit 1 (fail-closed).
 
+#### Benannte Delegationskette (v0.23.0)
+
+Die Linie Customer-Signatur → Manifest-Hash → Presidio-Attestierung wird als explizite
+**Delegationskette** offengelegt: eine geordnete Liste benannter Glieder, jedes mit `role`,
+`signer`, dem, was es `signs`, und dem Hash, den es `reference`s. `--show-chain` läuft die
+Kette Glied für Glied ab, mit je eigenem Fehlergrund pro Glied (`owner-sig-invalid`,
+`owner-key-mismatch`, `assessor-missing-key` sowie jeder Attestierungsgrund wie
+`attests-manifest-mismatch`); `--require-chain` schlägt zusätzlich fail-closed fehl, wenn
+kein Owner-Glied vorhanden ist. Dies ist **additiv und abgeleitet** — die Kette wird zur
+Prüfzeit aus dem vorhandenen Owner-Block, `manifest.sig` und der Attestierung
+zusammengesetzt, sodass vor v0.23.0 erzeugte Manifeste (die keine Kette tragen) unverändert
+verifizieren.
+
+```bash
+iga workshop verify \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --pubkey <customer-public-key> \
+    --attestation-pubkey <presidio-assessor-public-key> \
+    --show-chain --quiet
+```
+
 ---
 
 ## Sicherheit
@@ -706,6 +783,7 @@ In das Werkzeug eingebaute Sicherheitskontrollen:
 | v0.21.0 T-B3 | `iga workshop`: Offline-Kunden-Workshop-Werkzeug, Ed25519-signierte Übergabeunterlagen, `workshop verify` | Veröffentlicht |
 | v0.21.0 T1.4 | Vollständige deutsche Lokalisierung: alle Laufzeitausgaben über `t()`, keine rein englischen Platzhalter unter `--lang de` | Veröffentlicht |
 | v0.22.0 T-B4 | Workshop-Nachweis-Souveränität: Customer-Owner-Signaturen, Standalone-Signer, Presidio-Assessor-Attestierung | Veröffentlicht |
+| v0.23.0 T-B5 | Gate-Zertifikate: signiertes `gate-certificate@1`, `iga certify` / `iga verify-certificate`, Nachweisprüfung bei Ausstellung und Verifikation, benannte Workshop-Delegationsketten | Veröffentlicht |
 
 Vollständiges Versions-Deliberationslog: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 
