@@ -22,11 +22,11 @@ Referenz: Stantchev, V. *IKI-Gov-Referenzmodell* (Integrated KI-Governance Refer
 
 ## Das Buch
 
-Dieses Werkzeug implementiert das **IKI-Gov-Referenzmodell**, vorgestellt in der kommenden
+Dieses Werkzeug implementiert das **IKI-Gov-Referenzmodell**, vorgestellt in der
 Springer-Monografie von Vladimir Stantchev, die in zwei Ausgaben erscheint:
 
-- **AI and IT-Governance** (Englisch)
-- **KI und IT-Governance** (Deutsch)
+- **AI and IT Governance** (Englisch) — Springer, Berlin; ISBN 978-3-662-74001-9; erscheint am 11. Januar 2027
+- **KI und IT-Governance** (Deutsch) — Springer, Berlin; ISBN 978-3-662-74093-4; erscheint am 28. Dezember 2026
 
 Das Buch führt von klassischer IT-Governance (COBIT, ITIL, ISO/IEC 38500) hin zu KI-Governance über
 Ethik, Recht, Risiko und Daten und setzt daraus IKI-Gov zusammen: den Lebenszyklus, sechs Domänen,
@@ -36,9 +36,9 @@ Freigabe-Gates; die Zuordnungen zu ISO/IEC 42001 und EU AI Act folgen seinen Ori
 
 Das Buch versteht das Modell als begründete Synthese und als praxistaugliche Heuristik zur
 Orientierung, nicht als Rechtsberatung und nicht als Konformitätsbewertung. Dieses Werkzeug hält
-dieselbe Linie (siehe die Hinweise bei den Befehlen `euaiact-gap` und `iso-gap`). Angaben zur
-Veröffentlichung (ISBN, Daten, Springer-Link) werden beim Verlag finalisiert und hier ergänzt,
-sobald sie öffentlich sind.
+dieselbe Linie (siehe die Hinweise bei den Befehlen `euaiact-gap` und `iso-gap`). Beide Ausgaben
+sind ab sofort bei Springer (Berlin) vorbestellbar; die Springer-Katalogseite und der DOI werden
+hier ergänzt, sobald sie verfügbar sind.
 
 ---
 
@@ -372,6 +372,62 @@ Hashes und opake Ledger-URIs, niemals personenbezogene Daten.
 
 ---
 
+## Gate-Zertifikate (v0.23.0)
+
+Ein **Gate-Zertifikat** (`presidio-hardened/gate-certificate@1`) macht *das Zertifikat
+zum Beweis*. Heute wird eine Gate-Entscheidung (`OPEN` / `PARTIAL` / `BLOCKED`) geglaubt,
+weil `iga` sie berechnet hat. Ein Zertifikat kehrt das um: es ist ein kompaktes, signiertes
+Artefakt, das jede dritte Partei **lokal** gegen einen Trust-Store prüft — **ohne
+ikigov-assess auszuführen und ohne die Bewertungsdatenbank**. Das ist der Gegensatz zu
+zentralen Policy-Decision-Points (Klasse Cedar / Zanzibar), bei denen das Urteil geglaubt
+wird, weil ein Dienst es zurückgegeben hat. Es ist die Produktform des Programms der
+Computational Jurisprudence (Stantchev, arXiv 2026): lokale Verifikation, keine Engine im
+Vertrauenspfad, fail-closed.
+
+Das Zertifikat trägt seine eigene Verankerung: das **hinreichende Bestätigungsset**
+(pro Gate-Item `affirmed` / `skipped` / `denied`), etwaige **eingebettete Evidence-Refs**
+wortgetreu und die **Prädikat-Eingaben der Entscheidung** — die Item-IDs des Gates, die
+Risikoklasse, das effektive Strict-Flag und den Prädikat-Inhalts-Hash — sodass ein Prüfer
+die Entscheidung allein aus dem Zertifikat nachrechnet und mit der Behauptung vergleicht.
+
+```bash
+# Signiertes Gate-Zertifikat nach der Gate-Auswertung ausstellen
+iga certify --gate G2 --use-case "fraud-scoring" --risk-class high \
+    --affirm S1,S2,D1,D2,D3,D4,D5,T1,T2,T3 \
+    --evidence evidence.json --trust trust.json \
+    --issuer "presidio-assessor" --sign-alg ed25519 \
+    --sign-key-file issuer.key --output cert.json
+
+# Lokal gegen einen Trust-Store prüfen — ohne DB, ohne Engine, fail-closed
+iga verify-certificate --certificate cert.json --trust trust.json
+```
+
+Wenn `--evidence` an `iga certify` übergeben wird, ist `--trust` verpflichtend und jeder
+Evidence-Ref muss vor dem Einbetten verifizieren; ein fehlschlagender Ref bricht die
+Ausstellung ab. Die Verifikation führt danach unabhängig fünf Prüfungen mit je **eigenem
+Fehlergrund** durch: unbekanntes Schema → `unknown-schema`; die Ausstellersignatur
+(detached, über die kanonischen Bytes des Zertifikats **ohne das Feld `signature`**) →
+`bad-signature` / `unknown-issuer`; Prädikat-Identität →
+`predicate-content-mismatch`; jeder eingebettete Evidence-Ref gegen den Trust-Store des
+Prüfers neu geprüft → `evidence-ref-failure`; und die aus den eingebetteten
+Prädikat-Eingaben nachgerechnete Entscheidung gegen die Behauptung →
+`decision-mismatch`. Gelesen werden nur Zertifikat und Trust-Store.
+
+Kanonisierung und Signatur nutzen dieselben Familienkonventionen wie Evidence-Refs und das
+Workshop-Manifest: kanonisches JSON `json.dumps(sort_keys=True, separators=(",", ":"),
+ensure_ascii=False)` (UTF-8), SHA-256; die Ausstellersignatur ist HMAC-SHA256 oder Ed25519
+(RFC 8032), aufgelöst über dieselbe Trust-Store-Form wie Evidence-Refs.
+
+> **Umfang der Aussage (kein Overclaiming):** ein Gate-Zertifikat beweist, dass *unter dem
+> deklarierten Prädikat und dem eingebetteten Bestätigungsset / den eingebetteten Nachweisen*
+> die Gate-Entscheidung auf den behaupteten Wert nachrechnet. Es beweist **nicht**, dass die
+> zugrunde liegenden Controls wirksam sind, noch dass die reale Aussage des Nachweises wahr
+> ist. Assurance-Tiers (`assurance_tier`, evidence-ref@2 / presidio-evidence ADR-0003) sind
+> ein **geplantes** Feld: die Evidence-Schicht dieses Repos (evidence-ref@1) modelliert noch
+> keine Tiers, daher tragen Zertifikate keinen Tier.
+
+---
+
 ## MCP-Server
 
 Die Bewertungs-Engine steht auch als [Model-Context-Protocol](https://modelcontextprotocol.io)-Server
@@ -544,13 +600,15 @@ Projektabhängigkeit.
 
 ---
 
-## Workshop-Modus (T-B3)
+## Workshop-Modus (T-B3/T-B4)
 
 `iga workshop run` ist das Live-**Kunden-Workshop-Werkzeug**: auf einem Laptop am Beamer ausführen,
 auf ein Klassifikationsdokument richten. Es stellt jeden Anwendungsfall großformatig und kontraststark
-dar und schreibt zugleich pro Anwendungsfall eine signierte Übergabeunterlage auf die Platte. Der
-gesamte Zyklus (Beamer-Darstellung plus Artefakterzeugung) zielt auf **unter 2 Minuten je
-Anwendungsfall**.
+dar und schreibt zugleich pro Anwendungsfall eine Übergabeunterlage auf die Platte. Der gesamte
+Zyklus (Beamer-Darstellung plus Artefakterzeugung) zielt auf **unter 2 Minuten je Anwendungsfall**.
+Seit v0.22.0 ist das empfohlene Verwahrmodell **kundenverankert**: Der Kunde signiert das Manifest
+mit einem auf seiner Hardware erzeugten Schlüssel; presidio gegensigniert als Assessor in einem
+separaten Attestierungsdokument.
 
 ### Offline-fähig
 
@@ -564,12 +622,10 @@ Sitzung auf der Maschine des Betreibers läuft.
 ### Beispiel
 
 ```bash
-# Signierte Übergabeunterlagen für alle Anwendungsfälle eines Klassifikationsdokuments erzeugen,
+# Übergabeunterlagen für alle Anwendungsfälle eines Klassifikationsdokuments erzeugen,
 # auf Deutsch (Standard), Ausgabe nach ./workshop-out/<datum>/.
 iga workshop run \
     --file classification.json \
-    --sign-key ~/.iga/workshop.key \
-    --signer "Presidio Group" \
     --lang de
 
 # Nur für ausgewählte Anwendungsfälle erzeugen.
@@ -577,14 +633,12 @@ iga workshop run \
     --file medical.json \
     --select infusion-pump-dosing \
     --select surgical-robotics \
-    --sign-key ~/.iga/workshop.key \
     --out /tmp/workshop-2026/
 
 # Antworten vorbelegen (ein Assessor hat zuvor ein Formular ausgefüllt).
 iga workshop run \
     --file classification.json \
-    --answers answers.json \
-    --sign-key ~/.iga/workshop.key
+    --answers answers.json
 
 # Leise: nur Artefakte schreiben, keine Beamer-Ausgabe.
 iga workshop run --file classification.json --quiet
@@ -607,61 +661,94 @@ Das Format von `answers.json` lautet:
 workshop-out/<datum>/<use_case_id>/
   report.de.md       Markdown-Übergabe (lokalisiert)
   report.json        Volles Bewertungs-JSON + Klassifikations-Provenienzblock
+  sign.py            Eigenständiger Owner-Signer für Kunden
+  SIGNING.md         Zweisprachiges Signier-Zeremonie-Runbook
+  assessor.pub       Öffentlicher Presidio-Assessor-Schlüssel, falls mitgeliefert/abgeleitet
   manifest.json      Inhaltlich gehashtes Manifest (presidio-hardened/workshop-leavebehind@1)
   manifest.sig       Ed25519-Detached-Signatur (UNSIGNED-Marker, falls kein Schlüssel angegeben)
+  attestation.json   Optionale Presidio-Assessor-Attestierung
+  attestation.content.json
 ```
 
 `manifest.json` hält fest: Werkzeugversion, Zell-ID, Risikoklasse, Sprache, content_hash des
 Profil-Packs, SHA-256 jedes Artefakts und ob das Artefakt signiert ist.
 
-### Schlüsselerzeugung (Einrichtung durch den Betreiber)
+### Customer-Owner-Signatur und Presidio-Attestierung
 
-Erzeugen Sie ein **dediziertes** Ed25519-Schlüsselpaar für den Workshop-Einsatz. Halten Sie den
-privaten Schlüssel auf Modus `0600`; geben Sie nur den öffentlichen Schlüssel zur Prüfung an Kunden
-weiter:
+Erzeugen Sie das Customer-Owner-Schlüsselpaar auf Kunden-Hardware. Der private Schlüssel wird mit
+Modus `0600` erstellt; nur der öffentliche Schlüssel geht an presidio für den Engagement-Trust-Store:
 
 ```bash
-# Python-Einzeiler — erzeugt einen 32-Byte-Privatschlüssel und den passenden öffentlichen Schlüssel
-python3 - <<'EOF'
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-sk = Ed25519PrivateKey.generate()
-priv = sk.private_bytes_raw().hex()
-pub  = sk.public_key().public_bytes_raw().hex()
-print("private (keep secret, chmod 600):", priv)
-print("public  (share with customers):  ", pub)
-EOF
-
-# Den privaten Schlüssel in eine Datei schreiben und sperren.
-echo "<private-hex>" > ~/.iga/workshop.key
-chmod 600 ~/.iga/workshop.key
+iga workshop keygen --out customer-key.hex --signer "ACME GmbH"
 ```
 
-Der Schlüssel kann auch über `$IGA_WORKSHOP_SIGN_KEY` bereitgestellt werden, um ihn ganz aus der
-Prozessliste herauszuhalten:
+Nachdem `iga workshop run` die Übergabeunterlage geschrieben hat, signiert der Kunde das Manifest
+als Owner:
 
 ```bash
-export IGA_WORKSHOP_SIGN_KEY="<private-hex>"
-iga workshop run --file classification.json
+iga workshop sign \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --key customer-key.hex \
+    --signer "ACME GmbH"
+```
+
+Presidio gegensigniert anschließend das kundensignierte Manifest als Assessor. Die Attestierung ist
+ein separates `workshop-attestation@1`-Nachweisdokument, das an den Manifest-Hash gebunden ist:
+
+```bash
+iga workshop attest \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --engagement hc-workshop-2026-001 \
+    --sign-key ~/.iga/workshop-assessor.key \
+    --signer presidio-hardened-ikigov-assess
 ```
 
 ### Eine Übergabeunterlage prüfen (Kundenseite)
 
-Der Kunde kann das Artefakt mit dem vom Betreiber bereitgestellten öffentlichen Schlüssel prüfen:
+Der Kunde prüft seine Owner-Signatur und, wenn erforderlich, die Presidio-Assessor-Attestierung:
 
 ```bash
 # Das Artefakt im Verzeichnis infusion-pump-dosing/ prüfen.
 iga workshop verify \
-    --dir workshop-out/2026-06-11/infusion-pump-dosing/ \
-    --pubkey <64-hex-char-public-key>
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --pubkey <customer-public-key>
+
+# Eine gültige, an das Manifest gebundene Presidio-Attestierung verlangen.
+iga workshop verify \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --pubkey <customer-public-key> \
+    --require-attestation \
+    --attestation-pubkey <presidio-assessor-public-key>
 
 # Maschinenlesbares JSON-Ergebnis.
 iga workshop verify \
-    --dir workshop-out/2026-06-11/infusion-pump-dosing/ \
-    --pubkey <public-key> \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --pubkey <customer-public-key> \
     --quiet
 ```
 
 Exit 0, wenn alle Artefakt-Hashes und die Signatur verifizieren; sonst Exit 1 (fail-closed).
+
+#### Benannte Delegationskette (v0.23.0)
+
+Die Linie Customer-Signatur → Manifest-Hash → Presidio-Attestierung wird als explizite
+**Delegationskette** offengelegt: eine geordnete Liste benannter Glieder, jedes mit `role`,
+`signer`, dem, was es `signs`, und dem Hash, den es `reference`s. `--show-chain` läuft die
+Kette Glied für Glied ab, mit je eigenem Fehlergrund pro Glied (`owner-sig-invalid`,
+`owner-key-mismatch`, `assessor-missing-key` sowie jeder Attestierungsgrund wie
+`attests-manifest-mismatch`); `--require-chain` schlägt zusätzlich fail-closed fehl, wenn
+kein Owner-Glied vorhanden ist. Dies ist **additiv und abgeleitet** — die Kette wird zur
+Prüfzeit aus dem vorhandenen Owner-Block, `manifest.sig` und der Attestierung
+zusammengesetzt, sodass vor v0.23.0 erzeugte Manifeste (die keine Kette tragen) unverändert
+verifizieren.
+
+```bash
+iga workshop verify \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --pubkey <customer-public-key> \
+    --attestation-pubkey <presidio-assessor-public-key> \
+    --show-chain --quiet
+```
 
 ---
 
@@ -695,6 +782,8 @@ In das Werkzeug eingebaute Sicherheitskontrollen:
 | v0.20.0 | Classificator-Bridge (eai-classification/v1), 36-Zellen-Profil-Pack, `iga classify` | Veröffentlicht |
 | v0.21.0 T-B3 | `iga workshop`: Offline-Kunden-Workshop-Werkzeug, Ed25519-signierte Übergabeunterlagen, `workshop verify` | Veröffentlicht |
 | v0.21.0 T1.4 | Vollständige deutsche Lokalisierung: alle Laufzeitausgaben über `t()`, keine rein englischen Platzhalter unter `--lang de` | Veröffentlicht |
+| v0.22.0 T-B4 | Workshop-Nachweis-Souveränität: Customer-Owner-Signaturen, Standalone-Signer, Presidio-Assessor-Attestierung | Veröffentlicht |
+| v0.23.0 T-B5 | Gate-Zertifikate: signiertes `gate-certificate@1`, `iga certify` / `iga verify-certificate`, Nachweisprüfung bei Ausstellung und Verifikation, benannte Workshop-Delegationsketten | Veröffentlicht |
 
 Vollständiges Versions-Deliberationslog: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

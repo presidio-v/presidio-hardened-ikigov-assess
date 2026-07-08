@@ -76,6 +76,17 @@ from presidio_ikigov_assess.sanitize import (
 )
 from presidio_ikigov_assess.scoring import compute_scores
 from presidio_ikigov_assess.security import log_security_event
+from presidio_ikigov_assess.sovereignty import (
+    SIGNING_CEREMONY_MD,
+    STANDALONE_SIGNER,
+    SovereigntyError,
+    build_attestation,
+    derive_public_key,
+    generate_keypair,
+    owner_sign_manifest,
+    trust_store_snippet,
+    verify_attestation,
+)
 
 workshop_app = typer.Typer(
     name="workshop",
@@ -175,6 +186,25 @@ def _verify_manifest_ed25519(
         return False
 
 
+def _validate_ed25519_public_key_hex(value: str, field_name: str) -> str:
+    """Validate an Ed25519 public key encoded as 64 hex characters."""
+    v = value.strip().lower()
+    try:
+        raw = bytes.fromhex(v)
+    except ValueError as exc:
+        raise ValidationError(
+            f"{field_name} must be a 64-character Ed25519 public key hex."
+        ) from exc
+    if len(v) != _ED25519_PUBKEY_HEX_LEN or len(raw) != 32:
+        raise ValidationError(f"{field_name} must be a 64-character Ed25519 public key hex.")
+    ed25519 = _require_ed25519()
+    try:
+        ed25519.Ed25519PublicKey.from_public_bytes(raw)
+    except ValueError as exc:
+        raise ValidationError(f"{field_name} is not a valid Ed25519 public key.") from exc
+    return v
+
+
 def _check_key_file_permissions(path: Path) -> None:
     """Warn if the key file is world- or group-readable (mode check, not abort)."""
     try:
@@ -263,6 +293,7 @@ def _write_use_case_artifact(
     sign_key_hex: Optional[str],
     signer_name: Optional[str],
     classification_doc: ClassificationDocument,
+    assessor_pubkey_hex: Optional[str] = None,
 ) -> Path:
     """Write the leave-behind artifact for one use case. Returns the directory written."""
     cid = cell_id(uc)
@@ -311,7 +342,16 @@ def _write_use_case_artifact(
     artifacts: dict[str, str] = {
         report_filename: report_md_str,
         "report.json": report_json_str,
+        # T-B4 (R3): standalone owner-signer + bilingual ceremony runbook ship
+        # inside every leave-behind; their hashes are part of the manifest.
+        "sign.py": STANDALONE_SIGNER,
+        "SIGNING.md": SIGNING_CEREMONY_MD,
     }
+    # T-B4 (R4): ship the presidio assessor public key so the customer can
+    # verify the attestation offline. Derived from the signing key when
+    # present, else taken from --assessor-pubkey.
+    if assessor_pubkey_hex:
+        artifacts["assessor.pub"] = assessor_pubkey_hex + "\n"
 
     signed = sign_key_hex is not None
     manifest = _build_workshop_manifest(
@@ -332,9 +372,9 @@ def _write_use_case_artifact(
     uc_dir = out_dir / uc.id
     uc_dir.mkdir(parents=True, exist_ok=True)
 
-    # Write report files.
-    (uc_dir / report_filename).write_text(report_md_str, encoding="utf-8")
-    (uc_dir / "report.json").write_text(report_json_str, encoding="utf-8")
+    # Write all manifest-listed artifacts, then the manifest itself.
+    for name, content in artifacts.items():
+        (uc_dir / name).write_text(content, encoding="utf-8")
     (uc_dir / "manifest.json").write_text(manifest_pretty, encoding="utf-8")
 
     if sign_key_hex is not None:
@@ -624,6 +664,14 @@ def workshop_run(
         "--signer",
         help="Signer name embedded in manifest.sig (e.g. 'Presidio Group').",
     ),
+    assessor_pubkey: Optional[str] = typer.Option(
+        None,
+        "--assessor-pubkey",
+        help=(
+            "Presidio assessor public key (hex) to ship as assessor.pub in the "
+            "leave-behind (T-B4 R4). Derived automatically when --sign-key is given."
+        ),
+    ),
     quiet: bool = typer.Option(
         False,
         "--quiet",
@@ -689,6 +737,22 @@ def workshop_run(
     if sign_key_hex is None:
         _err_console.print(f"[yellow]{t('workshop_warn_unsigned', lang)}[/yellow]")
 
+    # T-B4 (R4): resolve the assessor public key for the leave-behind.
+    assessor_pubkey_hex: Optional[str] = None
+    if assessor_pubkey:
+        try:
+            assessor_pubkey_hex = _validate_ed25519_public_key_hex(
+                assessor_pubkey, "--assessor-pubkey"
+            )
+        except ValidationError as exc:
+            _err_console.print(f"[red]Error:[/red] {exc}")
+            raise typer.Exit(1) from exc
+    elif sign_key_hex is not None:
+        try:
+            assessor_pubkey_hex = derive_public_key(sign_key_hex)
+        except SovereigntyError:
+            assessor_pubkey_hex = None
+
     if not quiet:
         _console.print()
         _console.print(
@@ -731,6 +795,7 @@ def workshop_run(
                 sign_key_hex=sign_key_hex,
                 signer_name=signer,
                 classification_doc=doc,
+                assessor_pubkey_hex=assessor_pubkey_hex,
             )
             written_dirs.append(uc_dir)
         except OSError as exc:
@@ -759,6 +824,218 @@ def workshop_run(
         )
 
 
+# ── T-B4: keygen / sign / attest (customer anchors, presidio attests) ────────
+
+
+@workshop_app.command(name="keygen")
+def workshop_keygen(
+    out: str = typer.Option(
+        "customer-key.hex",
+        "--out",
+        help="Private-key output file (created 0600; <out>.pub gets the public key).",
+    ),
+    signer: str = typer.Option(
+        "customer",
+        "--signer",
+        help="Signer id for the printed trust-store@1 snippet (e.g. 'ACME GmbH').",
+    ),
+    lang: str = typer.Option("de", "--lang", "-l", help="Output language: de | en."),
+    force: bool = typer.Option(
+        False, "--force", help="Overwrite an existing key file (default: refuse)."
+    ),
+) -> None:
+    """Generate the CUSTOMER Ed25519 keypair — run on customer hardware (T-B4 R1).
+
+    The private key never leaves this machine. Hand only the public key to
+    presidio for the engagement trust store (R4). OFFLINE-CAPABLE.
+    """
+    try:
+        lang = validate_lang(lang)
+    except ValidationError as exc:
+        _err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    out_path = Path(out)
+    if out_path.exists() and not force:
+        _err_console.print(f"[red]{t('keygen_err_exists', lang, path=str(out_path))}[/red]")
+        raise typer.Exit(1)
+
+    try:
+        priv_hex, pub_hex = generate_keypair()
+    except SovereigntyError as exc:
+        _err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    if out_path.exists():
+        out_path.unlink()
+    fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(priv_hex + "\n")
+    Path(str(out_path) + ".pub").write_text(pub_hex + "\n", encoding="utf-8")
+
+    _console.print(f"[green]{t('keygen_done', lang, priv=str(out_path), pub=pub_hex)}[/green]")
+    _console.print(f"\n[bold]{t('keygen_pubkey_label', lang)}:[/bold] {pub_hex}")
+    _console.print(f"\n[bold]{t('keygen_trust_snippet_label', lang)}:[/bold]")
+    _console.print(trust_store_snippet(signer, pub_hex))
+    # Structural metadata only — never key material.
+    log_security_event({"event": "iga-workshop-keygen", "out": str(out_path)})
+
+
+@workshop_app.command(name="sign")
+def workshop_sign(
+    dir_path: str = typer.Option(
+        ..., "--dir", "-d", help="Use-case artifact directory (contains manifest.json)."
+    ),
+    key: Optional[str] = typer.Option(
+        None,
+        "--key",
+        help="Customer Ed25519 private-key file (hex). Also reads $IGA_WORKSHOP_OWNER_KEY.",
+    ),
+    signer: str = typer.Option(..., "--signer", help="Owner signer name (your organisation)."),
+    lang: str = typer.Option("de", "--lang", "-l", help="Output language: de | en."),
+) -> None:
+    """Sign the manifest as OWNER — run on customer hardware (T-B4 R1).
+
+    Embeds the additive `owner` block (signer, public key, timestamp) inside
+    the signed content and writes the owner signature to manifest.sig. A
+    facilitator signature from tier-2 fallback is replaced (with a warning) —
+    presidio's role moves to the separate attestation document.
+    """
+    try:
+        lang = validate_lang(lang)
+        dir_validated = validate_output_path(dir_path)
+    except ValidationError as exc:
+        _err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    key_hex: Optional[str] = None
+    if key is not None:
+        p = Path(key)
+        _check_key_file_permissions(p)
+        try:
+            key_hex = p.read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            _err_console.print(f"[red]{t('workshop_err_key_read', lang, path=str(p))}[/red]: {exc}")
+            raise typer.Exit(1) from exc
+    else:
+        env_val = os.environ.get("IGA_WORKSHOP_OWNER_KEY", "").strip()
+        key_hex = env_val or None
+    if key_hex is None:
+        _err_console.print(f"[red]{t('sign_err_no_key', lang)}[/red]")
+        raise typer.Exit(1)
+
+    try:
+        pub_hex, replaced = owner_sign_manifest(Path(dir_validated), key_hex, signer)
+    except SovereigntyError as exc:
+        _err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    if replaced:
+        _err_console.print(f"[yellow]{t('sign_warn_replaces', lang, signer=replaced)}[/yellow]")
+    _console.print(f"[green]{t('sign_done', lang, signer=signer)}[/green]")
+    _console.print(f"[bold]{t('keygen_pubkey_label', lang)}:[/bold] {pub_hex}")
+    log_security_event({"event": "iga-workshop-sign", "role": "owner", "replaced": bool(replaced)})
+
+
+@workshop_app.command(name="attest")
+def workshop_attest(
+    dir_path: str = typer.Option(
+        ..., "--dir", "-d", help="Use-case artifact directory (contains manifest.json)."
+    ),
+    engagement: str = typer.Option(
+        ..., "--engagement", help="Engagement id embedded in the attestation."
+    ),
+    scope: Optional[str] = typer.Option(
+        None,
+        "--scope",
+        help="Attestation scope (default: 'facilitation + methodology conformance').",
+    ),
+    workshop_date: Optional[str] = typer.Option(
+        None, "--workshop-date", help="Workshop date YYYY-MM-DD (default: today UTC)."
+    ),
+    sign_key: Optional[str] = typer.Option(
+        None,
+        "--sign-key",
+        help="Presidio assessor private key file (hex). Also reads $IGA_WORKSHOP_SIGN_KEY.",
+    ),
+    signer: Optional[str] = typer.Option(
+        None,
+        "--signer",
+        help="Assessor signer id (default: presidio-hardened-ikigov-assess).",
+    ),
+    lang: str = typer.Option("de", "--lang", "-l", help="Output language: de | en."),
+) -> None:
+    """Countersign as ASSESSOR — presidio side (T-B4 R2).
+
+    Emits a `workshop-attestation@1` payload in a signed `evidence-ref@1`
+    envelope; `attests`/`parents[0]` carry the manifest's canonical content
+    hash (the ADR-0002 provenance-DAG edge). Schema frozen by the family
+    golden vector. Fail-closed: there is no unsigned attestation.
+    OFFLINE-CAPABLE: needs only the manifest hash, no network.
+    """
+    try:
+        lang = validate_lang(lang)
+        dir_validated = validate_output_path(dir_path)
+    except ValidationError as exc:
+        _err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    sign_key_hex = _resolve_sign_key(sign_key)
+    if sign_key_hex is None:
+        _err_console.print(f"[red]{t('attest_err_no_key', lang)}[/red]")
+        raise typer.Exit(1)
+
+    uc_dir = Path(dir_validated)
+    manifest_path = uc_dir / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        _err_console.print(
+            f"[red]{t('workshop_verify_err_bad_manifest', lang, err=str(exc))}[/red]"
+        )
+        raise typer.Exit(1) from exc
+
+    if "owner" not in manifest:
+        _err_console.print(f"[yellow]{t('attest_warn_no_owner', lang)}[/yellow]")
+
+    try:
+        kwargs: dict[str, str] = {}
+        if scope:
+            kwargs["scope"] = scope
+        if signer:
+            kwargs["signer"] = signer
+        reading, envelope = build_attestation(
+            manifest,
+            engagement=engagement,
+            private_key_hex=sign_key_hex,
+            workshop_date=workshop_date,
+            **kwargs,
+        )
+    except SovereigntyError as exc:
+        _err_console.print(
+            f"[red]{t('attest_err_bad_field', lang, name='attestation', detail=str(exc))}[/red]"
+        )
+        raise typer.Exit(1) from exc
+
+    (uc_dir / "attestation.content.json").write_text(
+        json.dumps(reading, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    (uc_dir / "attestation.json").write_text(
+        json.dumps(envelope, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    manifest_hash = reading["attested_content"]["attests"]
+    _console.print(
+        f"[green]{t('attest_done', lang, path=str(uc_dir / 'attestation.json'), hash=manifest_hash[:16])}[/green]"
+    )
+    log_security_event(
+        {
+            "event": "iga-workshop-attest",
+            "engagement": engagement,
+            "owner_signed": "owner" in manifest,
+        }
+    )
+
+
 # ── workshop verify subcommand ────────────────────────────────────────────────
 
 
@@ -773,8 +1050,29 @@ def workshop_verify(
     pubkey: str = typer.Option(
         ...,
         "--pubkey",
-        help="Ed25519 public key in hex (64 hex chars).",
+        help="Ed25519 public key in hex (64 hex chars) for the manifest signature.",
     ),
+    require_attestation: bool = typer.Option(
+        False,
+        "--require-attestation",
+        help="Fail-closed unless a valid presidio attestation binds this manifest (T-B4 R2).",
+    ),
+    attestation_pubkey: Optional[str] = typer.Option(
+        None,
+        "--attestation-pubkey",
+        help="Presidio assessor public key (hex); required with --require-attestation.",
+    ),
+    show_chain: bool = typer.Option(
+        False,
+        "--show-chain",
+        help="Walk the named delegation chain (owner → manifest-hash → assessor) link-by-link.",
+    ),
+    require_chain: bool = typer.Option(
+        False,
+        "--require-chain",
+        help="Fail-closed unless the delegation chain has an owner link (implies --show-chain).",
+    ),
+    lang: str = typer.Option("de", "--lang", "-l", help="Output language: de | en."),
     quiet: bool = typer.Option(
         False,
         "--quiet",
@@ -784,20 +1082,37 @@ def workshop_verify(
 ) -> None:
     """Verify a workshop leave-behind artifact: re-hash artifacts and verify Ed25519 signature."""
     try:
+        lang = validate_lang(lang)
         dir_path = validate_output_path(dir_path)
+    except ValidationError as exc:
+        _err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    if require_attestation and not attestation_pubkey:
+        _err_console.print(
+            f"[red]{t('attest_err_bad_field', lang, name='--attestation-pubkey', detail='required with --require-attestation')}[/red]"
+        )
+        raise typer.Exit(1)
+    try:
+        pubkey = _validate_ed25519_public_key_hex(pubkey, "--pubkey")
+        attestation_pubkey_validated = (
+            _validate_ed25519_public_key_hex(attestation_pubkey, "--attestation-pubkey")
+            if attestation_pubkey
+            else None
+        )
     except ValidationError as exc:
         _err_console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
 
     artifact_dir = Path(dir_path)
     if not artifact_dir.is_dir():
-        _err_console.print(f"[red]{t('workshop_verify_err_not_dir', 'de', path=dir_path)}[/red]")
+        _err_console.print(f"[red]{t('workshop_verify_err_not_dir', lang, path=dir_path)}[/red]")
         raise typer.Exit(1)
 
     # Load manifest.
     manifest_path = artifact_dir / "manifest.json"
     if not manifest_path.exists():
-        _err_console.print(f"[red]{t('workshop_verify_err_no_manifest', 'de')}[/red]")
+        _err_console.print(f"[red]{t('workshop_verify_err_no_manifest', lang)}[/red]")
         raise typer.Exit(1)
 
     manifest_text = manifest_path.read_text(encoding="utf-8")
@@ -805,9 +1120,14 @@ def workshop_verify(
         manifest = json.loads(manifest_text)
     except json.JSONDecodeError as exc:
         _err_console.print(
-            f"[red]{t('workshop_verify_err_bad_manifest', 'de', err=str(exc))}[/red]"
+            f"[red]{t('workshop_verify_err_bad_manifest', lang, err=str(exc))}[/red]"
         )
         raise typer.Exit(1) from exc
+
+    schema_ok = (
+        manifest.get("schema") == WORKSHOP_MANIFEST_SCHEMA
+        and manifest.get("tool") == "presidio-hardened-ikigov-assess"
+    )
 
     # Re-hash artifacts.
     artifact_results: dict[str, bool] = {}
@@ -824,6 +1144,8 @@ def workshop_verify(
     # Verify Ed25519 signature.
     sig_path = artifact_dir / "manifest.sig"
     signature_ok: bool | None = None
+    sig_role = ""
+    sig_signer = ""
     if sig_path.exists():
         sig_text = sig_path.read_text(encoding="utf-8")
         try:
@@ -832,21 +1154,75 @@ def workshop_verify(
                 signature_ok = None  # no signature was written
             else:
                 sig_hex = sig_data.get("signature", "")
+                sig_role = str(sig_data.get("role", ""))
+                sig_signer = str(sig_data.get("signer", ""))
                 # Use the canonical bytes of the manifest for verification.
                 manifest_canonical = _canonical_json(manifest)
                 signature_ok = _verify_manifest_ed25519(manifest_canonical, sig_hex, pubkey)
         except (json.JSONDecodeError, Exception):
             signature_ok = False
 
+    # T-B4 (R1): owner consistency — when the manifest carries an owner block
+    # and the signature claims the owner role, the verifying pubkey must be
+    # the one embedded in the signed content (fail-closed on mismatch).
+    owner_block = manifest.get("owner")
+    if (
+        signature_ok is True
+        and sig_role == "owner"
+        and isinstance(owner_block, dict)
+        and owner_block.get("public_key", "").lower() != pubkey.strip().lower()
+    ):
+        signature_ok = False
+
+    # T-B4 (R2): attestation verification.
+    attestation_ok: bool | None = None
+    attestation_reason = ""
+    attestation_signer = ""
+    if require_attestation:
+        if not (artifact_dir / "attestation.json").exists():
+            attestation_ok = False
+            attestation_reason = "missing"
+        else:
+            attestation_ok, attestation_reason, attestation_signer = verify_attestation(
+                artifact_dir, attestation_pubkey_validated or ""
+            )
+
+    # T-B5: named delegation-chain walk (additive, derived). Grandfathered:
+    # a pre-T-B5 / unsigned manifest yields an empty chain that verifies unless
+    # --require-chain demands an owner link.
+    chain_results: list[dict] | None = None
+    chain_ok: bool | None = None
+    if show_chain or require_chain:
+        from presidio_ikigov_assess.sovereignty import verify_delegation_chain
+
+        chain_ok, chain_results = verify_delegation_chain(
+            artifact_dir, pubkey, attestation_pubkey_validated
+        )
+        if require_chain and not any(link.get("role") == "owner" for link in chain_results):
+            chain_ok = False
+            chain_results = list(chain_results) + [
+                {"role": "owner", "signer": "", "ok": False, "reason": "owner-link-missing"}
+            ]
+
     all_artifacts_ok = all(artifact_results.values()) if artifact_results else False
-    ok = all_artifacts_ok and (signature_ok is not False)
+    ok = (
+        schema_ok
+        and all_artifacts_ok
+        and (signature_ok is not False)
+        and (attestation_ok is not False)
+        and (chain_ok is not False)
+    )
 
     log_security_event(
         {
             "event": "iga-workshop-verify",
             "ok": ok,
+            "schema_ok": schema_ok,
             "artifacts_ok": all_artifacts_ok,
             "signature_ok": signature_ok,
+            "signature_role": sig_role or None,
+            "attestation_ok": attestation_ok,
+            "chain_ok": chain_ok,
         }
     )
 
@@ -855,22 +1231,56 @@ def workshop_verify(
             json.dumps(
                 {
                     "ok": ok,
+                    "schema_ok": schema_ok,
                     "artifacts": artifact_results,
                     "signature": signature_ok,
+                    "signature_role": sig_role or None,
+                    "owner_signed": isinstance(owner_block, dict),
+                    "attestation": attestation_ok,
+                    "attestation_reason": attestation_reason or None,
+                    "chain": chain_ok,
+                    "chain_links": chain_results,
                 }
             )
         )
     else:
+        if not schema_ok:
+            _console.print(f"[red]{t('workshop_verify_schema_fail', lang)}[/red]")
         for name, art_ok in artifact_results.items():
             colour = "green" if art_ok else "red"
             mark = "OK  " if art_ok else "FAIL"
             _console.print(f"[{colour}]{mark}[/{colour}] {name}")
         if signature_ok is True:
-            _console.print(f"[green]{t('workshop_verify_sig_ok', 'de')}[/green]")
+            _console.print(f"[green]{t('workshop_verify_sig_ok', lang)}[/green]")
+            if sig_role:
+                _console.print(
+                    f"[dim]{t('verify_owner_label', lang, role=sig_role, signer=sig_signer)}[/dim]"
+                )
         elif signature_ok is False:
-            _console.print(f"[red]{t('workshop_verify_sig_fail', 'de')}[/red]")
+            _console.print(f"[red]{t('workshop_verify_sig_fail', lang)}[/red]")
         else:
-            _console.print(f"[yellow]{t('workshop_verify_unsigned', 'de')}[/yellow]")
+            _console.print(f"[yellow]{t('workshop_verify_unsigned', lang)}[/yellow]")
+        if require_attestation:
+            if attestation_ok:
+                _console.print(
+                    f"[green]{t('verify_attestation_ok', lang, signer=attestation_signer)}[/green]"
+                )
+            elif attestation_reason == "missing":
+                _console.print(f"[red]{t('verify_attestation_missing', lang)}[/red]")
+            else:
+                _console.print(
+                    f"[red]{t('verify_attestation_fail', lang, reason=attestation_reason)}[/red]"
+                )
+        if chain_results is not None:
+            for link in chain_results:
+                if link["ok"]:
+                    _console.print(
+                        f"[green]{t('chain_link_ok', lang, role=link['role'], signer=link['signer'])}[/green]"
+                    )
+                else:
+                    _console.print(
+                        f"[red]{t('chain_link_fail', lang, role=link['role'], reason=link['reason'])}[/red]"
+                    )
 
     if not ok:
         raise typer.Exit(1)

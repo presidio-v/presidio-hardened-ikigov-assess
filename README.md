@@ -22,11 +22,11 @@ Reference: Stantchev, V. *IKI-Gov-Referenzmodell* — Integrated KI-Governance R
 
 ## The book
 
-This tool implements the **IKI-Gov reference model**, introduced in the forthcoming
+This tool implements the **IKI-Gov reference model**, introduced in the
 Springer monograph by Vladimir Stantchev — published in two editions:
 
-- **AI and IT-Governance** (English)
-- **KI und IT-Governance** (German)
+- **AI and IT Governance** (English) — Springer, Berlin; ISBN 978-3-662-74001-9; forthcoming 11 January 2027
+- **KI und IT-Governance** (German) — Springer, Berlin; ISBN 978-3-662-74093-4; forthcoming 28 December 2026
 
 The book works from classical IT governance (COBIT, ITIL, ISO/IEC 38500) toward AI
 governance across ethics, law, risk, and data, then assembles IKI-Gov: the lifecycle,
@@ -37,9 +37,9 @@ orientation tables.
 
 The book presents the model as a reasoned synthesis and a working heuristic for
 orientation — not legal advice and not a conformity assessment. This tool holds the same
-line (see the disclaimers on the `euaiact-gap` and `iso-gap` commands). Publication
-details (ISBN, dates, Springer link) are finalised at the publisher and will be added
-here once they are public.
+line (see the disclaimers on the `euaiact-gap` and `iso-gap` commands). Both editions are
+now available for preorder from Springer (Berlin); the Springer catalogue page and DOI
+will be added here once live.
 
 ---
 
@@ -366,6 +366,60 @@ store only (no network). Evidence references carry hashes and opaque ledger URIs
 
 ---
 
+## Gate Certificates (v0.23.0)
+
+A **gate certificate** (`presidio-hardened/gate-certificate@1`) makes *the certificate
+the proof*. Today a gate decision (`OPEN` / `PARTIAL` / `BLOCKED`) is trusted because
+`iga` computed it. A certificate inverts that: it is a compact, signed artifact that any
+third party verifies **locally** against a trust store, **without running ikigov-assess
+and without the assessments database** — the contrast to centralized policy-decision
+points (Cedar / Zanzibar class), where the verdict is trusted because a service returned
+it. This is the product-form of the Computational Jurisprudence program (Stantchev,
+arXiv 2026): local verification, no engine in the trust path, fail-closed.
+
+The certificate carries its own grounding: the **sufficient affirmation set** (per-item
+`affirmed` / `skipped` / `denied` for every gate item), any **embedded evidence-refs**
+verbatim, and the **decision predicate inputs** — the gate's item ids, the risk class,
+the effective strict flag, and the predicate content hash — so a verifier recomputes the
+decision from the certificate alone and compares it to the claim.
+
+```bash
+# Emit a signed gate certificate after evaluating a gate
+iga certify --gate G2 --use-case "fraud-scoring" --risk-class high \
+    --affirm S1,S2,D1,D2,D3,D4,D5,T1,T2,T3 \
+    --evidence evidence.json --trust trust.json \
+    --issuer "presidio-assessor" --sign-alg ed25519 \
+    --sign-key-file issuer.key --output cert.json
+
+# Verify locally against a trust store — no DB, no engine, fail-closed
+iga verify-certificate --certificate cert.json --trust trust.json
+```
+
+When `--evidence` is supplied to `iga certify`, `--trust` is mandatory and every
+evidence-ref must verify before it is embedded; a failing ref aborts issuance.
+Verification then independently runs five checks, each with a **distinct fail reason**:
+unknown schema → `unknown-schema`; the issuer signature (detached, over the canonical
+bytes of the certificate **minus the `signature` field**) → `bad-signature` /
+`unknown-issuer`; predicate identity → `predicate-content-mismatch`; every embedded
+evidence-ref re-verified against the verifier's trust store → `evidence-ref-failure`;
+and the decision recomputed from the embedded predicate inputs vs the claim →
+`decision-mismatch`. It reads only the certificate and the trust store.
+
+Canonicalization and signing reuse the family conventions used by evidence-refs and the
+workshop manifest: canonical JSON is `json.dumps(sort_keys=True, separators=(",", ":"),
+ensure_ascii=False)` UTF-8, hashed with SHA-256; the issuer signature is HMAC-SHA256 or
+Ed25519 (RFC 8032), resolved from the same trust-store shape as evidence-refs.
+
+> **Scope of the claim (no overclaiming):** a gate certificate proves that, *under the
+> declared predicate and the embedded affirmation set / evidence*, the gate decision
+> recomputes to the claimed value. It does **not** prove that the underlying controls are
+> effective, nor that the evidence's real-world claim is true. Assurance tiers
+> (`assurance_tier`, evidence-ref@2 / presidio-evidence ADR-0003) are a **planned** field:
+> this repo's evidence layer (evidence-ref@1) does not yet model tiers, so certificates do
+> not carry one.
+
+---
+
 ## MCP Server
 
 The assessment engine is also available as a [Model Context Protocol](https://modelcontextprotocol.io)
@@ -540,14 +594,17 @@ authoritative source; `jsonschema` is not a declared project dependency.
 
 ---
 
-## Workshop Mode (T-B3)
+## Workshop Mode (T-B3/T-B4)
 
 `iga workshop run` is the live **customer-workshop tool**: run it on a laptop
 connected to a projector, point it at a classification document, and it renders
 each use case in large-format, high-contrast rich output while simultaneously
-writing a signed leave-behind artifact (the "Übergabeunterlage") per use case to
-disk.  The whole cycle (projector rendering plus artifact generation) targets
-**under 2 minutes per use case**.
+writing a leave-behind artifact (the "Übergabeunterlage") per use case to disk.
+The whole cycle (projector rendering plus artifact generation) targets **under
+2 minutes per use case**. Since v0.22.0 the recommended custody model is
+**customer anchored**: the customer signs the manifest with a key generated on
+their own hardware, and presidio countersigns as assessor in a separate
+attestation document.
 
 ### Offline-capable
 
@@ -561,12 +618,10 @@ running `pip-audit` on the founder's machine before the session.
 ### Example
 
 ```bash
-# Generate signed leave-behind artifacts for all use cases in a classification
-# document, in German (default), writing to ./workshop-out/<date>/.
+# Generate leave-behind artifacts for all use cases in a classification document,
+# in German (default), writing to ./workshop-out/<date>/.
 iga workshop run \
     --file classification.json \
-    --sign-key ~/.iga/workshop.key \
-    --signer "Presidio Group" \
     --lang de
 
 # Generate for selected use cases only.
@@ -574,14 +629,12 @@ iga workshop run \
     --file medical.json \
     --select infusion-pump-dosing \
     --select surgical-robotics \
-    --sign-key ~/.iga/workshop.key \
     --out /tmp/workshop-2026/
 
 # Pre-populate answers (assessor filled a form earlier).
 iga workshop run \
     --file classification.json \
-    --answers answers.json \
-    --sign-key ~/.iga/workshop.key
+    --answers answers.json
 
 # Quiet: write artifacts only, no projector output.
 iga workshop run --file classification.json --quiet
@@ -604,61 +657,97 @@ The `answers.json` format is:
 workshop-out/<date>/<use_case_id>/
   report.de.md       Markdown leave-behind (localised)
   report.json        Full assessment JSON + classification provenance block
+  sign.py            Standalone customer owner signer
+  SIGNING.md         Bilingual signing-ceremony runbook
+  assessor.pub       Presidio assessor public key, when supplied/derived
   manifest.json      Content-hashed manifest (presidio-hardened/workshop-leavebehind@1)
   manifest.sig       Ed25519 detached signature (UNSIGNED marker if no key provided)
+  attestation.json   Optional presidio assessor attestation envelope
+  attestation.content.json
 ```
 
 `manifest.json` records: tool version, cell id, risk class, language, profile-pack
 content hash, SHA-256 of every artifact, and whether the artifact is signed.
 
-### Key generation (founder setup)
+### Customer owner signing and presidio attestation
 
-Generate a **dedicated** Ed25519 keypair for workshop use.  Keep the private key
-at mode `0600`; distribute only the public key to customers for verification:
+Generate the customer owner keypair on customer hardware. The private key is
+created mode `0600`; hand only the public key to presidio for the engagement
+trust store:
 
 ```bash
-# Python one-liner — generates a 32-byte private key and the matching public key
-python3 - <<'EOF'
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-sk = Ed25519PrivateKey.generate()
-priv = sk.private_bytes_raw().hex()
-pub  = sk.public_key().public_bytes_raw().hex()
-print("private (keep secret, chmod 600):", priv)
-print("public  (share with customers):  ", pub)
-EOF
-
-# Write the private key to a file and lock it.
-echo "<private-hex>" > ~/.iga/workshop.key
-chmod 600 ~/.iga/workshop.key
+iga workshop keygen --out customer-key.hex --signer "ACME GmbH"
 ```
 
-Key can also be provided via `$IGA_WORKSHOP_SIGN_KEY` to keep it out of the
-process list entirely:
+After `iga workshop run` writes the leave-behind, the customer signs the
+manifest as owner:
 
 ```bash
-export IGA_WORKSHOP_SIGN_KEY="<private-hex>"
-iga workshop run --file classification.json
+iga workshop sign \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --key customer-key.hex \
+    --signer "ACME GmbH"
+```
+
+Presidio then countersigns the customer-signed manifest as assessor. The
+attestation is a separate `workshop-attestation@1` evidence document bound to
+the manifest hash:
+
+```bash
+iga workshop attest \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --engagement hc-workshop-2026-001 \
+    --sign-key ~/.iga/workshop-assessor.key \
+    --signer presidio-hardened-ikigov-assess
 ```
 
 ### Verify a leave-behind (customer side)
 
-The customer can verify the artifact using the public key the founder provided:
+The customer verifies their owner signature and, when required, the presidio
+assessor attestation:
 
 ```bash
 # Verify the artifact in the infusion-pump-dosing/ directory.
 iga workshop verify \
-    --dir workshop-out/2026-06-11/infusion-pump-dosing/ \
-    --pubkey <64-hex-char-public-key>
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --pubkey <customer-public-key>
+
+# Require a valid presidio attestation bound to the manifest.
+iga workshop verify \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --pubkey <customer-public-key> \
+    --require-attestation \
+    --attestation-pubkey <presidio-assessor-public-key>
 
 # Machine-readable JSON result.
 iga workshop verify \
-    --dir workshop-out/2026-06-11/infusion-pump-dosing/ \
-    --pubkey <public-key> \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --pubkey <customer-public-key> \
     --quiet
 ```
 
 Exit 0 if all artifact hashes and the signature verify; exit 1 otherwise
 (fail-closed).
+
+#### Named delegation chain (v0.23.0)
+
+The customer-signature → manifest-hash → presidio-attestation lineage is exposed as an
+explicit **delegation chain**: an ordered list of named links, each stating its `role`,
+`signer`, what it `signs`, and the hash it `reference`s. `--show-chain` walks the chain
+link-by-link with a distinct failure reason per link (`owner-sig-invalid`,
+`owner-key-mismatch`, `assessor-missing-key`, plus every attestation reason such as
+`attests-manifest-mismatch`); `--require-chain` additionally fails closed unless an owner
+link is present. This is **additive and derived** — the chain is assembled at verify time
+from the existing owner block, `manifest.sig`, and attestation, so manifests produced
+before v0.23.0 (which carry no chain) verify unchanged.
+
+```bash
+iga workshop verify \
+    --dir workshop-out/2026-07-04/infusion-pump-dosing/ \
+    --pubkey <customer-public-key> \
+    --attestation-pubkey <presidio-assessor-public-key> \
+    --show-chain --quiet
+```
 
 ---
 
@@ -692,6 +781,8 @@ Security controls built into the tool:
 | v0.20.0 | Classificator bridge (eai-classification/v1), 36-cell profile pack, `iga classify` | Released |
 | v0.21.0 T-B3 | `iga workshop` — offline customer-workshop tool, Ed25519 signed leave-behind artifacts, `workshop verify` | Released |
 | v0.21.0 T1.4 | Full German localisation sweep: all runtime output through `t()`, no English-only sentinels under `--lang de` | Released |
+| v0.22.0 T-B4 | Workshop evidence sovereignty: customer owner signatures, standalone signer, presidio assessor attestation | Released |
+| v0.23.0 T-B5 | Gate certificates: signed `gate-certificate@1`, `iga certify` / `iga verify-certificate`, issue-time and verify-time evidence-ref verification, named workshop delegation chains | Released |
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 
