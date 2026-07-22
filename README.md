@@ -7,6 +7,8 @@
 [![GitHub release](https://img.shields.io/github/v/release/presidio-v/presidio-hardened-ikigov-assess.svg)](https://github.com/presidio-v/presidio-hardened-ikigov-assess/releases)
 [![Tests](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/pytest.yml/badge.svg)](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/pytest.yml)
 [![CodeQL](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/codeql.yml/badge.svg)](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/presidio-v/presidio-hardened-ikigov-assess/badge)](https://scorecard.dev/viewer/?uri=github.com/presidio-v/presidio-hardened-ikigov-assess)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13748/badge)](https://www.bestpractices.dev/projects/13748)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **IKI-Gov Assessment Tool** — operationalises the IKI-Gov-Referenzmodell (Integrated KI-Governance Reference Model) as a practical CLI tool for assessing AI use cases against a structured governance framework.
@@ -786,6 +788,18 @@ Security controls built into the tool:
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 
+### Planned (next 12 months)
+
+Directional; planned or in-flight work, not commitments:
+
+- **In progress** — OpenSSF Best Practices (silver) and Scorecard hardening:
+  governance docs, a two-person code-owner review gate, and supply-chain checks.
+- **Next** — broader framework-gap coverage (ISO/IEC 42001 refinements and EU AI
+  Act updates as implementing acts land) and additional evidence producers feeding
+  the `assess --evidence` / gate-certificate flow.
+- **Under evaluation** — reproducible builds and per-file provenance toward the
+  OpenSSF gold criteria.
+
 ---
 
 ## Development
@@ -814,3 +828,13 @@ MIT. See [LICENSE](LICENSE).
 
 This repository is developed under the Presidio hardened-family SDLC:
 <https://github.com/presidio-v/presidio-hardened-docs/blob/main/sdlc/sdlc-report.md>.
+
+---
+
+## Governance, Architecture & Security
+
+- [Governance](GOVERNANCE.md) — roles, decision process, and project continuity.
+- [Architecture](ARCHITECTURE.md) — components, processing flow, and trust boundaries.
+- [Assurance case](ASSURANCE.md) — the security claims and the evidence for each.
+- [Security policy](SECURITY.md) — supported versions and how to report a vulnerability.
+- [Contributing](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Versioning](SEMVER.md)
