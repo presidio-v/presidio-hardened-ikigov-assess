@@ -11,7 +11,7 @@ related:
 
 # CII Best Practices — GOLD answer sheet (working)
 
-Fill-in + roadmap for the **gold** tab at <https://www.bestpractices.dev/en/projects/0>.
+Fill-in + roadmap for the **gold** tab at <https://www.bestpractices.dev/en/projects/13748>.
 Covers only the criteria gold *adds* on top of silver. **Gold is a bigger lift than silver
 was** — it is not "mostly documentation." Two genuine blockers typically remain (a second
 *unassociated* contributor, and reproducible builds), plus a mechanical per-file header
