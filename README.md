@@ -788,6 +788,18 @@ Security controls built into the tool:
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 
+### Planned (next 12 months)
+
+Directional; planned or in-flight work, not commitments:
+
+- **In progress** — OpenSSF Best Practices (silver) and Scorecard hardening:
+  governance docs, a two-person code-owner review gate, and supply-chain checks.
+- **Next** — broader framework-gap coverage (ISO/IEC 42001 refinements and EU AI
+  Act updates as implementing acts land) and additional evidence producers feeding
+  the `assess --evidence` / gate-certificate flow.
+- **Under evaluation** — reproducible builds and per-file provenance toward the
+  OpenSSF gold criteria.
+
 ---
 
 ## Development
