@@ -7,6 +7,8 @@
 [![GitHub release](https://img.shields.io/github/v/release/presidio-v/presidio-hardened-ikigov-assess.svg)](https://github.com/presidio-v/presidio-hardened-ikigov-assess/releases)
 [![Tests](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/pytest.yml/badge.svg)](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/pytest.yml)
 [![CodeQL](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/codeql.yml/badge.svg)](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/presidio-v/presidio-hardened-ikigov-assess/badge)](https://scorecard.dev/viewer/?uri=github.com/presidio-v/presidio-hardened-ikigov-assess)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/0/badge)](https://www.bestpractices.dev/projects/0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **IKI-Gov Assessment Tool** — operationalises the IKI-Gov-Referenzmodell (Integrated KI-Governance Reference Model) as a practical CLI tool for assessing AI use cases against a structured governance framework.
@@ -814,3 +816,13 @@ MIT. See [LICENSE](LICENSE).
 
 This repository is developed under the Presidio hardened-family SDLC:
 <https://github.com/presidio-v/presidio-hardened-docs/blob/main/sdlc/sdlc-report.md>.
+
+---
+
+## Governance, Architecture & Security
+
+- [Governance](GOVERNANCE.md) — roles, decision process, and project continuity.
+- [Architecture](ARCHITECTURE.md) — components, processing flow, and trust boundaries.
+- [Assurance case](ASSURANCE.md) — the security claims and the evidence for each.
+- [Security policy](SECURITY.md) — supported versions and how to report a vulnerability.
+- [Contributing](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Versioning](SEMVER.md)

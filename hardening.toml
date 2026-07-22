@@ -1,0 +1,22 @@
+# hardening.toml — OpenSSF hardening manifest for presidio-hardened-ikigov-assess.
+# Read by the presidio-hardened-repo skill's render.py.
+
+[project]
+name = "presidio-hardened-ikigov-assess"
+org = "presidio-v"
+package = "presidio_ikigov_assess"
+description = "IKI-Gov Assessment Tool — operationalises the Integrated KI-Governance Reference Model for AI use-case governance."
+language = "python"
+tier = "silver"
+
+[people]
+maintainer = "vstantch"
+reviewer = "ceoofcyber"
+security_contact = "security@presidio-group.eu"
+
+[legal]
+copyright_holder = "PRESIDIO Group"
+license = "MIT"
+
+[badge]
+bestpractices_id = 0
