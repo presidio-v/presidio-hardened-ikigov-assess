@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: "30 5 * * 1"
 
+# Least privilege by default (OpenSSF Scorecard Token-Permissions); the analyze
+# job elevates only what CodeQL's SARIF upload needs.
+permissions:
+  contents: read
+
 jobs:
   analyze:
     name: Analyze (Python)
@@ -19,20 +24,20 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
         with:
           languages: python
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v4
+        uses: github/codeql-action/autobuild@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
 
       # The repo is public, so GitHub Advanced Security (and the SARIF upload it
       # gates) is available; the analysis and its upload now fail the job honestly
       # instead of being masked by continue-on-error.
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
         with:
           category: "/language:python"
