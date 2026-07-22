@@ -69,26 +69,27 @@ custody is delegated to the org key (`allowed_signers`), not held in the source 
 
 **Defense in depth.** Independent controls cover distinct threats: input validation,
 signed + recomputable certificates, startup CVE checking, session rate limiting, and
-security-event logging, backed by CodeQL / bandit / Scorecard in CI.
+security-event logging, backed by CodeQL and Scorecard in CI.
 
 **Economy of mechanism.** Cryptographic operations use vetted standard primitives
-only — `hashlib` (SHA-256), `hmac`, and canonical JSON — with no bespoke crypto.
+only — `hashlib` (SHA-256), `hmac`, Ed25519 via the `cryptography` library, and
+canonical JSON — with no bespoke crypto.
 Being pure Python, the code is memory-safe.
 
 ## 4. Common implementation weaknesses countered
 
 | Weakness class | How it is countered |
 |---|---|
-| **Improper input validation / injection (CWE-20, CWE-74)** | `sanitize.validate_*` validates all user strings; `escape_for_report`/`escape_markdown` HTML/Markdown-escape output. The single `subprocess` use (`security.py`, the fixed-argv `pip-audit` call) is `shell=False` with a static argument list (annotated `# nosec B404`). Checked by CodeQL, bandit (ruff `S`), Scorecard. |
+| **Improper input validation / injection (CWE-20, CWE-74)** | `sanitize.validate_*` validates all user strings; `escape_for_report`/`escape_markdown` HTML/Markdown-escape output. The single `subprocess` use (`security.py`, the fixed-argv `pip-audit` call) is `shell=False` with a static argument list (annotated `# nosec B404`). Checked by CodeQL and Scorecard. |
 | **Memory safety (CWE-119 family)** | N/A — pure Python, memory-safe; no manual allocation, no unsafe FFI. |
-| **Cryptographic misuse (CWE-327, CWE-916)** | Only SHA-256 (`hashlib`) and `hmac` over canonical bytes for content hashing and detached signatures — no weak/broken algorithms and no bespoke crypto. Signing keys are supplied from outside the source tree. |
+| **Cryptographic misuse (CWE-327, CWE-916)** | SHA-256 (`hashlib`), `hmac`, and Ed25519 (via the `cryptography` library) over canonical bytes for content hashing and detached signatures — no weak/broken algorithms and no bespoke crypto. The release/trust-store signing keys are supplied from outside the source tree. |
 | **Hard-coded / exposed secrets (CWE-798, CWE-532)** | No secret is committed; signing-key custody is delegated to the org key (`allowed_signers`). Security-event logging escapes/structures entries and is scoped to `~/.iga/security.log`. Scorecard Token-Permissions + secret scanning guard the repo. |
 | **Insecure network / SSRF (CWE-319, CWE-295)** | The core assessment/verification path opens no network connection. The optional MCP endpoint is opt-in; its transport is the operator's responsibility. No user-supplied URL fetch. |
 | **Unsafe deserialization (CWE-502)** | Inputs are JSON/typed structures parsed with the standard library; no `pickle`/`eval` of untrusted data. |
 | **Vulnerable dependencies (CWE-1104)** | Startup `pip-audit` CVE check, Dependabot, and `pip-audit`/Scorecard in CI. |
 
-These classes are checked continuously by **CodeQL**, **bandit** (ruff `S` rules),
-and **OpenSSF Scorecard** on every push and pull request.
+These classes are checked continuously by **CodeQL** and **OpenSSF Scorecard**
+on every push and pull request.
 
 ## Conclusion
 
