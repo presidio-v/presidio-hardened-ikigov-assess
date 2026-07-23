@@ -97,6 +97,19 @@ def test_load_trust_store():
         load_trust_store('{"a": 1}')
 
 
+def test_load_evidence_deeply_nested_json_rejected():
+    # Pathologically nested JSON must fail closed as EvidenceError, not RecursionError.
+    deep = "[" * 100000 + "]" * 100000
+    with pytest.raises(EvidenceError, match="nesting too deep"):
+        load_evidence(deep)
+
+
+def test_load_trust_store_deeply_nested_json_rejected():
+    deep = "[" * 100000 + "]" * 100000
+    with pytest.raises(EvidenceError, match="nesting too deep"):
+        load_trust_store(deep)
+
+
 def test_classify_present_vs_verified():
     refs = [_ref("D1"), _ref("O5")]
     # No trust -> present but unverified.

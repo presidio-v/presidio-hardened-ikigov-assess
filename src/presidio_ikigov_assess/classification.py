@@ -284,9 +284,16 @@ def parse_classification_bytes(raw: bytes | str) -> ClassificationDocument:
             raise ClassificationError(
                 f"classification document too large ({len(raw)} bytes); maximum is {_MAX_DOC_BYTES}"
             )
-        text = raw.decode("utf-8")
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeError as exc:
+            raise ClassificationError("classification document is not valid UTF-8") from exc
     else:
-        if len(raw.encode("utf-8")) > _MAX_DOC_BYTES:
+        try:
+            encoded_len = len(raw.encode("utf-8"))
+        except UnicodeError as exc:
+            raise ClassificationError("classification document is not valid UTF-8") from exc
+        if encoded_len > _MAX_DOC_BYTES:
             raise ClassificationError(
                 f"classification document too large; maximum is {_MAX_DOC_BYTES} bytes"
             )
@@ -296,6 +303,8 @@ def parse_classification_bytes(raw: bytes | str) -> ClassificationDocument:
         data = json.loads(text)
     except (json.JSONDecodeError, ValueError) as exc:
         raise ClassificationError(f"invalid JSON: {exc}") from exc
+    except RecursionError as exc:
+        raise ClassificationError("document nesting too deep") from exc
 
     return parse_classification(data)
 
