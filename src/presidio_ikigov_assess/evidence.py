@@ -123,6 +123,8 @@ def load_evidence(text: str) -> list[EvidenceRef]:
         doc = json.loads(text)
     except json.JSONDecodeError as exc:
         raise EvidenceError(f"invalid evidence JSON: {exc.msg}") from exc
+    except RecursionError as exc:
+        raise EvidenceError("evidence document nesting too deep") from exc
     return parse_document(doc)
 
 
@@ -179,6 +181,8 @@ def load_trust_store(text: str) -> dict[str, dict[str, object]]:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         raise EvidenceError(f"invalid trust-store JSON: {exc.msg}") from exc
+    except RecursionError as exc:
+        raise EvidenceError("trust-store document nesting too deep") from exc
     if not isinstance(data, dict):
         raise EvidenceError("trust store must be a JSON object keyed by signer id")
     normalised = {signer: _normalise_entry(signer, value) for signer, value in data.items()}
