@@ -36,7 +36,7 @@ jobs:
           python-version: "3.12"
       - name: Build placeholder
         run: |
-          python -m pip install --upgrade pip build
+          python -m pip install --require-hashes -r .github/constraints/release-build.txt
           python -m build pypi-reserve/iki-gov
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
