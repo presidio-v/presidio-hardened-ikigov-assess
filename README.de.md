@@ -7,6 +7,8 @@
 [![GitHub release](https://img.shields.io/github/v/release/presidio-v/presidio-hardened-ikigov-assess.svg)](https://github.com/presidio-v/presidio-hardened-ikigov-assess/releases)
 [![Tests](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/pytest.yml/badge.svg)](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/pytest.yml)
 [![CodeQL](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/codeql.yml/badge.svg)](https://github.com/presidio-v/presidio-hardened-ikigov-assess/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/presidio-v/presidio-hardened-ikigov-assess/badge)](https://scorecard.dev/viewer/?uri=github.com/presidio-v/presidio-hardened-ikigov-assess)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13748/badge)](https://www.bestpractices.dev/projects/13748)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **IKI-Gov Assessment Tool** — überführt das IKI-Gov-Referenzmodell (Integrated KI-Governance Reference Model) in ein praxistaugliches CLI-Werkzeug, das KI-Anwendungsfälle gegen ein strukturiertes Governance-Rahmenwerk bewertet.
