@@ -37,15 +37,15 @@ jobs:
           python-version: "3.12"
       - name: Build sdist and wheel
         run: |
-          python -m pip install --upgrade pip build
+          python -m pip install --require-hashes -r .github/constraints/release-build.txt
           python -m build
       - name: Check metadata
         run: |
-          python -m pip install --upgrade twine
+          python -m pip install --require-hashes -r .github/constraints/twine.txt
           twine check dist/*
       - name: Generate SBOM
         run: |
-          python -m pip install --upgrade cyclonedx-bom
+          python -m pip install --require-hashes -r .github/constraints/cyclonedx.txt
           python -m pip install dist/*.whl
           cyclonedx-py environment --output-format JSON --output-file sbom.cdx.json
       - name: Attest build provenance
