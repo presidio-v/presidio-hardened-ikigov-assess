@@ -1,0 +1,68 @@
+name: Fuzz
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "fuzz/**"
+      - "src/**"
+      - "pyproject.toml"
+      - ".github/workflows/fuzz.yml"
+  schedule:
+    # Weekly, off-peak Monday 06:23 UTC — longer soak than the per-PR budget.
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+# Least privilege: read-only token (OpenSSF Scorecard Token-Permissions).
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: Fuzz (Atheris)
+    runs-on: ubuntu-latest
+    # Python 3.12 ONLY: Atheris 3.x ships no cp310/cp311 wheel and no macOS
+    # wheel, so a matrix would only add jobs that cannot install atheris.
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          # Hash-pinned build toolchain (OpenSSF Scorecard Pinned-Dependencies):
+          # pip/setuptools/wheel come from a --require-hashes lockfile so a
+          # compromised index cannot substitute a build backend. This also keeps
+          # the toolchain off known-vulnerable setuptools/wheel (CVE-2024-6345,
+          # PYSEC-2025-49, CVE-2026-24049). Regenerate: see .github/constraints/.
+          python -m pip install --require-hashes -r .github/constraints/ci-toolchain.txt
+          pip install -e ".[fuzz]"
+
+      - name: Run fuzz harnesses (time-boxed)
+        # Dynamic analysis runs with runtime assertions enabled: Python is invoked
+        # without -O and PYTHONOPTIMIZE is unset, so `assert` statements are checked.
+        # PR runs stay fast; scheduled/manual runs soak longer. A harness crash
+        # (non-zero exit) fails the job via set -euo pipefail.
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            args="-atheris_runs=25000 -max_total_time=60"
+          else
+            args="-max_total_time=300"
+          fi
+          for f in fuzz/fuzz_*.py; do
+            echo "::group::$f"
+            python "$f" $args
+            echo "::endgroup::"
+          done
+
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: atheris-crashes
+          path: crash-*
+          if-no-files-found: ignore

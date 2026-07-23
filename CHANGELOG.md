@@ -8,6 +8,29 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ## [Unreleased]
 
+### Added
+
+- **Coverage-guided fuzzing (Atheris)** — new top-level `fuzz/` directory with
+  property fuzzers for the two untrusted-input boundaries:
+  `fuzz_classification.py` (`parse_classification_bytes`: decode → JSON →
+  validate → normalise, L6/ecosystem invariants, determinism) and
+  `fuzz_evidence.py` (`load_evidence` / `load_trust_store` fail-closed contract,
+  ref field/hex invariants, `expected_signature` determinism, `verify_ref`
+  round-trip). New `fuzz` extra (`atheris>=3.1.0`; Linux/py3.12-only) and a
+  hardened `fuzz.yml` workflow: read-only token, SHA-pinned actions, time-boxed
+  per-PR smoke run plus weekly scheduled soak. Takes the OpenSSF Scorecard
+  Fuzzing check from 0 to 10.
+
+### Fixed
+
+- **Fail-closed guards at the JSON boundaries** (found while constructing the
+  fuzz harnesses): `parse_classification_bytes` raised raw `UnicodeDecodeError`
+  on invalid UTF-8 bytes, `UnicodeEncodeError` on lone-surrogate strings, and
+  `RecursionError` on pathologically nested JSON instead of
+  `ClassificationError`; `load_evidence` and `load_trust_store` likewise leaked
+  `RecursionError` instead of `EvidenceError`. All now fail closed with the
+  documented exception types (regression-tested).
+
 ## [0.23.0] — 2026-07-05
 
 **T-B5 · Gate certificates — "the certificate is the proof"** (v0.23.0 arc).

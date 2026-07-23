@@ -344,6 +344,28 @@ def test_invalid_json_rejected():
         parse_classification_bytes(b"not json {")
 
 
+# ── Fail-closed decode/encode/nesting guards ─────────────────────────────────
+
+
+def test_invalid_utf8_bytes_rejected():
+    # Invalid UTF-8 must fail closed as ClassificationError, not UnicodeDecodeError.
+    with pytest.raises(ClassificationError, match="not valid UTF-8"):
+        parse_classification_bytes(b"\xff")
+
+
+def test_surrogate_str_rejected():
+    # A lone surrogate would raise UnicodeEncodeError in the size check; fail closed.
+    with pytest.raises(ClassificationError, match="not valid UTF-8"):
+        parse_classification_bytes("\ud800")
+
+
+def test_deeply_nested_json_rejected():
+    # Pathologically nested JSON must fail closed, not raise RecursionError.
+    deep = "[" * 100000 + "]" * 100000
+    with pytest.raises(ClassificationError, match="nesting too deep"):
+        parse_classification_bytes(deep)
+
+
 # ── ProfilePack completeness and content_hash stability ──────────────────────
 
 
