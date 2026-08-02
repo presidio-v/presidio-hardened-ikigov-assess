@@ -32,7 +32,7 @@ jobs:
           languages: python
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
+        uses: github/codeql-action/autobuild@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4
 
       # The repo is public, so GitHub Advanced Security (and the SARIF upload it
       # gates) is available; the analysis and its upload now fail the job honestly
