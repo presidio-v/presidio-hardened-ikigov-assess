@@ -122,7 +122,7 @@ These rendered files back the silver answers; confirm each is on `main`:
 | `crypto_tls12` | **N/A** | The tool implements no TLS client of its own; see `crypto_used_network`. |
 | `crypto_certificate_verification` | **N/A** | No TLS client originates in the project's code; certificate verification is the concern of `pip`/`pip-audit` and the operator-configured MCP transport. |
 | `crypto_verification_private` | **N/A** | The tool transmits no private data over a network of its own; the core path is offline and local. |
-| `signed_releases` | **Met** | Release tags are SSH-signed with the org ed25519 key and show **Verified** on GitHub (verified v0.21.0–v0.23.0; GitHub API `verification.verified = true` for v0.23.0); the public key for local `git tag -v` verification is in `REPO/blob/main/allowed_signers`. The build additionally emits PEP 740 / build-provenance attestations and a CycloneDX SBOM per release (`.github/workflows/publish.yml`). |
+| `signed_releases` | **Met** | Release tags are SSH-signed with the org ed25519 key and show **Verified** on GitHub (verified for every release since v0.21.0; GitHub API `verification.verified = true`, confirmed per tag at release time); the public key for local `git tag -v` verification is in `REPO/blob/main/allowed_signers`. The build additionally emits PEP 740 / build-provenance attestations and a CycloneDX SBOM per release (`.github/workflows/publish.yml`). |
 | `version_tags_signed` | **Met** | Every release is a git tag, SSH-signed with the org key and shown as Verified on GitHub. |
 | `sites_password_security` | **N/A** | The project stores no user passwords and runs no user-authenticating website. (The optional remote MCP endpoint stores bearer tokens only as SHA-256 hashes.) |
 

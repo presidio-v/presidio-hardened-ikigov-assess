@@ -6,7 +6,11 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ---
 
-## [Unreleased]
+## [0.24.0] — 2026-08-02
+
+Maintenance and supply-chain release. No new assessment surface: the fuzz
+harnesses, the fail-closed parser guards they found, and a dependency ceiling
+that unbreaks the `[mcp]` extra.
 
 ### Added
 
@@ -30,6 +34,15 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
   `ClassificationError`; `load_evidence` and `load_trust_store` likewise leaked
   `RecursionError` instead of `EvidenceError`. All now fail closed with the
   documented exception types (regression-tested).
+- **`[mcp]` extra unbroken** — `mcp` is capped to `>=1.2.0,<2`. mcp 2.0.0
+  (2026-07-28) relocated `mcp.server.fastmcp`, which `build_server()` imports, so
+  the previously unbounded floor resolved to a breaking major: every
+  `pip install "presidio-hardened-ikigov-assess[mcp]"` since that date produced an
+  `iga-mcp` that died at import. Anyone on 0.23.0 wanting the MCP server needs
+  this release, or a manual `mcp<2` pin. The 2.x port is separate work; the cap
+  is lifted with it. `uv.lock` is refreshed to mcp 1.29.0 in the same change,
+  which also clears GHSA-vj7q-gjh5-988w (never reachable here — this codebase
+  runs stdio or streamable-HTTP and never imports `mcp.server.websocket`).
 
 ## [0.23.0] — 2026-07-05
 
