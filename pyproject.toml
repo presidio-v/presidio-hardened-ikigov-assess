@@ -32,7 +32,10 @@ dependencies = [
 audit = ["pip-audit>=2.6.0"]
 # MCP server extra. The official `mcp` SDK requires Python 3.10+, so this extra
 # is only installable on 3.10+; the core CLI remains 3.9-compatible.
-mcp = ["mcp>=1.2.0; python_version >= '3.10'"]
+# Capped below 2.0: mcp 2.0.0 (2026-07-28) relocated `mcp.server.fastmcp`, which
+# mcp_server.build_server() imports, so an unbounded floor silently resolved to a
+# breaking major and took CI red. Lift the cap only with the 2.x port.
+mcp = ["mcp>=1.2.0,<2; python_version >= '3.10'"]
 # Public-key (Ed25519) evidence verification for v0.14.0 external evidence.
 crypto = ["cryptography>=42"]
 # Coverage-guided fuzzing (Atheris). Linux-only and Python 3.12-only: Atheris 3.x
@@ -44,7 +47,8 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.15.10",
     "pip-audit>=2.6.0",
-    "mcp>=1.2.0; python_version >= '3.10'",
+    # Keep in step with the `mcp` extra above, including the <2 cap.
+    "mcp>=1.2.0,<2; python_version >= '3.10'",
     "cryptography>=42",
 ]
 
