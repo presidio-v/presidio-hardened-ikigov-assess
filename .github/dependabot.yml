@@ -8,11 +8,62 @@ updates:
     labels:
       - "dependencies"
       - "security"
+    # Quarantine window. A freshly published release is the least-vetted
+    # artifact in the supply chain: compromised or yanked versions are
+    # typically caught within days of publication, and adopting a release
+    # hours after it lands makes this repo the canary. Cooldown applies to
+    # version updates ONLY — a Dependabot security update for a known
+    # advisory bypasses it, so a real CVE fix still lands same-day.
+    # Note the limit of this control: .github/constraints hash-pins the CI
+    # toolchain only. Runtime deps are resolved at install time from the
+    # specifiers in pyproject.toml, so an unbounded floor can cross a major
+    # version with no Dependabot PR and no cooldown to delay it.
+    cooldown:
+      default-days: 5
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "github-actions"
+    # Longer window than pip: an action runs inside the workflow with the
+    # job's token and secrets, so a malicious release is arbitrary code
+    # execution in CI rather than a library-level compromise.
+    cooldown:
+      default-days: 7
+    groups:
+      # github/codeql-action publishes init, autobuild and analyze as three
+      # distinct dependency names sharing a single release. Ungrouped, every
+      # CodeQL release opens three PRs that each rewrite the same three lines
+      # of codeql.yml — pairwise conflicting, so merging one forces a rebase
+      # of the other two. One group, one PR, one review.
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
+
+      # Kept deliberately alone. This action performs the PyPI
+      # trusted-publishing OIDC exchange in both publish.yml and
+      # reserve-iki-gov.yml — the highest blast radius in the repo. Its bump
+      # should never arrive bundled with CI-only churn that invites a
+      # skim-and-approve review.
+      pypi-publish:
+        patterns:
+          - "pypa/gh-action-pypi-publish"
+
+      # First-party GitHub actions; they version together and are low-risk.
+      actions-core:
+        patterns:
+          - "actions/*"
+
+      # Catch-all, so an action added later cannot silently escape grouping
+      # and revert to one-PR-per-action.
+      third-party-actions:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "github/codeql-action*"
+          - "pypa/gh-action-pypi-publish"
+          - "actions/*"
