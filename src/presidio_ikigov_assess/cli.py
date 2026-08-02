@@ -24,10 +24,10 @@ from typing import Optional
 import typer
 from rich.console import Console
 
+from presidio_ikigov_assess import __version__, store
 from presidio_ikigov_assess import bundle as bundle_mod
 from presidio_ikigov_assess import content as content_mod
 from presidio_ikigov_assess import evidence as evidence_mod
-from presidio_ikigov_assess import store
 from presidio_ikigov_assess.classify import classify_app
 from presidio_ikigov_assess.euaiact import evaluate_euaiact
 from presidio_ikigov_assess.gates import evaluate_all_gates, evaluate_gate
@@ -98,9 +98,28 @@ _ENV_NO_DEP_CHECK = "IGA_NO_DEP_CHECK"
 GATE_EXIT_CODES: dict[str, int] = {"OPEN": 0, "PARTIAL": 2, "BLOCKED": 3}
 
 
+def _version_callback(value: bool) -> None:
+    """Print the installed version and exit.
+
+    Eager so ``iga --version`` answers before the startup dependency check runs:
+    asking which version is installed must not require network access.
+    """
+    if value:
+        console.print(f"iga {__version__}")
+        raise typer.Exit()
+
+
 @app.callback()
 def main_callback(
     ctx: typer.Context,
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-V",
+        help="Show the installed version and exit.",
+        callback=_version_callback,
+        is_eager=True,
+    ),
     no_dep_check: bool = typer.Option(
         False,
         "--no-dep-check",
@@ -108,7 +127,12 @@ def main_callback(
         is_eager=True,
     ),
 ) -> None:
-    """IKI-Gov Assessment Tool (iga) — v0.22.0."""
+    """IKI-Gov Assessment Tool (iga).
+
+    The version is not repeated here: ``typer.Typer(help=...)`` above takes
+    precedence over this docstring, so a literal written here would never render
+    and would silently rot. ``iga --version`` reads ``__version__`` instead.
+    """
     global _NO_DEP_CHECK
     # IGA_NO_DEP_CHECK=1 bypasses the dep check without --no-dep-check on argv.
     # Workshop mode automatically sets this env var (air-gapped customer sites:

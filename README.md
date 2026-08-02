@@ -428,7 +428,7 @@ The assessment engine is also available as a [Model Context Protocol](https://mo
 server, so MCP-capable LLM agents and clients can run IKI-Gov assessments as tools.
 
 ```bash
-# Install with the MCP extra (requires Python 3.10+)
+# Install with the MCP extra (requires Python 3.10+ and the mcp 2.x SDK)
 pip install "presidio-hardened-ikigov-assess[mcp]"
 
 # Run the server over stdio
@@ -761,7 +761,7 @@ Security controls built into the tool:
 - Input validation for all CLI parameters (type, bounds, allow-list)
 - HTML-escaping of all user-supplied strings in report output
 - Structured security event log at `~/.iga/security.log` (no content logged, structural metadata only)
-- On-startup CVE check via `pip-audit` (suppress with `--no-dep-check`)
+- On-startup CVE check via `pip-audit` (suppress with `--no-dep-check`; `iga --version` skips it, so reporting the installed version works offline)
 - Session rate limiting (default: 100 assessments; override via `IGA_MAX_ASSESSMENTS`)
 
 ---
@@ -786,6 +786,7 @@ Security controls built into the tool:
 | v0.22.0 T-B4 | Workshop evidence sovereignty: customer owner signatures, standalone signer, presidio assessor attestation | Released |
 | v0.23.0 T-B5 | Gate certificates: signed `gate-certificate@1`, `iga certify` / `iga verify-certificate`, issue-time and verify-time evidence-ref verification, named workshop delegation chains | Released |
 | v0.24.0 | Maintenance: coverage-guided fuzzing (`fuzz` extra, Atheris), fail-closed guards at the JSON boundaries, `mcp` capped below 2.0 to unbreak the `[mcp]` extra | Released |
+| v0.25.0 | `iga --version`; ported to the mcp 2.x SDK (`MCPServer`, extra now needs `mcp>=2,<3`); `OrgAuthMiddleware` refuses non-HTTP ASGI scopes instead of forwarding them | Released |
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

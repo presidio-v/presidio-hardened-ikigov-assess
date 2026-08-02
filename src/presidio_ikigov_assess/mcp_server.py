@@ -19,7 +19,7 @@ Requires the optional ``mcp`` extra (Python 3.10+)::
 
 The pure helper functions below (``framework_info``, ``list_items``, ``assess``,
 ``gate_status``) carry no dependency on the ``mcp`` package and are unit-tested
-directly; only ``build_server``/``main`` import FastMCP.
+directly; only ``build_server``/``main`` import the SDK server class.
 """
 
 from __future__ import annotations
@@ -101,7 +101,7 @@ _SERVER_INSTRUCTIONS = (
 class ToolInputError(ValueError):
     """Raised when an MCP tool receives invalid input.
 
-    A ``ValueError`` subclass so FastMCP surfaces it to the client as a tool
+    A ``ValueError`` subclass so the SDK surfaces it to the client as a tool
     error rather than crashing the server.
     """
 
@@ -352,18 +352,27 @@ def euaiact_gap(
     return build_euaiact_payload(use_case, "high", coverage, lang)
 
 
-# ── FastMCP server wiring ────────────────────────────────────────────────────
+# ── MCP server wiring ────────────────────────────────────────────────────────
 
 
 def build_server():
-    """Construct and return the FastMCP server with all IKI-Gov tools registered.
+    """Construct and return the MCP server with all IKI-Gov tools registered.
 
-    Imports FastMCP lazily so the pure logic above (and its tests) do not require
+    Imports the SDK lazily so the pure logic above (and its tests) do not require
     the optional ``mcp`` dependency.
-    """
-    from mcp.server.fastmcp import FastMCP
 
-    server = FastMCP("iki-gov-assess", instructions=_SERVER_INSTRUCTIONS)
+    Targets the mcp 2.x SDK: ``mcp.server.mcpserver.MCPServer`` replaced
+    ``mcp.server.fastmcp.FastMCP`` in mcp 2.0.0 (2026-07-28), which removed the
+    old module outright. The surface this file uses is unchanged across that
+    rename — ``instructions=``, the ``@server.tool()`` decorator, ``run()``
+    defaulting to stdio, and ``streamable_http_app()`` — so the port is the
+    import and the class name. No compatibility shim for mcp 1.x: the extra
+    pins ``>=2,<3``, and a dual-path import would double the untested surface
+    for a dependency this file touches in exactly one place.
+    """
+    from mcp.server.mcpserver import MCPServer
+
+    server = MCPServer("iki-gov-assess", instructions=_SERVER_INSTRUCTIONS)
 
     @server.tool()
     def iga_framework_info(lang: str = "en") -> dict:

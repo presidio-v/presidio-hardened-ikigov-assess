@@ -189,3 +189,74 @@ def test_rate_limiter_per_org():
     with pytest.raises(RemoteError):
         for _ in range(5):
             limiter.enforce("acme")
+
+
+# ── Non-HTTP ASGI scopes ─────────────────────────────────────────────────────
+# Regression tests for the WebSocket auth bypass: the middleware used to forward
+# every non-HTTP scope straight to the wrapped app, ahead of the bearer-token
+# check, the rate limiter and the per-org DB binding. It was inert only because
+# no WebSocket route is mounted; these lock the guard in independently of that.
+
+
+class _ScopeProbe:
+    """A downstream ASGI app that only records the scope types it is reached with."""
+
+    def __init__(self) -> None:
+        self.types: list[str] = []
+
+    async def __call__(self, scope, receive, send) -> None:
+        self.types.append(scope.get("type"))
+
+
+def _drive(middleware, scope, incoming=None):
+    """Drive one non-HTTP scope through the middleware; return the messages sent."""
+    sent: list[dict] = []
+    queue = list(incoming or [])
+
+    async def receive():
+        return queue.pop(0) if queue else {"type": "noop"}
+
+    async def send(msg):
+        sent.append(msg)
+
+    asyncio.run(middleware(scope, receive, send))
+    return sent
+
+
+def _scope_middleware(tmp_path):
+    probe = _ScopeProbe()
+    return OrgAuthMiddleware(probe, {"acme": hash_token("t-acme")}, root=tmp_path), probe
+
+
+def test_middleware_closes_websocket_at_handshake(tmp_path):
+    mw, probe = _scope_middleware(tmp_path)
+    sent = _drive(mw, {"type": "websocket", "path": "/mcp"}, [{"type": "websocket.connect"}])
+    # Closed at handshake with 1008 (policy violation) — never accepted.
+    assert sent == [{"type": "websocket.close", "code": 1008}]
+    assert probe.types == []  # wrapped app never reached
+
+
+def test_middleware_closes_websocket_even_with_a_valid_bearer_token(tmp_path):
+    """A good token does not buy a WebSocket: this middleware authenticates HTTP only."""
+    mw, probe = _scope_middleware(tmp_path)
+    scope = {
+        "type": "websocket",
+        "path": "/mcp",
+        "headers": [(b"authorization", b"Bearer t-acme")],
+    }
+    sent = _drive(mw, scope, [{"type": "websocket.connect"}])
+    assert sent == [{"type": "websocket.close", "code": 1008}]
+    assert probe.types == []
+
+
+def test_middleware_passes_lifespan_through(tmp_path):
+    """Lifespan is the only unauthenticated passthrough — it carries no request identity."""
+    mw, probe = _scope_middleware(tmp_path)
+    _drive(mw, {"type": "lifespan"})
+    assert probe.types == ["lifespan"]
+
+
+def test_middleware_drops_unknown_scope_type(tmp_path):
+    mw, probe = _scope_middleware(tmp_path)
+    assert _drive(mw, {"type": "some-future-protocol"}) == []
+    assert probe.types == []

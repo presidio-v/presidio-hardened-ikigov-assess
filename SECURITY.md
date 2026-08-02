@@ -4,9 +4,14 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.22.x  | Yes       |
-| 0.21.x  | Yes       |
-| < 0.21  | No        |
+| 0.25.x  | Yes       |
+| 0.24.x  | Yes       |
+| < 0.24  | No        |
+
+> **0.23.x and earlier: the `[mcp]` extra is broken, not merely unsupported.** Those
+> releases declare an unbounded `mcp>=1.2.0`, so a fresh install resolves an SDK major
+> that removed the module `build_server()` imports, and `iga-mcp` fails at import. The
+> core CLI is unaffected. Upgrade, or pin the SDK yourself.
 
 ### Supported Python runtimes
 
@@ -132,8 +137,9 @@ customer anchor workshop leave-behinds while presidio countersigns as assessor:
 
 ## Remote MCP Endpoint (v0.18.0 primitives, v0.19.0 enforcement)
 
-The networked endpoint (`iga-mcp-remote`, `[mcp]` extra) wraps the FastMCP streamable-HTTP
-app in a pure-ASGI guard (`OrgAuthMiddleware`) that runs **before** the MCP app:
+The networked endpoint (`iga-mcp-remote`, `[mcp]` extra) wraps the SDK's streamable-HTTP
+app (`MCPServer.streamable_http_app()`, mcp 2.x) in a pure-ASGI guard
+(`OrgAuthMiddleware`) that runs **before** the MCP app:
 
 - **Token authentication — enforced.** Every request must carry a `Bearer` token that
   resolves to an org via the token store (`{org: sha256(token)}`); `resolve_org` is
@@ -144,6 +150,15 @@ app in a pure-ASGI guard (`OrgAuthMiddleware`) that runs **before** the MCP app:
 - **Per-org store scoping** — the org's database path is bound on a per-task **context var**
   (concurrency-safe; it replaced the earlier process-global `IGA_DB_PATH` mutation). The org
   id is allow-list validated, so a tenant id cannot traverse out of its store directory.
+- **Non-HTTP scopes refused (v0.25.0).** Only `lifespan` reaches the wrapped app
+  unauthenticated, because startup and shutdown carry no request identity. WebSocket
+  scopes are closed at handshake with **1008** — a valid bearer token does not change
+  that, since this guard authenticates HTTP only — and any other scope type is dropped.
+  Previously every non-HTTP scope was forwarded straight through, ahead of the token
+  check, the rate limiter and the store binding. That was inert only because no WebSocket
+  route is mounted, which is a property of what `streamable_http_app()` happens to build
+  rather than a guarantee this guard could rely on; a route added upstream would have
+  turned it into a silent auth bypass. Regression-tested in `tests/test_remote.py`.
 
 **Isolation scope / known limitation.** The streamable-HTTP transport dispatches tool
 execution to a separate **session** task, so the per-request context-var binding does *not*

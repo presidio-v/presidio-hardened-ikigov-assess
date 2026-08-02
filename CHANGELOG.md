@@ -6,6 +6,42 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ---
 
+## [0.25.0] — 2026-08-02
+
+### Added
+
+- **`iga --version` / `iga -V`** — prints the installed version and exits. Eager, so it
+  answers before the startup CVE check runs: asking which version is installed must work
+  offline and return immediately. Previously the only way to read the version was
+  importing `__version__` or reading `tool_version` out of a workshop manifest.
+
+### Changed
+
+- **Ported to the mcp 2.x SDK; the `[mcp]` extra now requires `mcp>=2,<3`.** mcp 2.0.0
+  removed `mcp.server.fastmcp` and replaced it with `mcp.server.mcpserver.MCPServer`. The
+  surface `build_server()` uses is unchanged across that rename — `instructions=`, the
+  `@server.tool()` decorator, `run()` defaulting to stdio, `streamable_http_app()` — so the
+  port is the import and the class name. **This raises the floor: mcp 1.x no longer works
+  with the extra.** No compatibility shim, deliberately — a dual-path import would double
+  the untested surface for a dependency touched in exactly one place. All seven MCP tools
+  register unchanged.
+- The `cli.py` callback docstring no longer carries a hardcoded version. It had drifted to
+  `v0.22.0` and could never be noticed, because `typer.Typer(help=...)` takes precedence
+  over the callback docstring, so the literal was never rendered.
+
+### Fixed
+
+- **WebSocket auth bypass in `OrgAuthMiddleware`** (`iga-mcp-remote`, `[mcp]` extra).
+  Every non-HTTP ASGI scope was forwarded straight to the wrapped MCP app — ahead of the
+  bearer-token check, the per-org rate limiter, and the per-org store binding. Only
+  `lifespan` passes through now, because startup and shutdown carry no request identity;
+  WebSocket scopes are closed at handshake with 1008 regardless of any token presented,
+  and other scope types are dropped. **Not known to be exploitable in any shipped
+  release**: `streamable_http_app()` mounts a single `/mcp` route and no WebSocket route,
+  so nothing sat behind the gap. It is fixed because that was a property of what the SDK
+  happens to build, not a guarantee the guard could rely on — and the 2.x port changes
+  exactly that surface. Regression-tested.
+
 ## [0.24.0] — 2026-08-02
 
 Maintenance and supply-chain release. No new assessment surface: the fuzz

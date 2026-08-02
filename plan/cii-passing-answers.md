@@ -62,7 +62,7 @@ Shorthand below: `REPO` = `https://github.com/presidio-v/presidio-hardened-ikigo
 | `sites_https` | **Met** | GitHub and PyPI (the project's homepage/download) are HTTPS. The tool ships no project-run website; the optional MCP endpoint's transport is operator-configured. |
 | `discussion` | **Met** | GitHub Issues: `REPO/issues` — searchable, URL-addressable, open, no proprietary client. |
 | `english` | **Met** | All docs and issue handling in English. |
-| `maintained` | **Met** | Actively maintained: latest release v0.24.0 (2026-08-02), a steady cadence (v0.20.0–v0.24.0 within recent weeks), and green CI. |
+| `maintained` | **Met** | Actively maintained: latest release v0.25.0 (2026-08-02), a steady cadence (v0.20.0–v0.25.0 within recent weeks), and green CI. |
 
 ## Change control — repository
 
@@ -95,7 +95,7 @@ Shorthand below: `REPO` = `https://github.com/presidio-v/presidio-hardened-ikigo
 | `report_process` | **Met** | URL: `REPO/blob/main/CONTRIBUTING.md#reporting-bugs-and-requesting-features` |
 | `report_tracker` | **Met** | GitHub Issues. |
 | `report_responses` | **Met** | The public repo has received no external bug reports to date (`REPO/issues` is empty); the documented triage path (`CONTRIBUTING.md` + GitHub Issues, maintainer-owned) is in place. Met by the documented, staffed process rather than a backlog of past responses. |
-| `enhancement_responses` | **Met** | No external enhancement requests have been filed yet; feature direction is maintainer-driven (release history v0.1.0→v0.24.0). The documented request path (GitHub Issues, `good first issue` label) is in place. |
+| `enhancement_responses` | **Met** | No external enhancement requests have been filed yet; feature direction is maintainer-driven (release history v0.1.0→v0.25.0). The documented request path (GitHub Issues, `good first issue` label) is in place. |
 | `report_archive` | **Met** | URL: `REPO/issues?q=is%3Aissue` — public and searchable. |
 
 ## Reporting — vulnerability reports
@@ -128,7 +128,7 @@ Shorthand below: `REPO` = `https://github.com/presidio-v/presidio-hardened-ikigo
 | Criterion | Status | Justification / URL |
 |---|---|---|
 | `test_policy` | **Met** | URL: `REPO/blob/main/CONTRIBUTING.md#tests` — written policy that functional changes ship with tests and fixes ship with regression tests. |
-| `tests_are_added` | **Met** | Worked example: commit `d2d73d8` ("fix: read evidence-pack seal key off argv", v0.16.1) shipped the seal-key-off-argv fix together with its test update under `tests/` in the same commit. Feature commits (v0.20.0–v0.24.0) likewise land with their `test_*.py` modules; the v0.24.0 fail-closed parser guards shipped with their regression tests in `tests/test_classify.py` and `tests/test_evidence.py`. |
+| `tests_are_added` | **Met** | Worked example: commit `d2d73d8` ("fix: read evidence-pack seal key off argv", v0.16.1) shipped the seal-key-off-argv fix together with its test update under `tests/` in the same commit. Feature commits (v0.20.0–v0.25.0) likewise land with their `test_*.py` modules; the v0.24.0 fail-closed parser guards shipped with their regression tests in `tests/test_classify.py` and `tests/test_evidence.py`. |
 | `tests_documented_added` | **Met** | The policy is stated in the contribution instructions themselves (`CONTRIBUTING.md#tests`). |
 
 ## Quality — warning flags
