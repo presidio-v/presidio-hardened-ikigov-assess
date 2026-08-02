@@ -437,7 +437,7 @@ zur Verfügung, sodass MCP-fähige LLM-Agenten und -Clients IKI-Gov-Bewertungen 
 können.
 
 ```bash
-# Installation mit dem MCP-Extra (erfordert Python 3.10+)
+# Installation mit dem MCP-Extra (erfordert Python 3.10+ und das mcp-2.x-SDK)
 pip install "presidio-hardened-ikigov-assess[mcp]"
 
 # Den Server über stdio starten
@@ -762,7 +762,7 @@ In das Werkzeug eingebaute Sicherheitskontrollen:
 - Eingabevalidierung für alle CLI-Parameter (Typ, Grenzen, Allow-List)
 - HTML-Escaping aller benutzerseitig gelieferten Zeichenketten in der Berichtsausgabe
 - Strukturiertes Sicherheitsereignis-Log unter `~/.iga/security.log` (keine Inhalte protokolliert, nur strukturelle Metadaten)
-- CVE-Prüfung beim Start via `pip-audit` (mit `--no-dep-check` unterdrückbar)
+- CVE-Prüfung beim Start via `pip-audit` (mit `--no-dep-check` unterdrückbar; `iga --version` überspringt sie, sodass die Versionsabfrage offline funktioniert)
 - Ratenbegrenzung je Sitzung (Standard: 100 Bewertungen; über `IGA_MAX_ASSESSMENTS` überschreibbar)
 
 ---
@@ -787,6 +787,7 @@ In das Werkzeug eingebaute Sicherheitskontrollen:
 | v0.22.0 T-B4 | Workshop-Nachweis-Souveränität: Customer-Owner-Signaturen, Standalone-Signer, Presidio-Assessor-Attestierung | Veröffentlicht |
 | v0.23.0 T-B5 | Gate-Zertifikate: signiertes `gate-certificate@1`, `iga certify` / `iga verify-certificate`, Nachweisprüfung bei Ausstellung und Verifikation, benannte Workshop-Delegationsketten | Veröffentlicht |
 | v0.24.0 | Wartung: abdeckungsgeführtes Fuzzing (`fuzz`-Extra, Atheris), fail-closed-Prüfungen an den JSON-Grenzen, `mcp` unterhalb 2.0 begrenzt, um das `[mcp]`-Extra zu reparieren | Veröffentlicht |
+| v0.25.0 | `iga --version`; Portierung auf das mcp-2.x-SDK (`MCPServer`, Extra benötigt jetzt `mcp>=2,<3`); `OrgAuthMiddleware` weist Nicht-HTTP-ASGI-Scopes ab, statt sie durchzureichen | Veröffentlicht |
 
 Vollständiges Versions-Deliberationslog: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

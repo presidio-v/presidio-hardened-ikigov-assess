@@ -647,3 +647,41 @@ def test_no_dep_check_flag_accepted():
 def test_invalid_lang_on_assess():
     result = invoke("assess", "--lang", "fr")
     assert result.exit_code == 1
+
+
+# ── --version ─────────────────────────────────────────────────────────────────
+
+
+def test_version_flag_reports_package_version():
+    """--version prints the installed version and exits 0."""
+    from presidio_ikigov_assess import __version__
+
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert result.stdout.strip() == f"iga {__version__}"
+
+
+def test_version_short_flag_matches_long_flag():
+    result_long = runner.invoke(app, ["--version"])
+    result_short = runner.invoke(app, ["-V"])
+    assert result_short.exit_code == 0
+    assert result_short.stdout == result_long.stdout
+
+
+def test_version_flag_skips_the_dependency_check(monkeypatch):
+    """--version must not trigger the startup CVE scan.
+
+    The scan shells out to pip-audit and needs the network; asking which version
+    is installed must work offline and return immediately. Guards the eagerness
+    of the option, which is what makes it short-circuit the callback body.
+    """
+    called = False
+
+    def _boom() -> None:
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr("presidio_ikigov_assess.cli._run_dep_check_quietly", _boom)
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert called is False

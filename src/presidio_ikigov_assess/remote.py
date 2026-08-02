@@ -145,6 +145,31 @@ async def _reject(send, status: int, message: str) -> None:
     await send({"type": "http.response.body", "body": body})
 
 
+# ASGI close code 1008 — "policy violation". The connection is refused because
+# this middleware authenticates HTTP requests only, not because of anything the
+# client sent, so no detail is echoed back.
+_WS_POLICY_VIOLATION = 1008
+
+
+async def _reject_non_http(scope_type: str | None, receive, send) -> None:
+    """Refuse a non-HTTP, non-lifespan ASGI scope without reaching the wrapped app.
+
+    WebSocket scopes are closed per the ASGI spec: consume the initial
+    ``websocket.connect`` and answer it with ``websocket.close``, which is the
+    handshake-time refusal — the connection is never accepted, so no frame is
+    ever exchanged with an unauthenticated peer.
+
+    Any other scope type is dropped silently. There is no protocol-agnostic way
+    to signal a refusal, and returning without calling ``self.app`` is the
+    fail-closed outcome.
+    """
+    if scope_type != "websocket":
+        return
+    message = await receive()
+    if message.get("type") == "websocket.connect":
+        await send({"type": "websocket.close", "code": _WS_POLICY_VIOLATION})
+
+
 class OrgAuthMiddleware:
     """Pure-ASGI guard: authenticate the bearer token to an org and enforce the per-org
     rate limit before the request reaches the MCP app.
@@ -152,6 +177,11 @@ class OrgAuthMiddleware:
     Authentication (401) and rate limiting (429) are enforced here unconditionally — the
     request is rejected before ``self.app`` is ever called, so they hold regardless of how
     the transport schedules work.
+
+    Only ``lifespan`` passes through unauthenticated, because startup and shutdown carry
+    no request identity. Every other non-HTTP scope is refused: WebSocket connections are
+    closed at handshake with 1008, anything else is dropped. The wrapped app is reached by
+    an HTTP scope that authenticated, or by lifespan, and by nothing else.
 
     The org's DB path is also bound on the store context var for the request. NOTE this
     scopes only store access that runs *inline* in this request task; the streamable-HTTP
@@ -174,8 +204,21 @@ class OrgAuthMiddleware:
         self.root = root
 
     async def __call__(self, scope, receive, send) -> None:
-        if scope.get("type") != "http":  # lifespan / websocket pass straight through
+        scope_type = scope.get("type")
+        if scope_type == "lifespan":
+            # Startup/shutdown carries no request identity, so there is nothing to
+            # authenticate. This is the ONLY passthrough.
             await self.app(scope, receive, send)
+            return
+        if scope_type != "http":
+            # Fail closed on every other scope type. This previously forwarded
+            # WebSocket scopes straight to the app, ahead of the bearer-token
+            # check, the rate limiter and the per-org DB binding. It was inert
+            # only because no WebSocket route is mounted — an accident of what
+            # streamable_http_app() happens to build, not a guarantee this
+            # middleware can rely on. A route added later, here or upstream in
+            # the SDK, would have turned it into a silent auth bypass.
+            await _reject_non_http(scope_type, receive, send)
             return
         org = resolve_org(_bearer_token(scope), self.token_store)
         if org is None:
