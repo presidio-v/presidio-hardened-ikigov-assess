@@ -785,6 +785,7 @@ Security controls built into the tool:
 | v0.21.0 T1.4 | Full German localisation sweep: all runtime output through `t()`, no English-only sentinels under `--lang de` | Released |
 | v0.22.0 T-B4 | Workshop evidence sovereignty: customer owner signatures, standalone signer, presidio assessor attestation | Released |
 | v0.23.0 T-B5 | Gate certificates: signed `gate-certificate@1`, `iga certify` / `iga verify-certificate`, issue-time and verify-time evidence-ref verification, named workshop delegation chains | Released |
+| v0.24.0 | Maintenance: coverage-guided fuzzing (`fuzz` extra, Atheris), fail-closed guards at the JSON boundaries, `mcp` capped below 2.0 to unbreak the `[mcp]` extra | Released |
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

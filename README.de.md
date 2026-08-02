@@ -786,6 +786,7 @@ In das Werkzeug eingebaute Sicherheitskontrollen:
 | v0.21.0 T1.4 | Vollständige deutsche Lokalisierung: alle Laufzeitausgaben über `t()`, keine rein englischen Platzhalter unter `--lang de` | Veröffentlicht |
 | v0.22.0 T-B4 | Workshop-Nachweis-Souveränität: Customer-Owner-Signaturen, Standalone-Signer, Presidio-Assessor-Attestierung | Veröffentlicht |
 | v0.23.0 T-B5 | Gate-Zertifikate: signiertes `gate-certificate@1`, `iga certify` / `iga verify-certificate`, Nachweisprüfung bei Ausstellung und Verifikation, benannte Workshop-Delegationsketten | Veröffentlicht |
+| v0.24.0 | Wartung: abdeckungsgeführtes Fuzzing (`fuzz`-Extra, Atheris), fail-closed-Prüfungen an den JSON-Grenzen, `mcp` unterhalb 2.0 begrenzt, um das `[mcp]`-Extra zu reparieren | Veröffentlicht |
 
 Vollständiges Versions-Deliberationslog: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 
