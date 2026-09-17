@@ -424,9 +424,38 @@ ensure_ascii=False)` (UTF-8), SHA-256; die Ausstellersignatur ist HMAC-SHA256 od
 > deklarierten Prädikat und dem eingebetteten Bestätigungsset / den eingebetteten Nachweisen*
 > die Gate-Entscheidung auf den behaupteten Wert nachrechnet. Es beweist **nicht**, dass die
 > zugrunde liegenden Controls wirksam sind, noch dass die reale Aussage des Nachweises wahr
-> ist. Assurance-Tiers (`assurance_tier`, evidence-ref@2 / presidio-evidence ADR-0003) sind
-> ein **geplantes** Feld: die Evidence-Schicht dieses Repos (evidence-ref@1) modelliert noch
-> keine Tiers, daher tragen Zertifikate keinen Tier.
+> ist.
+
+### Herkunft, Gültigkeit, Fundierung und Stufen (v0.26.0)
+
+Vier additive, optionale Felder, alle innerhalb des signierten Inhalts; Zertifikate vor
+v0.26 verifizieren unverändert:
+
+- **`parents`** (`--parent <hex>`, wiederholbar) — Provenance-Parents nach ADR-0002: die
+  Content-Hashes der Nachweise, auf denen die Entscheidung beruht, typischerweise das
+  `eai-classification@1`-Dokument und das Workshop-Manifest. Mitsigniert, also nach der
+  Ausstellung nicht umverdrahtbar; azyklisch per Konstruktion; entfällt, wenn leer. Das
+  Auflösen eines Parents ist der Weg des Konsumenten, nicht des Prüfers.
+- **`not_after`** (`--valid-days N`) — eine Gültigkeitsgrenze. Ablauf ist bewusst der einzige
+  Widerruf dieses Formats: keine Sperrliste, kein Akkumulator, keine Koordination. Der Prüfer
+  schlägt danach fail-closed fehl (`expired`); `verify-certificate --at <UTC>` prüft zu einem
+  gegebenen Zeitpunkt und macht die Prüfung reproduzierbar. Ohne Grenze kein Ablauf.
+- **`grounding`** — die schwächste Herkunft in der Affirmationsmenge: `self`, wenn ein
+  bejahtes Gate-Item keinen eingebetteten Evidence-Ref hat, sonst `evidence-verified`. Eine
+  Selbstauskunft unter einer benannten Signatur ist *nicht* die Stufe „attested“; sie ist
+  eine ungebundene Zusicherung. Der Prüfer rechnet sie nach (`grounding-mismatch`), und
+  `--min-grounding evidence-verified` schlägt bei jeder Selbstauskunft fehl
+  (`grounding-below-minimum`).
+- **Assurance-Stufen** — Nachweisdokumente dürfen jetzt `evidence-ref@2` sein
+  (presidio-evidence ADR-0003); die deklarierte `assurance_tier` eines Refs (`attested` |
+  `optimistic` | `zk`, Standard `attested`) wird nur unter `@2` berücksichtigt und in das
+  Zertifikat übernommen. Sie ist eine *Deklaration*: der Prüfer prüft die Signatur des Refs
+  erneut, nie einen Fraud-Proof oder einen ZK-Beweis, und meldet die schwächste deklarierte
+  Stufe, damit `--min-evidence-tier` eine Untergrenze verlangen kann
+  (`evidence-tier-below-minimum`). Die eigene `assurance_tier` des Zertifikats ist `attested`
+  und nichts anderes; ein Zertifikat mit einer anderen Stufe wird abgewiesen
+  (`unsupported-assurance-tier`), damit ein künftiges ZK-Gate-Zertifikat nie für eines
+  gehalten wird, das dieser Prüfer prüfen kann.
 
 ---
 
@@ -788,6 +817,7 @@ In das Werkzeug eingebaute Sicherheitskontrollen:
 | v0.23.0 T-B5 | Gate-Zertifikate: signiertes `gate-certificate@1`, `iga certify` / `iga verify-certificate`, Nachweisprüfung bei Ausstellung und Verifikation, benannte Workshop-Delegationsketten | Veröffentlicht |
 | v0.24.0 | Wartung: abdeckungsgeführtes Fuzzing (`fuzz`-Extra, Atheris), fail-closed-Prüfungen an den JSON-Grenzen, `mcp` unterhalb 2.0 begrenzt, um das `[mcp]`-Extra zu reparieren | Veröffentlicht |
 | v0.25.0 | `iga --version`; Portierung auf das mcp-2.x-SDK (`MCPServer`, Extra benötigt jetzt `mcp>=2,<3`); `OrgAuthMiddleware` weist Nicht-HTTP-ASGI-Scopes ab, statt sie durchzureichen | Veröffentlicht |
+| v0.26.0 T-B6 | Zertifikat-Herkunft (`parents`, ADR-0002), Gültigkeit (`not_after`), `grounding`, `evidence-ref@2`-Assurance-Stufen mit Prüfer-Untergrenzen | Unveröffentlicht |
 
 Vollständiges Versions-Deliberationslog: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

@@ -415,10 +415,36 @@ Ed25519 (RFC 8032), resolved from the same trust-store shape as evidence-refs.
 > **Scope of the claim (no overclaiming):** a gate certificate proves that, *under the
 > declared predicate and the embedded affirmation set / evidence*, the gate decision
 > recomputes to the claimed value. It does **not** prove that the underlying controls are
-> effective, nor that the evidence's real-world claim is true. Assurance tiers
-> (`assurance_tier`, evidence-ref@2 / presidio-evidence ADR-0003) are a **planned** field:
-> this repo's evidence layer (evidence-ref@1) does not yet model tiers, so certificates do
-> not carry one.
+> effective, nor that the evidence's real-world claim is true.
+
+### Lineage, validity, grounding and tiers (v0.26.0)
+
+Four additive, optional fields, all inside the signed content, so pre-v0.26 certificates
+verify unchanged:
+
+- **`parents`** (`--parent <hex>`, repeatable) — ADR-0002 provenance parents: the content
+  hashes of the evidence this decision rests on, typically the `eai-classification@1`
+  document and the workshop manifest. Signed over, so lineage cannot be rewired after
+  issuance; acyclic by construction; omitted when empty. Resolving a parent is the
+  consumer's walk, not the verifier's.
+- **`not_after`** (`--valid-days N`) — a validity bound. Expiry is the only revocation this
+  format has, deliberately: no revocation list, no accumulator, no coordination. The
+  verifier fails closed past it (`expired`); `verify-certificate --at <UTC>` verifies as of
+  a given instant, which makes the check reproducible. No bound means no expiry.
+- **`grounding`** — the weakest provenance in the affirmation set: `self` if any affirmed
+  gate item has no embedded evidence-ref, else `evidence-verified`. A self-attestation by
+  a named signer is *not* the attested tier; it is an unbonded assertion. The verifier
+  recomputes it (`grounding-mismatch`) and `--min-grounding evidence-verified` fails
+  closed on any self-attested item (`grounding-below-minimum`).
+- **Assurance tiers** — evidence documents may now be `evidence-ref@2` (presidio-evidence
+  ADR-0003); a ref's declared `assurance_tier` (`attested` | `optimistic` | `zk`, default
+  `attested`) is honoured only under `@2` and round-trips into the certificate. It is a
+  *declaration*: the verifier re-checks the ref's signature, never a fraud proof or a zk
+  proof, and reports the weakest declared tier so `--min-evidence-tier` can demand a floor
+  (`evidence-tier-below-minimum`). The certificate's own `assurance_tier` is `attested`
+  and nothing else; a certificate declaring any other tier is rejected
+  (`unsupported-assurance-tier`), which keeps a future zk gate certificate from being
+  mistaken for one this verifier can check.
 
 ---
 
@@ -787,6 +813,7 @@ Security controls built into the tool:
 | v0.23.0 T-B5 | Gate certificates: signed `gate-certificate@1`, `iga certify` / `iga verify-certificate`, issue-time and verify-time evidence-ref verification, named workshop delegation chains | Released |
 | v0.24.0 | Maintenance: coverage-guided fuzzing (`fuzz` extra, Atheris), fail-closed guards at the JSON boundaries, `mcp` capped below 2.0 to unbreak the `[mcp]` extra | Released |
 | v0.25.0 | `iga --version`; ported to the mcp 2.x SDK (`MCPServer`, extra now needs `mcp>=2,<3`); `OrgAuthMiddleware` refuses non-HTTP ASGI scopes instead of forwarding them | Released |
+| v0.26.0 T-B6 | Certificate lineage (`parents`, ADR-0002), validity (`not_after`), `grounding`, `evidence-ref@2` assurance tiers surfaced with verifier floors | Unreleased |
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

@@ -726,6 +726,43 @@ STRINGS: dict[str, dict[str, str]] = {
         "de": "Prädikat-Inhalts-Hash stimmt nicht überein",
         "en": "predicate content hash mismatch",
     },
+    # ── Certificate lineage / validity / grounding / tiers (v0.26.0) ──────────
+    "cert_verify_reason_expired": {
+        "de": "Zertifikat abgelaufen (not_after überschritten)",
+        "en": "certificate expired (past not_after)",
+    },
+    "cert_verify_reason_unsupported-assurance-tier": {
+        "de": "Zertifikat deklariert eine Assurance-Stufe, die dieser Prüfer nicht verifizieren kann",
+        "en": "certificate declares an assurance tier this verifier cannot check",
+    },
+    "cert_verify_reason_grounding-mismatch": {
+        "de": "aufgezeichnete Fundierung stimmt nicht mit der Affirmationsmenge überein",
+        "en": "recorded grounding does not match the affirmation set",
+    },
+    "cert_verify_reason_grounding-below-minimum": {
+        "de": "Fundierung unter der geforderten Mindeststufe (Selbstauskunft enthalten)",
+        "en": "grounding below the required minimum (self-attestation present)",
+    },
+    "cert_verify_reason_evidence-tier-below-minimum": {
+        "de": "eingebetteter Evidence-Ref deklariert eine Stufe unter dem geforderten Minimum",
+        "en": "an embedded evidence-ref declares a tier below the required minimum",
+    },
+    "cert_verify_grounding": {
+        "de": "Fundierung: {grounding} · schwächste deklarierte Evidence-Stufe: {tier}",
+        "en": "Grounding: {grounding} · weakest declared evidence tier: {tier}",
+    },
+    "cert_err_bad_at": {
+        "de": "--at muss die Form YYYY-MM-DDTHH:MM:SSZ (UTC) haben.",
+        "en": "--at must be YYYY-MM-DDTHH:MM:SSZ (UTC).",
+    },
+    "cert_err_bad_grounding": {
+        "de": "--min-grounding muss self oder evidence-verified sein.",
+        "en": "--min-grounding must be self or evidence-verified.",
+    },
+    "cert_err_bad_tier": {
+        "de": "--min-evidence-tier muss attested, optimistic oder zk sein.",
+        "en": "--min-evidence-tier must be attested, optimistic or zk.",
+    },
     # ── Named workshop delegation chain (v0.23.0, T-B5) ──────────────────────
     "chain_link_ok": {
         "de": "Kettenglied OK — {role} ({signer})",

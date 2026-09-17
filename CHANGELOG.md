@@ -6,6 +6,53 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ---
 
+## [Unreleased] — v0.26.0 T-B6
+
+Certificate lineage, validity, grounding and tiers. Additive within
+`gate-certificate@1` and `evidence-ref` consumption; no removals, no new required
+fields; every pre-v0.26 certificate and evidence document verifies unchanged.
+Deliberation: `PRESIDIO-REQ.md` v0.26.0 T-B6.
+
+### Added
+
+- **`parents` on gate certificates** (`iga certify --parent <hex>`, repeatable) —
+  ADR-0002 provenance parents inside the signed content: the content hashes of the
+  classification document and workshop manifest a decision rests on. Rewiring
+  lineage after signing breaks the issuer signature. Validated fail-closed (family
+  hex rule, no duplicates, present means non-empty); omitted when empty.
+- **`not_after` on gate certificates** (`iga certify --valid-days N`) — a signed
+  validity bound. Expiry is the format's only revocation, by design: no list, no
+  accumulator, no coordination. `iga verify-certificate` fails closed past it with
+  the new reason `expired`; `--at <UTC>` verifies as of a given instant. Absent
+  bound = no expiry.
+- **`grounding` on gate certificates** — `self` if any affirmed gate item lacks an
+  embedded evidence-ref, else `evidence-verified`. Recomputed at verification
+  (`grounding-mismatch`); `--min-grounding evidence-verified` fails closed on any
+  self-attested item (`grounding-below-minimum`).
+- **`evidence-ref@2` accepted** (presidio-evidence ADR-0003). A ref's declared
+  `assurance_tier` (`attested` | `optimistic` | `zk`) is honoured only under `@2`,
+  defaults to `attested`, is inert under `@1` (matching the family golden vector
+  `evidence-ref-v2/valid-v1-with-extra-tier`), and fails closed when unknown. The
+  signed message is unchanged, so `@1` and `@2` refs verify identically.
+- **Tier surfacing in certificates.** Embedded refs carry their declared tier; the
+  verifier reports the weakest (`evidence_tier_min`) and `--min-evidence-tier`
+  demands a floor (`evidence-tier-below-minimum`). The certificate's own
+  `assurance_tier` is `attested`; any other value is rejected
+  (`unsupported-assurance-tier`), so a future zk gate certificate cannot be
+  mistaken for one this verifier can check.
+- `verify-certificate --quiet` JSON gains `grounding`, `evidence_tier_min`,
+  `not_after`, `parents`; the security log records grounding and the weakest tier.
+- Bilingual strings for every new reason and error.
+
+### Changed
+
+- `verify_certificate()` gains keyword-only `now`, `min_grounding`,
+  `min_evidence_tier`; check order is now schema → signature → tier → predicate →
+  validity/lineage shape → evidence-refs (+ tier floor) → decision → grounding.
+  Existing reasons and their order relative to each other are unchanged.
+
+---
+
 ## [0.25.0] — 2026-08-02
 
 ### Added

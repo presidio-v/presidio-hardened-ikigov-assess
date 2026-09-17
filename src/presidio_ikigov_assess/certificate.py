@@ -44,10 +44,39 @@ so a verifier can confirm it is recomputing under the same rule the issuer used
 (see :func:`gate_predicate_content_hash`). This is what makes the certificate
 the *proof* of the decision rather than an assertion about it.
 
-The ``assurance_tier`` field (evidence-ref@2 / presidio-evidence ADR-0003) is a
-**planned** field: this repo's evidence layer (evidence-ref@1) does not yet
-model tiers, so certificates do not carry a tier. When evidence-ref@2 lands
-here, per-evidence tier can be surfaced without a schema break (additive).
+Assurance tier, grounding, lineage, validity (additive within @1)
+---------------------------------------------------------------------
+Four optional fields were added after v0.23.0. All sit inside the signed
+content; none is required, so pre-existing certificates verify unchanged
+(ADR-0001 D5: additive optional fields stay within the major version).
+
+* ``assurance_tier`` — the tier at which **this certificate** is verifiable.
+  It is ``attested`` (the issuer signature) and nothing else: this verifier
+  checks signatures and recomputes a predicate, so it can never verify an
+  ``optimistic`` or ``zk`` certificate and rejects one fail-closed
+  (``unsupported-assurance-tier``). A zk gate certificate is a research item,
+  not a value of this field.
+* Per embedded evidence-ref, ``assurance_tier`` round-trips the producer's
+  *declared* tier (evidence-ref@2, ADR-0003; ``attested`` when absent). It is a
+  declaration: the verifier re-checks the ref's signature, never its fraud
+  proof or zk proof, and reports the weakest declared tier so a caller can
+  demand a minimum (``evidence-tier-below-minimum``).
+* ``grounding`` — the weakest provenance in the affirmation set: ``self`` if
+  any affirmed gate item has no embedded evidence-ref, else
+  ``evidence-verified``. Recorded because a self-attestation by a named
+  signer is *not* the attested tier: it is an unbonded assertion, which in
+  Computational Jurisprudence terms is the optimistic tier minus its bond.
+  The verifier recomputes it (``grounding-mismatch``) and can demand
+  ``evidence-verified`` (``grounding-below-minimum``).
+* ``parents`` — ADR-0002 provenance-parents: content hashes of the upstream
+  evidence this decision rests on (the eai-classification document, the
+  workshop manifest). Inside the signed content, so lineage cannot be
+  rewired after signing; acyclic by construction; omitted when empty.
+  Resolving a parent is the consumer's walk (P4), not this verifier's.
+* ``not_after`` — validity bound (RFC 3339, UTC ``Z``). Expiry is the
+  creed-compatible revocation: no list, no accumulator, no coordination. A
+  verifier fails closed past it (``expired``); an absent bound means the
+  pre-v0.26 behaviour, no expiry.
 """
 
 from __future__ import annotations
@@ -55,9 +84,10 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from collections.abc import Mapping
+import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from presidio_ikigov_assess.checklist import (
@@ -67,12 +97,30 @@ from presidio_ikigov_assess.checklist import (
     VALID_RISK_CLASSES,
 )
 from presidio_ikigov_assess.evidence import (
+    ASSURANCE_TIERS,
+    DEFAULT_ASSURANCE_TIER,
+    TIER_RANK,
     EvidenceRef,
     verify_ref,
 )
 from presidio_ikigov_assess.gates import GateResult, GateStatus, evaluate_gate
 
 CERTIFICATE_SCHEMA = "presidio-hardened/gate-certificate@1"
+
+#: The only tier this certificate format can be verified at (see module doc).
+CERTIFICATE_ASSURANCE_TIER = DEFAULT_ASSURANCE_TIER
+
+#: Grounding of the affirmation set, weakest to strongest.
+GROUNDING_SELF = "self"
+GROUNDING_EVIDENCE_VERIFIED = "evidence-verified"
+GROUNDINGS = (GROUNDING_SELF, GROUNDING_EVIDENCE_VERIFIED)
+GROUNDING_RANK = {g: rank for rank, g in enumerate(GROUNDINGS)}
+
+#: Family hex rule for content hashes (ADR-0002 P2, mirrors evidence.py).
+_HEX_RE = re.compile(r"^[0-9a-f]{8,128}$")
+#: Strict RFC 3339 UTC form this module emits and accepts.
+_TIMESTAMP_FMT = "%Y-%m-%dT%H:%M:%SZ"
+_MAX_PARENTS = 64
 
 #: Per-item provenance markers carried in the affirmation set (mirrors evidence.py).
 STATUS_AFFIRMED = "affirmed"
@@ -144,7 +192,54 @@ class GateCertificate:
 
 
 def _iso_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(timezone.utc).strftime(_TIMESTAMP_FMT)
+
+
+def now_iso() -> str:
+    """Current UTC instant in the strict form this module emits."""
+    return _iso_now()
+
+
+def add_days(timestamp: str, days: int) -> str:
+    """``timestamp`` plus ``days`` (strict UTC form in, strict UTC form out)."""
+    parsed = parse_timestamp(timestamp)
+    if parsed is None or days < 0:
+        raise CertificateError("add_days needs a strict UTC timestamp and days >= 0")
+    return (parsed + timedelta(days=days)).strftime(_TIMESTAMP_FMT)
+
+
+def parse_timestamp(value: object) -> Optional[datetime]:
+    """Parse the strict UTC form ``YYYY-MM-DDTHH:MM:SSZ``; ``None`` if malformed."""
+    if not isinstance(value, str) or len(value) != 20:
+        return None
+    try:
+        return datetime.strptime(value, _TIMESTAMP_FMT).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _validate_parents(parents: Sequence[str]) -> list[str]:
+    """ADR-0002 P2/P3: lowercase-hex hashes, non-empty, order-preserving, no duplicates."""
+    if not isinstance(parents, (list, tuple)):
+        raise CertificateError("parents must be a list of content hashes")
+    if len(parents) > _MAX_PARENTS:
+        raise CertificateError(f"too many parents (max {_MAX_PARENTS})")
+    out: list[str] = []
+    for entry in parents:
+        if not isinstance(entry, str) or not _HEX_RE.match(entry):
+            raise CertificateError("each parent must be a lowercase-hex content hash")
+        if entry in out:
+            raise CertificateError(f"duplicate parent {entry}")
+        out.append(entry)
+    return out
+
+
+def _grounding_of(items: Sequence[Mapping[str, object]]) -> str:
+    """Weakest provenance over the *affirmed* items of an affirmation set."""
+    for entry in items:
+        if entry.get("status") == STATUS_AFFIRMED and entry.get("evidence_ref") is None:
+            return GROUNDING_SELF
+    return GROUNDING_EVIDENCE_VERIFIED
 
 
 def _sufficient_affirmation_set(
@@ -187,6 +282,9 @@ def _sufficient_affirmation_set(
                 "source": ref.source,
                 "source_version": ref.source_version,
                 "ledger_ref": ref.ledger_ref,
+                # Declared regime of the referenced evidence (ADR-0003); a
+                # declaration the issuer verified the *signature* of, no more.
+                "assurance_tier": ref.assurance_tier,
             }
         items.append(entry)
     return items
@@ -204,6 +302,8 @@ def build_certificate(
     issuer: str,
     framework_content_hash: Optional[str] = None,
     assessed_at: Optional[str] = None,
+    parents: Optional[Sequence[str]] = None,
+    not_after: Optional[str] = None,
 ) -> dict[str, object]:
     """Build (unsigned) the gate certificate document for a single gate.
 
@@ -213,6 +313,10 @@ def build_certificate(
     item ids, the risk class, the effective strict flag, and the predicate
     content hash — so a verifier can recompute the decision from the
     certificate alone. The ``signature`` field is added later by :func:`sign`.
+
+    ``parents`` (ADR-0002) and ``not_after`` are optional and validated
+    fail-closed; ``not_after`` must be the strict UTC form and must not
+    precede ``assessed_at``.
     """
     if gate not in VALID_GATES:
         raise CertificateError(f"unknown gate {gate!r}")
@@ -223,7 +327,22 @@ def build_certificate(
 
     predicate_hash = framework_content_hash or gate_predicate_content_hash()
     strict_effective = strict or risk_class == "high"
+    assessed_at = assessed_at or _iso_now()
 
+    if not_after is not None:
+        bound = parse_timestamp(not_after)
+        if bound is None:
+            raise CertificateError("not_after must be UTC 'YYYY-MM-DDTHH:MM:SSZ'")
+        issued = parse_timestamp(assessed_at)
+        if issued is None:
+            raise CertificateError(
+                "assessed_at must be UTC 'YYYY-MM-DDTHH:MM:SSZ' when not_after is set"
+            )
+        if bound < issued:
+            raise CertificateError("not_after precedes assessed_at")
+    parent_list = _validate_parents(parents) if parents else []
+
+    affirmation_set = _sufficient_affirmation_set(result, affirmed, evidence_refs)
     document: dict[str, object] = {
         "schema": CERTIFICATE_SCHEMA,
         "use_case": use_case,
@@ -231,7 +350,9 @@ def build_certificate(
         "gate": gate,
         "risk_class": risk_class,
         "decision": result.status.value,
-        "affirmation_set": _sufficient_affirmation_set(result, affirmed, evidence_refs),
+        "assurance_tier": CERTIFICATE_ASSURANCE_TIER,
+        "grounding": _grounding_of(affirmation_set),
+        "affirmation_set": affirmation_set,
         # ── Decision predicate inputs (recompute the gate rule) ──────────────
         # A verifier feeds affirmation_set + these into the same partition/policy
         # the engine uses and must arrive at `decision`. gate_items pins which
@@ -243,9 +364,14 @@ def build_certificate(
             "strict_effective": bool(strict_effective),
             "predicate_content_hash": predicate_hash,
         },
-        "assessed_at": assessed_at or _iso_now(),
+        "assessed_at": assessed_at,
         "issuer": issuer,
     }
+    # ADR-0002 P3: omitted when empty. Absent not_after = no expiry (pre-v0.26).
+    if parent_list:
+        document["parents"] = parent_list
+    if not_after is not None:
+        document["not_after"] = not_after
     return document
 
 
@@ -313,6 +439,11 @@ REASON_UNKNOWN_ISSUER = "unknown-issuer"
 REASON_EVIDENCE_REF_FAILURE = "evidence-ref-failure"
 REASON_DECISION_MISMATCH = "decision-mismatch"
 REASON_PREDICATE_MISMATCH = "predicate-content-mismatch"
+REASON_EXPIRED = "expired"
+REASON_UNSUPPORTED_TIER = "unsupported-assurance-tier"
+REASON_GROUNDING_MISMATCH = "grounding-mismatch"
+REASON_GROUNDING_BELOW_MINIMUM = "grounding-below-minimum"
+REASON_EVIDENCE_TIER_BELOW_MINIMUM = "evidence-tier-below-minimum"
 
 
 @dataclass(frozen=True)
@@ -324,6 +455,13 @@ class VerificationResult:
     signer: str = ""
     evidence_checked: int = 0
     evidence_ok: int = 0
+    #: Recomputed grounding of the affirmation set ("" until recomputed).
+    grounding: str = ""
+    #: Weakest *declared* tier over embedded refs ("" when none embedded).
+    evidence_tier_min: str = ""
+    #: The certificate's validity bound, if it carries one.
+    not_after: str = ""
+    parents: tuple[str, ...] = ()
 
 
 def _verify_issuer_signature(
@@ -462,6 +600,10 @@ def _predicate_matches_builtin(document: Mapping[str, object]) -> bool:
 def verify_certificate(
     document: Mapping[str, object],
     trust: Mapping[str, object],
+    *,
+    now: Optional[datetime] = None,
+    min_grounding: Optional[str] = None,
+    min_evidence_tier: Optional[str] = None,
 ) -> VerificationResult:
     """Verify a gate certificate against a trust store — fail-closed, DB-free.
 
@@ -472,14 +614,24 @@ def verify_certificate(
     2. **issuer signature** — the detached signature over
        :func:`signing_bytes` must verify against ``trust`` (``bad-signature`` /
        ``unknown-issuer``).
-    3. **predicate identity** — ``framework_content_hash`` and
+    3. **assurance tier** — a certificate declaring any tier this verifier
+       cannot check ⇒ ``unsupported-assurance-tier``.
+    4. **predicate identity** — ``framework_content_hash`` and
        ``predicate.predicate_content_hash`` must equal the built-in gate
        predicate hash this verifier actually uses (``predicate-content-mismatch``).
-    4. **embedded evidence-refs** — every embedded ref is re-verified against
-       the *same* trust store; any failure ⇒ ``evidence-ref-failure``.
-    5. **decision recomputation** — the decision is recomputed from the
+    5. **validity** — a malformed ``not_after`` or ``parents`` is
+       ``malformed-certificate``; ``now`` (default: the wall clock, UTC) past
+       ``not_after`` ⇒ ``expired``.
+    6. **embedded evidence-refs** — every embedded ref is re-verified against
+       the *same* trust store; any failure ⇒ ``evidence-ref-failure``. The
+       weakest declared tier is compared to ``min_evidence_tier`` if given
+       (``evidence-tier-below-minimum``).
+    7. **decision recomputation** — the decision is recomputed from the
        embedded affirmation set + predicate and compared to the claim; mismatch
        ⇒ ``decision-mismatch``.
+    8. **grounding** — recomputed from the affirmation set; a recorded
+       ``grounding`` that disagrees ⇒ ``grounding-mismatch``; below
+       ``min_grounding`` if given ⇒ ``grounding-below-minimum``.
 
     Never reads the assessments DB. Uses only the certificate and the trust
     store. Any structural problem short-circuits to a fail-closed result.
@@ -488,97 +640,109 @@ def verify_certificate(
         return VerificationResult(False, REASON_MALFORMED)
     if document.get("schema") != CERTIFICATE_SCHEMA:
         return VerificationResult(False, REASON_UNKNOWN_SCHEMA)
+    if min_grounding is not None and min_grounding not in GROUNDINGS:
+        raise CertificateError(f"unknown grounding {min_grounding!r}")
+    if min_evidence_tier is not None and min_evidence_tier not in ASSURANCE_TIERS:
+        raise CertificateError(f"unknown assurance tier {min_evidence_tier!r}")
 
     # (2) issuer signature
     sig_ok, sig_reason, signer = _verify_issuer_signature(document, trust)
     if not sig_ok:
         return VerificationResult(False, sig_reason, signer=signer)
 
-    # (3) predicate identity: signed cert must pin the rule this verifier uses.
+    # (3) the certificate's own tier: only the attested form is verifiable here.
+    tier = document.get("assurance_tier", CERTIFICATE_ASSURANCE_TIER)
+    if tier != CERTIFICATE_ASSURANCE_TIER:
+        return VerificationResult(False, REASON_UNSUPPORTED_TIER, signer=signer)
+
+    # (4) predicate identity: signed cert must pin the rule this verifier uses.
     if not _predicate_matches_builtin(document):
         return VerificationResult(False, REASON_PREDICATE_MISMATCH, signer=signer)
 
-    # (4) re-verify every embedded evidence-ref against the trust store
+    # (5) validity bound and lineage shape
+    not_after = document.get("not_after", "")
+    if not_after != "":
+        bound = parse_timestamp(not_after)
+        if bound is None:
+            return VerificationResult(False, REASON_MALFORMED, signer=signer)
+        moment = now if now is not None else datetime.now(timezone.utc)
+        if moment.tzinfo is None:
+            raise CertificateError("now must be timezone-aware")
+        if moment > bound:
+            return VerificationResult(False, REASON_EXPIRED, signer=signer, not_after=not_after)
+    raw_parents = document.get("parents")
+    parents: tuple[str, ...] = ()
+    if raw_parents is not None:
+        try:
+            validated = _validate_parents(raw_parents)
+        except CertificateError:
+            return VerificationResult(False, REASON_MALFORMED, signer=signer)
+        if not validated:  # P3: present means non-empty
+            return VerificationResult(False, REASON_MALFORMED, signer=signer)
+        parents = tuple(validated)
+
+    common = {"signer": signer, "not_after": not_after, "parents": parents}
+
+    # (6) re-verify every embedded evidence-ref against the trust store
     aff_set = document.get("affirmation_set")
     if not isinstance(aff_set, list):
-        return VerificationResult(False, REASON_MALFORMED, signer=signer)
+        return VerificationResult(False, REASON_MALFORMED, **common)
     evidence_checked = 0
     evidence_ok = 0
+    weakest_tier: Optional[str] = None
     for entry in aff_set:
         if not isinstance(entry, Mapping):
-            return VerificationResult(False, REASON_MALFORMED, signer=signer)
+            return VerificationResult(False, REASON_MALFORMED, **common)
         raw = entry.get("evidence_ref")
         if raw is None:
             continue
         evidence_checked += 1
         ref = _parse_embedded_ref(raw)
-        if ref is None:
+        # The embedded ref must parse and carry the item it affirms.
+        if ref is None or ref.item_id != entry.get("id") or not verify_ref(ref, trust):
             return VerificationResult(
                 False,
                 REASON_EVIDENCE_REF_FAILURE,
-                signer=signer,
                 evidence_checked=evidence_checked,
                 evidence_ok=evidence_ok,
-            )
-        # The embedded ref must carry the item it affirms.
-        if ref.item_id != entry.get("id"):
-            return VerificationResult(
-                False,
-                REASON_EVIDENCE_REF_FAILURE,
-                signer=signer,
-                evidence_checked=evidence_checked,
-                evidence_ok=evidence_ok,
-            )
-        if not verify_ref(ref, trust):
-            return VerificationResult(
-                False,
-                REASON_EVIDENCE_REF_FAILURE,
-                signer=signer,
-                evidence_checked=evidence_checked,
-                evidence_ok=evidence_ok,
+                **common,
             )
         evidence_ok += 1
-
-    # (5) recompute the decision from the certificate alone
-    claimed = document.get("decision")
-    if not isinstance(claimed, str):
-        return VerificationResult(
-            False,
-            REASON_MALFORMED,
-            signer=signer,
-            evidence_checked=evidence_checked,
-            evidence_ok=evidence_ok,
-        )
-    recomputed = _recompute_decision(document)
-    if recomputed is None:
-        return VerificationResult(
-            False,
-            REASON_MALFORMED,
-            decision_claimed=claimed,
-            signer=signer,
-            evidence_checked=evidence_checked,
-            evidence_ok=evidence_ok,
-        )
-    if recomputed != claimed:
-        return VerificationResult(
-            False,
-            REASON_DECISION_MISMATCH,
-            decision_claimed=claimed,
-            decision_recomputed=recomputed,
-            signer=signer,
-            evidence_checked=evidence_checked,
-            evidence_ok=evidence_ok,
-        )
-
-    return VerificationResult(
-        True,
-        REASON_OK,
-        decision_claimed=claimed,
-        decision_recomputed=recomputed,
-        signer=signer,
+        if weakest_tier is None or TIER_RANK[ref.assurance_tier] < TIER_RANK[weakest_tier]:
+            weakest_tier = ref.assurance_tier
+    common.update(
         evidence_checked=evidence_checked,
         evidence_ok=evidence_ok,
+        evidence_tier_min=weakest_tier or "",
     )
+    if (
+        min_evidence_tier is not None
+        and weakest_tier is not None
+        and TIER_RANK[weakest_tier] < TIER_RANK[min_evidence_tier]
+    ):
+        return VerificationResult(False, REASON_EVIDENCE_TIER_BELOW_MINIMUM, **common)
+
+    # (7) recompute the decision from the certificate alone
+    claimed = document.get("decision")
+    if not isinstance(claimed, str):
+        return VerificationResult(False, REASON_MALFORMED, **common)
+    recomputed = _recompute_decision(document)
+    if recomputed is None:
+        return VerificationResult(False, REASON_MALFORMED, decision_claimed=claimed, **common)
+    common.update(decision_claimed=claimed, decision_recomputed=recomputed)
+    if recomputed != claimed:
+        return VerificationResult(False, REASON_DECISION_MISMATCH, **common)
+
+    # (8) grounding: recompute, compare to the recorded claim, apply the floor.
+    grounding = _grounding_of(aff_set)
+    common["grounding"] = grounding
+    recorded = document.get("grounding")
+    if recorded is not None and recorded != grounding:
+        return VerificationResult(False, REASON_GROUNDING_MISMATCH, **common)
+    if min_grounding is not None and GROUNDING_RANK[grounding] < GROUNDING_RANK[min_grounding]:
+        return VerificationResult(False, REASON_GROUNDING_BELOW_MINIMUM, **common)
+
+    return VerificationResult(True, REASON_OK, **common)
 
 
 _EMBEDDED_REF_FIELDS = (
@@ -603,12 +767,19 @@ def _parse_embedded_ref(raw: object) -> Optional[EvidenceRef]:
         if not isinstance(v, str) or not v or len(v) > _MAX_STR:
             return None
         values[field] = v
-    return EvidenceRef(**values)
+    tier = raw.get("assurance_tier", DEFAULT_ASSURANCE_TIER)
+    if tier not in ASSURANCE_TIERS:
+        return None
+    return EvidenceRef(**values, assurance_tier=tier)
 
 
 # Kept for the sake of a stable public surface used by GateCertificate.decision.
 __all__ = [
     "CERTIFICATE_SCHEMA",
+    "CERTIFICATE_ASSURANCE_TIER",
+    "GROUNDING_SELF",
+    "GROUNDING_EVIDENCE_VERIFIED",
+    "GROUNDINGS",
     "CertificateError",
     "GateCertificate",
     "GateStatus",
@@ -628,4 +799,12 @@ __all__ = [
     "REASON_EVIDENCE_REF_FAILURE",
     "REASON_DECISION_MISMATCH",
     "REASON_PREDICATE_MISMATCH",
+    "REASON_EXPIRED",
+    "REASON_UNSUPPORTED_TIER",
+    "REASON_GROUNDING_MISMATCH",
+    "REASON_GROUNDING_BELOW_MINIMUM",
+    "REASON_EVIDENCE_TIER_BELOW_MINIMUM",
+    "parse_timestamp",
+    "now_iso",
+    "add_days",
 ]

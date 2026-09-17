@@ -1641,6 +1641,127 @@ evidence-ref@2 lands here, per-evidence tier is surfaceable without a break.
   trust-store check; decision-mismatch detection; old-manifest compatibility;
   chain-link failures. Full existing suite green, zero regressions.
 
+## v0.26.0 T-B6 — Certificate Lineage, Validity, Grounding and Tiers
+
+**Deliberated:** 2026-09-17 (CJ ↔ ikigov synergies session; second alignment
+pass after the 2026-07-05 memo). Additive arc within `gate-certificate@1`; no
+removals, no type changes, no new required fields. Every pre-v0.26 certificate
+verifies unchanged (grandfathered by absence, as T-B5 Decision 4 did for
+manifests).
+
+### Rationale
+
+`gate-certificate@1` shipped as a *leaf*: it carried no `parents` and no validity
+bound, so it could not sit inside the provenance DAG the suite claims
+(ADR-0002: classification → gate decision → training run → posture → payment),
+and it could never be withdrawn. Two further gaps were vocabulary: the
+certificate had no tier field at all, and the tool's three provenance states
+(`self` / `evidence` / `evidence-verified`) do not map onto the paper's three
+assurance tiers. This arc closes the first two gaps and records the third
+precisely instead of forcing it.
+
+### Decision 1 — `parents` inside the signed content (ADR-0002 P1–P5)
+
+Optional `parents: [<content_hash>, ...]` in the certificate body, so it is
+signed over: rewiring lineage after issuance breaks the issuer signature.
+Family hex rule; order-preserving; no duplicates; omitted when empty; present
+means non-empty; bounded at 64 entries. Intended parents: the
+`eai-classification@1` document hash and the workshop manifest's canonical
+hash. Resolving a parent is the consumer's walk (P4); this verifier checks
+shape only. This closes ADR-0002 action item 3 for ikigov.
+
+### Decision 2 — `not_after` is the only revocation, by design
+
+Optional `not_after` (strict UTC `YYYY-MM-DDTHH:MM:SSZ`, must not precede
+`assessed_at`). Verification fails closed past it (`expired`, inclusive at the
+bound); a verifier may be given the instant (`--at`) so a check is reproducible.
+No revocation list, no accumulator, no status endpoint: expiry moves
+coordination entirely off the verification path, which is the creed ("more
+secure = less coordination"). A later regression in maturity does not revoke;
+it fails *re-issuance*. Absent bound = no expiry = pre-v0.26 behaviour.
+
+### Decision 3 — `grounding` names what self-attestation is
+
+Optional `grounding` ∈ {`self`, `evidence-verified`}: the weakest provenance
+over the *affirmed* items (vacuously `evidence-verified` when nothing is
+affirmed; the decision carries the meaning there). Recomputed at verification
+(`grounding-mismatch`); a floor can be demanded (`grounding-below-minimum`).
+The point is honesty about a mismatch: a customer's self-attestation under an
+owner signature is *not* the attested tier. It is an unbonded assertion by a
+named party, which in Computational Jurisprudence terms is the optimistic tier
+minus its bond. That is a real data point for the paper's Problem 8 (what is
+the bond for a governance assertion?) and is recorded here rather than papered
+over by calling everything "attested".
+
+### Decision 4 — tiers are declarations; this verifier verifies signatures
+
+`evidence-ref@2` (presidio-evidence ADR-0003) is accepted alongside `@1`. A
+ref's `assurance_tier` is honoured only under `@2`, defaults to `attested`, is
+inert under `@1` (family vector `evidence-ref-v2/valid-v1-with-extra-tier`),
+and fails closed when unknown. Embedded refs round-trip the declared tier; the
+verifier re-checks the *signature* of every ref, never a fraud proof or a zk
+proof, reports the weakest declared tier, and can demand a floor
+(`evidence-tier-below-minimum`). The certificate's own `assurance_tier` is the
+constant `attested` and any other value is rejected
+(`unsupported-assurance-tier`): a zk gate certificate is a research item (see
+the CJ synergies memo) and must never be mistaken for one this verifier can
+check.
+
+### Decision 5 — no optimistic tier in this tool
+
+Creed guard, restated: no optimistic tier without a real economic counterparty.
+An assessment has none; the audit engagement *is* its dispute layer, exactly as
+the treasury close's external audit is. A `--bond` or dispute window here would
+be theatre. Declared `optimistic` refs from producers that do have a
+counterparty are surfaced (Decision 4), not adjudicated.
+
+### Decision 6 — governance ceiling as a capability grant (design; blocked)
+
+The 2026-07-05 memo's `check_governance_ceiling` MCP tool is superseded by an
+*issuance* design: a `G3 OPEN` certificate becomes `parents[0]` of a
+`capability-grant@1` whose budget caveat derives from the maturity score, so the
+ceiling holds by construction along the x402 chain (monotone attenuation) and
+never needs a round-trip to this tool. Expiry of the grant inherits Decision 2.
+**Blocked on byte conformance:** `capability-grant@1` is defined in
+`presidio-hardened-x402` and has no golden vector in `presidio-evidence`; the
+grant is not implemented here until that vector exists, because a grant that
+does not byte-match the x402 verifier is worse than no grant.
+
+### Decision 7 — presidio-evidence conformance is by vectors, not imports
+
+`presidio-evidence` is `Private :: Do Not Upload` pending the non-provisional
+filing (its L-005, ~2027-04); this package ships on PyPI. MIGRATION.md step 1
+("add presidio-evidence as dependency") therefore cannot ship before the filing:
+a public wheel cannot depend on a private package. Until then the posture is
+**vector conformance only** — this repo keeps its local canonicalisation and
+signing mirror and pins the family golden vectors (already: `workshop-attestation`,
+`workshop-leavebehind`) — and the import migration is re-scheduled to after the
+filing. Recorded so nobody attempts the import migration early.
+
+### Requirements
+
+- R1 `evidence.py`: `SCHEMA_IDS` (`@1`, `@2`), `ASSURANCE_TIERS`, `TIER_RANK`,
+  `EvidenceRef.assurance_tier` (default `attested`), tiers honoured only under
+  `@2`, unknown tier fails closed. — **Delivered.**
+- R2 `certificate.py`: `parents`, `not_after`, `grounding`, `assurance_tier`
+  (const), per-ref tier round-trip; `verify_certificate(now, min_grounding,
+  min_evidence_tier)`; reasons `expired`, `unsupported-assurance-tier`,
+  `grounding-mismatch`, `grounding-below-minimum`,
+  `evidence-tier-below-minimum`; malformed lineage/bound ⇒
+  `malformed-certificate`. — **Delivered.**
+- R3 CLI: `certify --parent` (repeatable) / `--valid-days`;
+  `verify-certificate --at` / `--min-grounding` / `--min-evidence-tier`; quiet
+  JSON and security log carry the new facts; DE/EN strings. — **Delivered.**
+- R4 Tests: parents round-trip and rewiring; malformed / empty / duplicate /
+  oversized parents; expiry inclusive at the bound; malformed bound; bound
+  before `assessed_at`; grounding self vs verified, tampered-and-resigned
+  mismatch, floor; `@2` tiers honoured, `@1` inert, unknown fails closed; weakest
+  tier reported, floor applied, vacuous without refs; non-attested certificate
+  tier rejected; pre-v0.26 shape verifies unchanged; CLI round-trips.
+  — **Delivered: 558 passed (from 512), coverage 87.9%, ruff clean.**
+- R5 README, CHANGELOG, this entry. — **Delivered.** Version not bumped
+  (release mechanics are founder-signed).
+
 ## SDLC
 
 These requirements are delivered under the family-wide Presidio SDLC:

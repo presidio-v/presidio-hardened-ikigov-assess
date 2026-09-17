@@ -528,6 +528,22 @@ def certify(
         "--sign-key-file",
         help="File holding the issuer signing key (keeps it off argv; also reads $IGA_SIGN_KEY).",
     ),
+    parent: Optional[list[str]] = typer.Option(
+        None,
+        "--parent",
+        help=(
+            "Content hash (lowercase hex) of upstream evidence this decision rests on "
+            "(ADR-0002 provenance parent, e.g. the classification document or the "
+            "workshop manifest). Repeatable; signed over."
+        ),
+    ),
+    valid_days: Optional[int] = typer.Option(
+        None,
+        "--valid-days",
+        min=1,
+        max=3650,
+        help="Validity in days; sets a signed `not_after` bound. Omit for no expiry.",
+    ),
     output: Optional[str] = typer.Option(
         None, "--output", "-o", help="Write the certificate JSON here instead of stdout."
     ),
@@ -584,6 +600,8 @@ def certify(
         affirmed = affirmed | affirmed_via_evidence
         refs_by_item = dict(result.refs_by_item)
 
+    assessed_at = cert_mod.now_iso()
+    not_after = cert_mod.add_days(assessed_at, valid_days) if valid_days is not None else None
     try:
         document = cert_mod.build_certificate(
             use_case=use_case,
@@ -594,6 +612,9 @@ def certify(
             strict=strict,
             evidence_refs=refs_by_item,
             issuer=issuer,
+            assessed_at=assessed_at,
+            parents=parent or None,
+            not_after=not_after,
         )
         cert_mod.sign(document, alg=sign_alg, key_hex_or_secret=seal_key, signer=issuer)
     except cert_mod.CertificateError as exc:
@@ -610,6 +631,9 @@ def certify(
             "risk_class": risk_class,
             "sign_alg": sign_alg,
             "embedded_evidence": len(refs_by_item),
+            "grounding": document["grounding"],
+            "parents": len(parent or ()),
+            "not_after": not_after,
             "lang": lang,
         }
     )
@@ -637,6 +661,21 @@ def certify(
 def verify_certificate_cmd(
     certificate: str = typer.Option(..., "--certificate", help="Gate certificate JSON to verify."),
     trust: str = typer.Option(..., "--trust", help="Trust-store JSON {signer: key|entry}."),
+    at: Optional[str] = typer.Option(
+        None,
+        "--at",
+        help="Verify as of this UTC instant (YYYY-MM-DDTHH:MM:SSZ) instead of now.",
+    ),
+    min_grounding: Optional[str] = typer.Option(
+        None,
+        "--min-grounding",
+        help="Require the affirmation set's grounding: self | evidence-verified.",
+    ),
+    min_evidence_tier: Optional[str] = typer.Option(
+        None,
+        "--min-evidence-tier",
+        help="Require every embedded ref to declare at least: attested | optimistic | zk.",
+    ),
     lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
 ) -> None:
@@ -665,7 +704,26 @@ def verify_certificate_cmd(
         err_console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
 
-    result = cert_mod.verify_certificate(document, trust_store)
+    now = None
+    if at is not None:
+        now = cert_mod.parse_timestamp(at)
+        if now is None:
+            err_console.print(f"[red]Error:[/red] {t('cert_err_bad_at', lang)}")
+            raise typer.Exit(1)
+    if min_grounding is not None and min_grounding not in cert_mod.GROUNDINGS:
+        err_console.print(f"[red]Error:[/red] {t('cert_err_bad_grounding', lang)}")
+        raise typer.Exit(1)
+    if min_evidence_tier is not None and min_evidence_tier not in evidence_mod.ASSURANCE_TIERS:
+        err_console.print(f"[red]Error:[/red] {t('cert_err_bad_tier', lang)}")
+        raise typer.Exit(1)
+
+    result = cert_mod.verify_certificate(
+        document,
+        trust_store,
+        now=now,
+        min_grounding=min_grounding,
+        min_evidence_tier=min_evidence_tier,
+    )
 
     log_security_event(
         {
@@ -674,6 +732,8 @@ def verify_certificate_cmd(
             "reason": result.reason,
             "signer": result.signer or None,
             "evidence_checked": result.evidence_checked,
+            "grounding": result.grounding or None,
+            "evidence_tier_min": result.evidence_tier_min or None,
             "lang": lang,
         }
     )
@@ -689,6 +749,10 @@ def verify_certificate_cmd(
                     "decision_recomputed": result.decision_recomputed or None,
                     "evidence_checked": result.evidence_checked,
                     "evidence_ok": result.evidence_ok,
+                    "grounding": result.grounding or None,
+                    "evidence_tier_min": result.evidence_tier_min or None,
+                    "not_after": result.not_after or None,
+                    "parents": list(result.parents),
                 },
                 ensure_ascii=False,
             )
@@ -696,6 +760,9 @@ def verify_certificate_cmd(
     elif result.ok:
         console.print(
             f"[green]{t('cert_verify_ok', lang, signer=result.signer, decision=result.decision_recomputed)}[/green]"
+        )
+        console.print(
+            f"[dim]{t('cert_verify_grounding', lang, grounding=result.grounding, tier=result.evidence_tier_min or '-')}[/dim]"
         )
     else:
         reason_label = t(f"cert_verify_reason_{result.reason}", lang)
