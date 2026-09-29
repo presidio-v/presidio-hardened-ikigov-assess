@@ -55,6 +55,7 @@ from rich.text import Text
 
 from presidio_ikigov_assess import __version__
 from presidio_ikigov_assess import content as content_mod
+from presidio_ikigov_assess.bundle import BundleError, member_path, read_member_bytes
 from presidio_ikigov_assess.classification import (
     ClassificationDocument,
     ClassificationError,
@@ -1110,12 +1111,13 @@ def workshop_verify(
         raise typer.Exit(1)
 
     # Load manifest.
-    manifest_path = artifact_dir / "manifest.json"
-    if not manifest_path.exists():
+    try:
+        manifest_path = member_path(artifact_dir, "manifest.json")
+        manifest_text = read_member_bytes(manifest_path).decode("utf-8")
+    except (BundleError, UnicodeDecodeError) as exc:
         _err_console.print(f"[red]{t('workshop_verify_err_no_manifest', lang)}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
-    manifest_text = manifest_path.read_text(encoding="utf-8")
     try:
         manifest = json.loads(manifest_text)
     except json.JSONDecodeError as exc:
@@ -1132,11 +1134,13 @@ def workshop_verify(
     # Re-hash artifacts.
     artifact_results: dict[str, bool] = {}
     for name, meta in manifest.get("artifacts", {}).items():
-        artifact_path = artifact_dir / name
-        if not artifact_path.exists():
+        # Names come from the manifest under verification: confine them to the
+        # directory and refuse symlinks, devices and oversized members.
+        try:
+            content = read_member_bytes(member_path(artifact_dir, name))
+        except BundleError:
             artifact_results[name] = False
             continue
-        content = artifact_path.read_bytes()
         expected_hash = meta.get("sha256", "")
         actual_hash = _sha256_hex(content)
         artifact_results[name] = actual_hash == expected_hash
