@@ -238,7 +238,7 @@ def test_sign_key_file_precedes_inline_and_env(tmp_path):
 # ── Verification reads only confined, regular, bounded members (audit F-1) ────
 
 
-def _bundle_with_members(tmp_path, members: dict) -> "object":
+def _bundle_with_members(tmp_path, members: dict) -> object:
     out = write_bundle(
         tmp_path / "pack", report_md=MD, report_json=JS, use_case="uc", risk_class="low"
     )
@@ -304,7 +304,16 @@ def test_export_cli_reports_planted_symlink(tmp_path, monkeypatch):
     (out / "report.json").symlink_to(victim)
     result = CliRunner().invoke(
         app,
-        ["--no-dep-check", "export", "--use-case", "uc", "--risk-class", "low", "--bundle", str(out)],
+        [
+            "--no-dep-check",
+            "export",
+            "--use-case",
+            "uc",
+            "--risk-class",
+            "low",
+            "--bundle",
+            str(out),
+        ],
     )
     assert result.exit_code == 1
     assert victim.read_text(encoding="utf-8") == "keep me"

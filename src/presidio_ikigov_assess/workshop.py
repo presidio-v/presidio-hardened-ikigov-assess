@@ -77,6 +77,7 @@ from presidio_ikigov_assess.renderer import (
 )
 from presidio_ikigov_assess.sanitize import (
     ValidationError,
+    terminal_safe,
     validate_lang,
     validate_output_path,
 )
@@ -938,7 +939,9 @@ def workshop_sign(
         raise typer.Exit(1) from exc
 
     if replaced:
-        _err_console.print(f"[yellow]{t('sign_warn_replaces', lang, signer=replaced)}[/yellow]")
+        _err_console.print(
+            f"[yellow]{t('sign_warn_replaces', lang, signer=terminal_safe(replaced))}[/yellow]"
+        )
     _console.print(f"[green]{t('sign_done', lang, signer=signer)}[/green]")
     _console.print(f"[bold]{t('keygen_pubkey_label', lang)}:[/bold] {pub_hex}")
     log_security_event({"event": "iga-workshop-sign", "role": "owner", "replaced": bool(replaced)})
@@ -1263,12 +1266,12 @@ def workshop_verify(
         for name, art_ok in artifact_results.items():
             colour = "green" if art_ok else "red"
             mark = "OK  " if art_ok else "FAIL"
-            _console.print(f"[{colour}]{mark}[/{colour}] {name}")
+            _console.print(f"[{colour}]{mark}[/{colour}] {terminal_safe(name)}")
         if signature_ok is True:
             _console.print(f"[green]{t('workshop_verify_sig_ok', lang)}[/green]")
             if sig_role:
                 _console.print(
-                    f"[dim]{t('verify_owner_label', lang, role=sig_role, signer=sig_signer)}[/dim]"
+                    f"[dim]{t('verify_owner_label', lang, role=terminal_safe(sig_role), signer=terminal_safe(sig_signer))}[/dim]"
                 )
         elif signature_ok is False:
             _console.print(f"[red]{t('workshop_verify_sig_fail', lang)}[/red]")
@@ -1277,23 +1280,23 @@ def workshop_verify(
         if require_attestation:
             if attestation_ok:
                 _console.print(
-                    f"[green]{t('verify_attestation_ok', lang, signer=attestation_signer)}[/green]"
+                    f"[green]{t('verify_attestation_ok', lang, signer=terminal_safe(attestation_signer))}[/green]"
                 )
             elif attestation_reason == "missing":
                 _console.print(f"[red]{t('verify_attestation_missing', lang)}[/red]")
             else:
                 _console.print(
-                    f"[red]{t('verify_attestation_fail', lang, reason=attestation_reason)}[/red]"
+                    f"[red]{t('verify_attestation_fail', lang, reason=terminal_safe(attestation_reason))}[/red]"
                 )
         if chain_results is not None:
             for link in chain_results:
                 if link["ok"]:
                     _console.print(
-                        f"[green]{t('chain_link_ok', lang, role=link['role'], signer=link['signer'])}[/green]"
+                        f"[green]{t('chain_link_ok', lang, role=terminal_safe(link['role']), signer=terminal_safe(link['signer']))}[/green]"
                     )
                 else:
                     _console.print(
-                        f"[red]{t('chain_link_fail', lang, role=link['role'], reason=link['reason'])}[/red]"
+                        f"[red]{t('chain_link_fail', lang, role=terminal_safe(link['role']), reason=terminal_safe(link['reason']))}[/red]"
                     )
 
     if not ok:

@@ -53,6 +53,7 @@ from presidio_ikigov_assess.renderer import (
 )
 from presidio_ikigov_assess.sanitize import (
     ValidationError,
+    terminal_safe,
     validate_date,
     validate_format,
     validate_gate,
@@ -518,7 +519,10 @@ def verify_evidence(
                 t("verify_evidence_ok", lang) if r["verified"] else t("verify_evidence_fail", lang)
             )
             colour = "green" if r["verified"] else "red"
-            console.print(f"[{colour}]{mark}[/{colour}] {r['item_id']}  signer={r['signer']}")
+            console.print(
+                f"[{colour}]{mark}[/{colour}] {terminal_safe(r['item_id'])}"
+                f"  signer={terminal_safe(r['signer'])}"
+            )
         if not refs:
             err_console.print(f"[yellow]{t('verify_evidence_no_refs', lang)}[/yellow]")
     if not all_ok:
@@ -818,7 +822,7 @@ def verify_certificate_cmd(
         )
     elif result.ok:
         console.print(
-            f"[green]{t('cert_verify_ok', lang, signer=result.signer, decision=result.decision_recomputed)}[/green]"
+            f"[green]{t('cert_verify_ok', lang, signer=terminal_safe(result.signer), decision=result.decision_recomputed)}[/green]"
         )
         console.print(
             f"[dim]{t('cert_verify_grounding', lang, grounding=result.grounding, tier=result.evidence_tier_min or '-')}[/dim]"
@@ -1174,7 +1178,7 @@ def verify_bundle(
         for name, ok in report["artifacts"].items():
             colour = "green" if ok else "red"
             mark = t("verify_evidence_ok", "en") if ok else t("verify_evidence_fail", "en")
-            console.print(f"[{colour}]{mark}[/{colour}] {name}")
+            console.print(f"[{colour}]{mark}[/{colour}] {terminal_safe(name)}")
         if report["signature"] is not None:
             sig_ok = report["signature"]
             sig_label = t("verify_bundle_ok", "en") if sig_ok else t("verify_bundle_invalid", "en")
