@@ -6,11 +6,33 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ---
 
-## [Unreleased]
+## [0.27.0] — 2026-09-30
 
 Remediation of an in-depth security audit (2026-09-30) across four surfaces: signing and
 verification, the network and MCP surface, parsers and files, and the supply chain. Each
 fix carries a regression test that reproduces the finding.
+
+### Upgrade notes
+
+Several fixes deliberately turn a former pass into a failure. Check these before upgrading
+a pipeline that relies on them:
+
+- `iga workshop verify` exits 1 on an UNSIGNED leave-behind. Pass `--allow-unsigned` to
+  accept hash consistency alone; the JSON result reports `authenticated`.
+- An evidence document that claims one signed ref for several items verifies none of them.
+  A producer must emit one ref, with its own `content_hash`, per item.
+- `iga verify-certificate --min-evidence-tier` fails on a certificate without embedded
+  refs (`no-evidence-for-tier-floor`), and a certificate whose `issuer` is not its signer
+  fails (`issuer-signer-mismatch`). Certificates issued by `iga certify` always pass the
+  second check.
+- An external content or profile pack that reuses a built-in `framework_id` is refused
+  unless `--allow-builtin-override` or `IGA_ALLOW_BUILTIN_OVERRIDE=1` is set.
+- `iga-mcp-remote` refuses a non-loopback `--host` without `--behind-tls-proxy`, no longer
+  applies `IGA_MAX_ASSESSMENTS` across orgs, and limits each org per window
+  (`IGA_MCP_WINDOW_SECONDS`, default 3600).
+- JSON outputs gain keys (`reused_refs_not_verified`, per-ref `reused`, `authenticated`);
+  the evidence block inside a signed export manifest changes accordingly, so a pack
+  exported by 0.27.0 is not byte-identical to one exported by 0.26.0 from the same input.
 
 ### Security
 
