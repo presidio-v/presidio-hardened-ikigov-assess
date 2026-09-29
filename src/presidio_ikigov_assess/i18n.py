@@ -752,6 +752,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "predicate content hash mismatch",
     },
     # ── Certificate lineage / validity / grounding / tiers (v0.26.0) ──────────
+    "cert_verify_reason_issuer-signer-mismatch": {
+        "de": "der signierte Aussteller (issuer) ist nicht der Schlüssel, der signiert hat",
+        "en": "the signed issuer is not the key that signed the certificate",
+    },
     "cert_verify_reason_expired": {
         "de": "Zertifikat abgelaufen (not_after überschritten)",
         "en": "certificate expired (past not_after)",

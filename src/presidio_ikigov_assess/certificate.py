@@ -443,6 +443,7 @@ REASON_UNKNOWN_SCHEMA = "unknown-schema"
 REASON_MALFORMED = "malformed-certificate"
 REASON_BAD_SIGNATURE = "bad-signature"
 REASON_UNKNOWN_ISSUER = "unknown-issuer"
+REASON_ISSUER_SIGNER_MISMATCH = "issuer-signer-mismatch"
 REASON_EVIDENCE_REF_FAILURE = "evidence-ref-failure"
 REASON_DECISION_MISMATCH = "decision-mismatch"
 REASON_PREDICATE_MISMATCH = "predicate-content-mismatch"
@@ -620,7 +621,9 @@ def verify_certificate(
        ``unknown-schema``.
     2. **issuer signature** — the detached signature over
        :func:`signing_bytes` must verify against ``trust`` (``bad-signature`` /
-       ``unknown-issuer``).
+       ``unknown-issuer``), and the signed ``issuer`` must name that signer
+       (``issuer-signer-mismatch``): any key in the trust store could otherwise
+       mint a certificate claiming to be issued by another party.
     3. **assurance tier** — a certificate declaring any tier this verifier
        cannot check ⇒ ``unsupported-assurance-tier``.
     4. **predicate identity** — ``framework_content_hash`` and
@@ -656,6 +659,8 @@ def verify_certificate(
     sig_ok, sig_reason, signer = _verify_issuer_signature(document, trust)
     if not sig_ok:
         return VerificationResult(False, sig_reason, signer=signer)
+    if document.get("issuer") != signer:
+        return VerificationResult(False, REASON_ISSUER_SIGNER_MISMATCH, signer=signer)
 
     # (3) the certificate's own tier: only the attested form is verifiable here.
     tier = document.get("assurance_tier", CERTIFICATE_ASSURANCE_TIER)
@@ -805,6 +810,7 @@ __all__ = [
     "REASON_MALFORMED",
     "REASON_BAD_SIGNATURE",
     "REASON_UNKNOWN_ISSUER",
+    "REASON_ISSUER_SIGNER_MISMATCH",
     "REASON_EVIDENCE_REF_FAILURE",
     "REASON_DECISION_MISMATCH",
     "REASON_PREDICATE_MISMATCH",
