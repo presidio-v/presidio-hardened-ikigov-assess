@@ -69,12 +69,16 @@ within 30 days of a confirmed vulnerability.
   the tool runs it on each invocation against the installed environment. The check is
   advisory: a *clean*, *unavailable* (pip-audit not installed), and *inconclusive*
   (timeout/error) result are reported distinctly so a non-completing scan is never
-  presented as "no vulnerabilities". Suppress with `--no-dep-check` in offline or CI contexts.
+  presented as "no vulnerabilities". Suppress with `--no-dep-check` or
+  `IGA_NO_DEP_CHECK=1` in offline or CI contexts. Every `iga workshop` command skips it
+  automatically, because workshops run on customer sites that are often offline.
 - **Rate limiting** — the tool enforces a configurable maximum number of assessments per
   session (`IGA_MAX_ASSESSMENTS` env var, default 100). The CLI uses a *persistent*
   per-session guard (`~/.iga/session.json`) so the limit holds across one-shot invocations;
   a session resets after an idle gap of `IGA_SESSION_IDLE_SECONDS` (default 3600s). The
   long-lived MCP server uses an in-process counter for the lifetime of the server.
+  The guard counts `iga assess` runs and the MCP assessment tools; read-only views
+  (`gate`, `report`, `export`, the gap commands) are not counted.
   Malformed values for these env vars fall back to the documented defaults with a warning
   rather than aborting the tool.
 - **Restricted file permissions** — `~/.iga/` is created with mode `700` and the security

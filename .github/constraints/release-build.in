@@ -1,2 +1,6 @@
 pip
 build
+# Build backend, hash-pinned so `python -m build --no-isolation` in publish.yml
+# uses exactly this closure instead of fetching an unpinned one from the index.
+# Keep the range in step with [build-system] requires in pyproject.toml.
+hatchling>=1.31,<2

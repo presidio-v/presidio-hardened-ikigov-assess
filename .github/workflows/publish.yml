@@ -38,30 +38,62 @@ jobs:
       - name: Build sdist and wheel
         run: |
           python -m pip install --require-hashes -r .github/constraints/release-build.txt
-          python -m build
+          # --no-isolation: build with the hash-pinned hatchling installed above
+          # rather than letting `build` fetch an unpinned backend into a fresh env.
+          python -m build --no-isolation
       - name: Check metadata
         run: |
           python -m pip install --require-hashes -r .github/constraints/twine.txt
           twine check dist/*
-      - name: Generate SBOM
-        run: |
-          python -m pip install --require-hashes -r .github/constraints/cyclonedx.txt
-          python -m pip install dist/*.whl
-          cyclonedx-py environment --output-format JSON --output-file sbom.cdx.json
+      # Attest and hand off dist/ before anything resolves unpinned packages: the
+      # SBOM job installs the wheel's runtime deps, and code in one of those must
+      # not be able to rewrite what gets attested and published.
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          # Attest the SBOM too: it is published as a release asset (below), so it
-          # needs the same build-provenance guarantee as the wheels/sdist.
-          subject-path: |
-            dist/*
-            sbom.cdx.json
+          subject-path: dist/*
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-artifacts
-          path: |
-            dist/
-            sbom.cdx.json
+          name: dist
+          path: dist/
+
+  sbom:
+    name: Generate SBOM
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC token for GitHub build-provenance attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+      - name: Generate SBOM
+        run: |
+          python -m pip install --require-hashes -r .github/constraints/cyclonedx.txt
+          # Describe what a user installs: the wheel and its runtime closure in a
+          # clean venv, not the build or SBOM tooling.
+          python -m venv /tmp/runtime
+          /tmp/runtime/bin/pip install dist/*.whl
+          cyclonedx-py environment /tmp/runtime/bin/python --output-format JSON --output-file sbom.cdx.json
+      - name: Attest SBOM provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          # Published as a release asset (below), so it carries the same
+          # build-provenance guarantee as the wheel and sdist.
+          subject-path: sbom.cdx.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom
+          path: sbom.cdx.json
 
   publish:
     name: Publish to PyPI (Trusted Publishing)
@@ -75,8 +107,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: release-artifacts
-          path: .
+          name: dist
+          path: dist/
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
@@ -92,14 +124,18 @@ jobs:
 
   release-assets:
     name: Attach release assets
-    needs: [build, publish]
+    needs: [build, sbom, publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: release-artifacts
+          name: dist
+          path: dist/
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: sbom
           path: .
       - name: Publish GitHub release assets
         env:

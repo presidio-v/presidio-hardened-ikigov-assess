@@ -93,7 +93,7 @@ These rendered files back the silver answers; confirm each is on `main`:
 | `coding_standards_enforced` | **Met** | The style/lint check runs in CI on every PR (FLOSS enforcement). |
 | `installation_common` | **Met** | `pip install presidio-hardened-ikigov-assess` from PyPI (standard package-index install; optional extras `[audit]` / `[crypto]` / `[mcp]`). |
 | `installation_development_quick` | **Met** | `REPO/blob/main/CONTRIBUTING.md#local-verification` — documents the one setup path that installs everything needed to build and test. |
-| `build_repeatable` (SHOULD) | **Met** | Built via `python -m build` (hatchling) on GitHub-hosted runners with SHA-pinned Actions against a pinned dependency graph (`uv.lock`); deterministic from pinned sources. Not claimed bit-for-bit hermetic. |
+| `build_repeatable` (SHOULD) | **Met** | Built via `python -m build` (hatchling) on GitHub-hosted runners with SHA-pinned Actions. The release build runs `python -m build --no-isolation` with the build frontend and backend (`build`, `hatchling` and its closure) installed from the hash-pinned `.github/constraints/release-build.txt`. The package's runtime dependencies are declared as version ranges and resolved by the installer, so `uv.lock` pins the development environment, not the published artefact. Not claimed bit-for-bit hermetic. |
 | `build_standard_variables` | **N/A** | Pure-Python package; no compiler/linker, so `CC`/`CFLAGS`/`LDFLAGS` do not apply. |
 | `build_preserve_debug` | **N/A** | No compiled artefacts; there is no separable debug info to preserve. |
 | `build_non_recursive` | **N/A** | No recursive make / subdirectory build; the build is a single PEP 517 invocation. |
