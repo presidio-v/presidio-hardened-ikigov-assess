@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.presidio-v/presidio-hardened-ikigov-assess",
+  "description": "IKI-Gov AI governance assessment: score AI use cases, check quality gates G0-G5, map to EU AI Act.",
+  "version": "0.26.0",
+  "repository": {
+    "url": "https://github.com/presidio-v/presidio-hardened-ikigov-assess",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "presidio-hardened-ikigov-assess",
+      "version": "0.26.0",
+      "runtimeHint": "uvx",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--from",
+          "value": "presidio-hardened-ikigov-assess[mcp]==0.26.0",
+          "description": "Install the package with the mcp extra; the server needs the mcp 2.x SDK"
+        }
+      ],
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

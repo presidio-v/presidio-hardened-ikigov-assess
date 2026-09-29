@@ -57,6 +57,10 @@ dev = [
 [project.scripts]
 iga = "presidio_ikigov_assess.cli:app"
 iga-mcp = "presidio_ikigov_assess.mcp_server:main"
+# Same server under the package name: MCP Registry clients launch
+# `uvx --from presidio-hardened-ikigov-assess[mcp] presidio-hardened-ikigov-assess`
+# (see server.json), and uvx runs the script named after the identifier.
+presidio-hardened-ikigov-assess = "presidio_ikigov_assess.mcp_server:main"
 iga-mcp-remote = "presidio_ikigov_assess.remote:main"
 
 [project.urls]

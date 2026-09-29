@@ -82,6 +82,14 @@ jobs:
         with:
           attestations: true
 
+  registry:
+    name: Publish to MCP Registry
+    needs: publish # the registry verifies the PyPI package, so it must exist first
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mcp-registry.yml
+
   release-assets:
     name: Attach release assets
     needs: [build, publish]
