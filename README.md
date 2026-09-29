@@ -789,7 +789,9 @@ iga workshop verify \
 ```
 
 Exit 0 if all artifact hashes and the signature verify; exit 1 otherwise
-(fail-closed).
+(fail-closed). An UNSIGNED leave-behind fails too, because matching hashes alone prove
+nothing about who produced the files; pass `--allow-unsigned` to accept hash consistency
+only. The JSON result carries `authenticated: true` only when a signature verified.
 
 #### Named delegation chain (v0.23.0)
 

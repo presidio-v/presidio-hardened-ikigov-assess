@@ -792,6 +792,9 @@ iga workshop verify \
 ```
 
 Exit 0, wenn alle Artefakt-Hashes und die Signatur verifizieren; sonst Exit 1 (fail-closed).
+Eine UNSIGNED-Übergabe scheitert ebenfalls, denn übereinstimmende Hashes belegen nicht, wer
+die Dateien erzeugt hat; `--allow-unsigned` akzeptiert reine Hash-Konsistenz. Das
+JSON-Ergebnis enthält `authenticated: true` nur, wenn eine Signatur verifiziert wurde.
 
 #### Benannte Delegationskette (v0.23.0)
 

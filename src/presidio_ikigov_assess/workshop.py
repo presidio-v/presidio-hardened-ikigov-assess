@@ -1086,6 +1086,14 @@ def workshop_verify(
         "--require-chain",
         help="Fail-closed unless the delegation chain has an owner link (implies --show-chain).",
     ),
+    allow_unsigned: bool = typer.Option(
+        False,
+        "--allow-unsigned",
+        help=(
+            "Accept a leave-behind without a manifest signature (hash consistency only). "
+            "Without it an UNSIGNED manifest fails verification."
+        ),
+    ),
     lang: str = typer.Option("de", "--lang", "-l", help="Output language: de | en."),
     quiet: bool = typer.Option(
         False,
@@ -1222,10 +1230,12 @@ def workshop_verify(
             ]
 
     all_artifacts_ok = all(artifact_results.values()) if artifact_results else False
+    # An unsigned manifest proves only that the files match each other: anyone can
+    # regenerate both. It passes only when the caller accepts that explicitly.
     ok = (
         schema_ok
         and all_artifacts_ok
-        and (signature_ok is not False)
+        and (signature_ok is True or (signature_ok is None and allow_unsigned))
         and (attestation_ok is not False)
         and (chain_ok is not False)
     )
@@ -1251,6 +1261,7 @@ def workshop_verify(
                     "schema_ok": schema_ok,
                     "artifacts": artifact_results,
                     "signature": signature_ok,
+                    "authenticated": signature_ok is True,
                     "signature_role": sig_role or None,
                     "owner_signed": isinstance(owner_block, dict),
                     "attestation": attestation_ok,
