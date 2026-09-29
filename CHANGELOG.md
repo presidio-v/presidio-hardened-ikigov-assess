@@ -6,7 +6,7 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ---
 
-## [0.26.0] — Unreleased
+## [0.26.0] — 2026-09-29
 
 Two arcs. **S-1** closes a fail-open in `--require-evidence` (Security, below).
 **T-B6** adds certificate lineage, validity, grounding and tiers. Both are additive
@@ -74,6 +74,21 @@ Deliberations: `PRESIDIO-REQ.md` v0.26.0 S-1 and T-B6.
 - `verify-certificate --quiet` JSON gains `grounding`, `evidence_tier_min`,
   `not_after`, `parents`; the security log records grounding and the weakest tier.
 - Bilingual strings for every new reason and error.
+- **Listed in the MCP Registry as `io.github.presidio-v/presidio-hardened-ikigov-assess`.**
+  `server.json` describes the stdio server; `publish.yml` now calls a new
+  `mcp-registry.yml` workflow after the PyPI publish, which logs in with GitHub OIDC
+  and publishes it. OIDC takes the `io.github.presidio-v` namespace from the repository
+  owner, because the `mcp-publisher` device login currently mints tokens without org
+  namespaces even for org Owners (modelcontextprotocol/registry#1527, #1649). The
+  workflow can also be run by hand from `main` to republish.
+- **`presidio-hardened-ikigov-assess` console script**, an alias of `iga-mcp`. Registry
+  clients launch `uvx --from presidio-hardened-ikigov-assess[mcp] <identifier>`, and uvx
+  runs the script named after the identifier.
+- `README.md` carries the `mcp-name` marker the registry reads from the PyPI project
+  page to prove namespace ownership, so the first listing is the first release that
+  ships it. `tests/test_server_json.py` fails CI when `server.json` drifts from the
+  package version, exceeds the 100-character description limit, or loses the marker.
+
 
 ### Changed
 

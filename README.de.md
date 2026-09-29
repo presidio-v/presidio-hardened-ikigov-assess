@@ -500,6 +500,11 @@ pip install "presidio-hardened-ikigov-assess[mcp]"
 iga-mcp
 ```
 
+In der [MCP Registry](https://registry.modelcontextprotocol.io) ist er als
+`io.github.presidio-v/presidio-hardened-ikigov-assess` eingetragen; Registry-Clients starten ihn mit
+`uvx --from "presidio-hardened-ikigov-assess[mcp]" presidio-hardened-ikigov-assess`,
+das denselben Server wie `iga-mcp` ausführt.
+
 Registrieren Sie ihn bei einem MCP-Client (z. B. Claude Desktop) über dessen Konfiguration:
 
 ```json

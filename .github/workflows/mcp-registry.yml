@@ -1,0 +1,43 @@
+name: Publish to MCP Registry
+
+# Publishes server.json to registry.modelcontextprotocol.io with GitHub OIDC.
+# OIDC grants io.github.<repo-owner>/*, so it does not depend on the device
+# login, which currently mints tokens without org namespaces even for org
+# Owners (modelcontextprotocol/registry#1527, #1649). Called by publish.yml
+# after the PyPI publish; runnable by hand to (re)publish from main.
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MCP_PUBLISHER_VERSION: "1.8.1"
+  # sha256 of mcp-publisher_linux_amd64.tar.gz, from registry_1.8.1_checksums.txt
+  MCP_PUBLISHER_SHA256: "a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc"
+
+jobs:
+  publish:
+    name: Publish server.json
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # OIDC token for the registry's github-oidc login
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install mcp-publisher (pinned, checksum-verified)
+        run: |
+          curl -sSfL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+      - name: Validate server.json
+        run: ./mcp-publisher validate
+      - name: Publish server.json
+        run: ./mcp-publisher publish

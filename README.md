@@ -11,6 +11,8 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13748/badge)](https://www.bestpractices.dev/projects/13748)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+<!-- mcp-name: io.github.presidio-v/presidio-hardened-ikigov-assess -->
+
 **IKI-Gov Assessment Tool** — operationalises the IKI-Gov-Referenzmodell (Integrated KI-Governance Reference Model) as a practical CLI tool for assessing AI use cases against a structured governance framework.
 
 The IKI-Gov framework structures AI governance along a central lifecycle
@@ -486,6 +488,11 @@ pip install "presidio-hardened-ikigov-assess[mcp]"
 # Run the server over stdio
 iga-mcp
 ```
+
+It is listed in the [MCP Registry](https://registry.modelcontextprotocol.io) as
+`io.github.presidio-v/presidio-hardened-ikigov-assess`; registry clients start it with
+`uvx --from "presidio-hardened-ikigov-assess[mcp]" presidio-hardened-ikigov-assess`,
+which runs the same server as `iga-mcp`.
 
 Register it with an MCP client (e.g. Claude Desktop) by adding to the client's config:
 
