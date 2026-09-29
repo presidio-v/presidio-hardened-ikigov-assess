@@ -479,7 +479,8 @@ v0.26 verifizieren unverändert:
   Zertifikat übernommen. Sie ist eine *Deklaration*: der Prüfer prüft die Signatur des Refs
   erneut, nie einen Fraud-Proof oder einen ZK-Beweis, und meldet die schwächste deklarierte
   Stufe, damit `--min-evidence-tier` eine Untergrenze verlangen kann
-  (`evidence-tier-below-minimum`). Die eigene `assurance_tier` des Zertifikats ist `attested`
+  (`evidence-tier-below-minimum`); ein Zertifikat ohne eingebetteten Ref scheitert ebenfalls
+  an dieser Untergrenze (`no-evidence-for-tier-floor`). Die eigene `assurance_tier` des Zertifikats ist `attested`
   und nichts anderes; ein Zertifikat mit einer anderen Stufe wird abgewiesen
   (`unsupported-assurance-tier`), damit ein künftiges ZK-Gate-Zertifikat nie für eines
   gehalten wird, das dieser Prüfer prüfen kann.

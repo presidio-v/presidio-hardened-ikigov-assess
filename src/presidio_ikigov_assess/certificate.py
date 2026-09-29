@@ -452,6 +452,7 @@ REASON_UNSUPPORTED_TIER = "unsupported-assurance-tier"
 REASON_GROUNDING_MISMATCH = "grounding-mismatch"
 REASON_GROUNDING_BELOW_MINIMUM = "grounding-below-minimum"
 REASON_EVIDENCE_TIER_BELOW_MINIMUM = "evidence-tier-below-minimum"
+REASON_NO_EVIDENCE_FOR_TIER = "no-evidence-for-tier-floor"
 
 
 @dataclass(frozen=True)
@@ -729,12 +730,13 @@ def verify_certificate(
         evidence_ok=evidence_ok,
         evidence_tier_min=weakest_tier or "",
     )
-    if (
-        min_evidence_tier is not None
-        and weakest_tier is not None
-        and TIER_RANK[weakest_tier] < TIER_RANK[min_evidence_tier]
-    ):
-        return VerificationResult(False, REASON_EVIDENCE_TIER_BELOW_MINIMUM, **common)
+    if min_evidence_tier is not None:
+        # A floor with nothing to measure fails closed: a certificate without
+        # embedded refs must not pass a caller who demanded evidence of a tier.
+        if weakest_tier is None:
+            return VerificationResult(False, REASON_NO_EVIDENCE_FOR_TIER, **common)
+        if TIER_RANK[weakest_tier] < TIER_RANK[min_evidence_tier]:
+            return VerificationResult(False, REASON_EVIDENCE_TIER_BELOW_MINIMUM, **common)
 
     # (7) recompute the decision from the certificate alone
     claimed = document.get("decision")
@@ -819,6 +821,7 @@ __all__ = [
     "REASON_GROUNDING_MISMATCH",
     "REASON_GROUNDING_BELOW_MINIMUM",
     "REASON_EVIDENCE_TIER_BELOW_MINIMUM",
+    "REASON_NO_EVIDENCE_FOR_TIER",
     "parse_timestamp",
     "now_iso",
     "add_days",

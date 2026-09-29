@@ -776,6 +776,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "de": "eingebetteter Evidence-Ref deklariert eine Stufe unter dem geforderten Minimum",
         "en": "an embedded evidence-ref declares a tier below the required minimum",
     },
+    "cert_verify_reason_no-evidence-for-tier-floor": {
+        "de": "--min-evidence-tier gefordert, aber das Zertifikat bettet keinen Evidence-Ref ein",
+        "en": "--min-evidence-tier was required but the certificate embeds no evidence-ref",
+    },
     "cert_verify_grounding": {
         "de": "Fundierung: {grounding} · schwächste deklarierte Evidence-Stufe: {tier}",
         "en": "Grounding: {grounding} · weakest declared evidence tier: {tier}",

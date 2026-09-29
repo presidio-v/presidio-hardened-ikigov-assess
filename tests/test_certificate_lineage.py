@@ -316,10 +316,13 @@ def test_min_evidence_tier_floor():
         cert_mod.verify_certificate(doc, _trust(evidence=True), min_evidence_tier="platinum")
 
 
-def test_min_evidence_tier_is_vacuous_without_embedded_refs():
+def test_min_evidence_tier_fails_closed_without_embedded_refs():
+    # A floor with nothing to measure must not pass (audit C-3; was vacuously ok).
     doc = _cert()
-    res = cert_mod.verify_certificate(doc, _trust(), min_evidence_tier="zk")
-    assert res.ok and res.evidence_tier_min == ""
+    for tier in ("attested", "zk"):
+        res = cert_mod.verify_certificate(doc, _trust(), min_evidence_tier=tier)
+        assert res.ok is False and res.reason == cert_mod.REASON_NO_EVIDENCE_FOR_TIER
+    assert cert_mod.verify_certificate(doc, _trust()).ok
 
 
 def test_embedded_ref_with_unknown_tier_is_evidence_ref_failure():

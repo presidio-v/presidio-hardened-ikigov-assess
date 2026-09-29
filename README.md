@@ -469,7 +469,8 @@ verify unchanged:
   `attested`) is honoured only under `@2` and round-trips into the certificate. It is a
   *declaration*: the verifier re-checks the ref's signature, never a fraud proof or a zk
   proof, and reports the weakest declared tier so `--min-evidence-tier` can demand a floor
-  (`evidence-tier-below-minimum`). The certificate's own `assurance_tier` is `attested`
+  (`evidence-tier-below-minimum`); a certificate with no embedded ref fails that floor too
+  (`no-evidence-for-tier-floor`). The certificate's own `assurance_tier` is `attested`
   and nothing else; a certificate declaring any other tier is rejected
   (`unsupported-assurance-tier`), which keeps a future zk gate certificate from being
   mistaken for one this verifier can check.

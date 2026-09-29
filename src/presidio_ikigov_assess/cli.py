@@ -748,7 +748,10 @@ def verify_certificate_cmd(
     min_evidence_tier: Optional[str] = typer.Option(
         None,
         "--min-evidence-tier",
-        help="Require every embedded ref to declare at least: attested | optimistic | zk.",
+        help=(
+            "Require embedded evidence-refs, each declaring at least: attested | optimistic"
+            " | zk. A certificate with no embedded ref fails this check."
+        ),
     ),
     lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
