@@ -392,6 +392,8 @@ halten (kein geteiltes Geheimnis mit dem Producer) und erfordert das `[crypto]`-
 gehen über die kanonische Nachricht `{content_hash, signer}`; Signierer-Schlüssel werden
 ausschließlich aus dem lokalen Trust Store aufgelöst (kein Netzwerk). Nachweisreferenzen tragen
 Hashes und opake Ledger-URIs, niemals personenbezogene Daten.
+Da diese Nachricht das Item nicht nennt, verifiziert ein signierter Ref, der für mehrere
+Items beansprucht wird, für keines davon: jedes Evidenzstück belegt genau ein Item.
 
 > **Einordnung in die Suite:** ikigov-assess ist das Governance-*Rückgrat*, das Nachweise von
 > benachbarten `presidio-hardened-*`-Controls konsumiert. Für die repoübergreifende Übersicht (wie

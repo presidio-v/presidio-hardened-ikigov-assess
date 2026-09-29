@@ -387,6 +387,8 @@ Ed25519 (RFC 8032) public-key verification lets a verifier hold **only public ke
 shared secret with the producer) and requires the `[crypto]` extra. Signatures are over the
 canonical `{content_hash, signer}` message; signer keys are resolved from the local trust
 store only (no network). Evidence references carry hashes and opaque ledger URIs, never PII.
+Because that message does not name the item, one signed ref claimed for several items
+verifies for none of them: each piece of evidence backs exactly one item.
 
 > **How this fits the wider suite:** ikigov-assess is the governance *spine* that consumes
 > evidence from peer `presidio-hardened-*` controls. For the cross-repo overview (how the

@@ -507,14 +507,18 @@ def verify_evidence(
 
     results = []
     all_ok = bool(refs)
+    reused = evidence_mod.reused_refs(refs)
     for ref in refs:
-        ok = evidence_mod.verify_ref(ref, store_keys)
+        # A ref claimed for several items verifies for none (see reused_refs).
+        is_reused = (ref.signer, ref.content_hash) in reused
+        ok = not is_reused and evidence_mod.verify_ref(ref, store_keys)
         all_ok = all_ok and ok
         results.append(
             {
                 "item_id": ref.item_id,
                 "signer": ref.signer,
                 "verified": ok,
+                "reused": is_reused,
                 "ledger_ref": ref.ledger_ref,
             }
         )

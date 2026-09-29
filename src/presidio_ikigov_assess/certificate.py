@@ -705,6 +705,8 @@ def verify_certificate(
     evidence_checked = 0
     evidence_ok = 0
     weakest_tier: Optional[str] = None
+    # A ref embedded under more than one item proves none of them (evidence.reused_refs).
+    ref_items: dict[tuple[str, str], str] = {}
     for entry in aff_set:
         if not isinstance(entry, Mapping):
             return VerificationResult(False, REASON_MALFORMED, **common)
@@ -714,7 +716,11 @@ def verify_certificate(
         evidence_checked += 1
         ref = _parse_embedded_ref(raw)
         # The embedded ref must parse and carry the item it affirms.
-        if ref is None or ref.item_id != entry.get("id") or not verify_ref(ref, trust):
+        reused = (
+            ref is not None
+            and ref_items.setdefault((ref.signer, ref.content_hash), ref.item_id) != ref.item_id
+        )
+        if ref is None or ref.item_id != entry.get("id") or reused or not verify_ref(ref, trust):
             return VerificationResult(
                 False,
                 REASON_EVIDENCE_REF_FAILURE,

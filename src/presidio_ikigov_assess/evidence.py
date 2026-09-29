@@ -287,6 +287,22 @@ class EvidenceResult:
     refs_by_item: dict[str, EvidenceRef]  # the strongest ref per item
     n_refs: int
     n_verified: int
+    #: Items whose only verifying ref is also claimed for another item (never verified).
+    reused: frozenset[str] = frozenset()
+
+
+def reused_refs(refs: list[EvidenceRef]) -> frozenset[tuple[str, str]]:
+    """``(signer, content_hash)`` pairs claimed for more than one ``item_id``.
+
+    The signed message covers only ``content_hash`` and ``signer``, not the item
+    (family wire format ``evidence-ref@1``/``@2``), so one genuine signed ref can be
+    copied under every item id and still verify. A consumer cannot tell which
+    item the producer meant, so a ref reused across items verifies for none.
+    """
+    items: dict[tuple[str, str], set[str]] = {}
+    for ref in refs:
+        items.setdefault((ref.signer, ref.content_hash), set()).add(ref.item_id)
+    return frozenset(key for key, ids in items.items() if len(ids) > 1)
 
 
 def classify(
@@ -305,8 +321,13 @@ def classify(
     provenance: dict[str, str] = {}
     refs_by_item: dict[str, EvidenceRef] = {}
     n_verified = 0
+    reused = reused_refs(refs)
+    reused_items: set[str] = set()
     for ref in refs:
-        verified = verify_ref(ref, trust)
+        is_reused = (ref.signer, ref.content_hash) in reused
+        if is_reused:
+            reused_items.add(ref.item_id)
+        verified = not is_reused and verify_ref(ref, trust)
         n_verified += int(verified)
         prov = EVIDENCE_VERIFIED if verified else EVIDENCE
         # Keep the strongest provenance (verified beats present) per item.
@@ -323,6 +344,7 @@ def classify(
         refs_by_item={i: r for i, r in refs_by_item.items() if i in affirmed},
         n_refs=len(refs),
         n_verified=n_verified,
+        reused=frozenset(i for i in reused_items if provenance.get(i) != EVIDENCE_VERIFIED),
     )
 
 
@@ -352,6 +374,8 @@ class Affirmations:
     require_evidence: bool
     n_refs: int = 0
     n_verified: int = 0
+    #: Items whose evidence-ref was also claimed for another item, so it never verified.
+    reused: frozenset[str] = frozenset()
 
 
 def resolve_affirmations(
@@ -391,6 +415,7 @@ def resolve_affirmations(
     coverage = evidence_coverage({i: p for i, p in provenance.items() if i in affirmed})
     coverage["require_evidence"] = require_evidence
     coverage["asserted_not_counted"] = len(asserted)
+    coverage["reused_refs_not_verified"] = len(result.reused)
     return Affirmations(
         affirmed=affirmed,
         skipped=frozenset(skipped),
@@ -400,6 +425,7 @@ def resolve_affirmations(
         require_evidence=require_evidence,
         n_refs=result.n_refs,
         n_verified=result.n_verified,
+        reused=result.reused,
     )
 
 
@@ -412,6 +438,7 @@ def evidence_block(aff: Affirmations) -> dict[str, object]:
         "evidence_backed": sorted(i for i in aff.affirmed if prov.get(i) == EVIDENCE),
         "self_attested": sorted(i for i in aff.affirmed if prov.get(i, SELF) == SELF),
         "asserted_not_counted": sorted(aff.asserted),
+        "reused_refs_not_verified": sorted(aff.reused),
     }
 
 

@@ -108,6 +108,12 @@ controls in force:
 - **Local trust** — signer keys are resolved from a local trust-store file (`--trust`); no
   network key resolution. Signatures are over the canonical `{content_hash, signer}`
   message (byte-matched to the producer and locked by golden test vectors).
+- **One ref, one item** — that message does not cover `item_id`, so a genuine signed ref
+  copied under other item ids would still verify. A ref whose `(signer, content_hash)` is
+  claimed for more than one item therefore verifies for **none** of them: it is reported
+  as `reused` and, under `--require-evidence`, counted as asserted. The same holds for
+  refs embedded in a gate certificate (`evidence-ref-failure`). Binding `item_id` into the
+  signed message needs a family-wide wire-format change and is tracked separately.
 - **Algorithm in the trust store (v0.14.0)** — a trust entry is either a bare HMAC-secret
   string (back-compat) or an object `{"alg": "hmac-sha256"|"ed25519",
   "key"|"public_key": "<hex>"}`. `verify_ref` dispatches accordingly. **Ed25519**
