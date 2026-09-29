@@ -10,6 +10,7 @@ from presidio_ikigov_assess.content.builtin import (
 )
 from presidio_ikigov_assess.content.coverage import Coverage, TargetCoverage, evaluate_coverage
 from presidio_ikigov_assess.content.loader import (
+    ALLOW_OVERRIDE_ENV,
     content_dir,
     load_external_packs,
     load_external_profile_packs,
@@ -40,6 +41,7 @@ __all__ = [
     "Coverage",
     "TargetCoverage",
     "evaluate_coverage",
+    "ALLOW_OVERRIDE_ENV",
     "load_packs",
     "load_external_packs",
     "content_dir",

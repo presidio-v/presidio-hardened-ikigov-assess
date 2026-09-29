@@ -128,6 +128,14 @@ def main_callback(
         help="Skip the on-startup CVE/dependency check (for offline/CI use).",
         is_eager=True,
     ),
+    allow_builtin_override: bool = typer.Option(
+        False,
+        "--allow-builtin-override",
+        help=(
+            "Let an external content or profile pack replace a built-in framework_id "
+            "(also IGA_ALLOW_BUILTIN_OVERRIDE=1). Refused by default."
+        ),
+    ),
 ) -> None:
     """IKI-Gov Assessment Tool (iga).
 
@@ -136,6 +144,9 @@ def main_callback(
     and would silently rot. ``iga --version`` reads ``__version__`` instead.
     """
     global _NO_DEP_CHECK
+    if allow_builtin_override:
+        # The loader reads the env var, so the flag reaches every command that loads packs.
+        os.environ[content_mod.ALLOW_OVERRIDE_ENV] = "1"
     # IGA_NO_DEP_CHECK=1 bypasses the dep check without --no-dep-check on argv.
     # Workshop mode automatically sets this env var (air-gapped customer sites:
     # pip-audit requires network access which would hang then time out, emitting

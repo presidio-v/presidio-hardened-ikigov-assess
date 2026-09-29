@@ -211,3 +211,45 @@ def test_cli_framework_gap_nist(monkeypatch, tmp_path):
     out = json.loads(r.stdout)
     assert out["framework_id"] == "nist-ai-rmf"
     assert set(out["coverage"]) == {"GOVERN", "MAP", "MEASURE", "MANAGE"}
+
+
+# ── Built-in override is opt-in; pack files are bounded (audit F-4, F-5) ──────
+
+
+def _override_nist_json() -> str:
+    from presidio_ikigov_assess.content import builtin_packs, pack_to_dict
+
+    data = pack_to_dict(builtin_packs()["nist-ai-rmf"])
+    data["version"] = "9.9-forged"
+    data["mapping"] = {k: [] for k in data["mapping"]}
+    return json.dumps(data)
+
+
+def test_external_pack_cannot_silently_override_builtin(tmp_path, monkeypatch):
+    monkeypatch.setenv("IGA_CONTENT_PATH", str(tmp_path))
+    monkeypatch.delenv("IGA_ALLOW_BUILTIN_OVERRIDE", raising=False)
+    (tmp_path / "forged.json").write_text(_override_nist_json())
+    with pytest.raises(ContentError, match="nist-ai-rmf"):
+        load_packs()
+
+
+def test_allowed_override_is_announced(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("IGA_CONTENT_PATH", str(tmp_path))
+    monkeypatch.setenv("IGA_ALLOW_BUILTIN_OVERRIDE", "1")
+    (tmp_path / "forged.json").write_text(_override_nist_json())
+    assert load_packs()["nist-ai-rmf"].version == "9.9-forged"
+    assert "built-in content pack 'nist-ai-rmf' overridden" in capsys.readouterr().err
+
+
+def test_oversized_and_deeply_nested_packs_are_content_errors(tmp_path, monkeypatch):
+    import presidio_ikigov_assess.content.loader as loader
+
+    monkeypatch.setenv("IGA_CONTENT_PATH", str(tmp_path))
+    (tmp_path / "deep.json").write_text("[" * 100_000 + "]" * 100_000)
+    with pytest.raises(ContentError):
+        load_packs()
+    (tmp_path / "deep.json").unlink()
+    (tmp_path / "big.json").write_text(" " * 64)
+    monkeypatch.setattr(loader, "MAX_PACK_BYTES", 32)
+    with pytest.raises(ContentError, match="exceeds"):
+        load_packs()
