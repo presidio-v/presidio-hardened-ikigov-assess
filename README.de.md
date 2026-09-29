@@ -392,6 +392,8 @@ halten (kein geteiltes Geheimnis mit dem Producer) und erfordert das `[crypto]`-
 gehen über die kanonische Nachricht `{content_hash, signer}`; Signierer-Schlüssel werden
 ausschließlich aus dem lokalen Trust Store aufgelöst (kein Netzwerk). Nachweisreferenzen tragen
 Hashes und opake Ledger-URIs, niemals personenbezogene Daten.
+Da diese Nachricht das Item nicht nennt, verifiziert ein signierter Ref, der für mehrere
+Items beansprucht wird, für keines davon: jedes Evidenzstück belegt genau ein Item.
 
 > **Einordnung in die Suite:** ikigov-assess ist das Governance-*Rückgrat*, das Nachweise von
 > benachbarten `presidio-hardened-*`-Controls konsumiert. Für die repoübergreifende Übersicht (wie
@@ -479,7 +481,8 @@ v0.26 verifizieren unverändert:
   Zertifikat übernommen. Sie ist eine *Deklaration*: der Prüfer prüft die Signatur des Refs
   erneut, nie einen Fraud-Proof oder einen ZK-Beweis, und meldet die schwächste deklarierte
   Stufe, damit `--min-evidence-tier` eine Untergrenze verlangen kann
-  (`evidence-tier-below-minimum`). Die eigene `assurance_tier` des Zertifikats ist `attested`
+  (`evidence-tier-below-minimum`); ein Zertifikat ohne eingebetteten Ref scheitert ebenfalls
+  an dieser Untergrenze (`no-evidence-for-tier-floor`). Die eigene `assurance_tier` des Zertifikats ist `attested`
   und nichts anderes; ein Zertifikat mit einer anderen Stufe wird abgewiesen
   (`unsupported-assurance-tier`), damit ein künftiges ZK-Gate-Zertifikat nie für eines
   gehalten wird, das dieser Prüfer prüfen kann.
@@ -791,6 +794,9 @@ iga workshop verify \
 ```
 
 Exit 0, wenn alle Artefakt-Hashes und die Signatur verifizieren; sonst Exit 1 (fail-closed).
+Eine UNSIGNED-Übergabe scheitert ebenfalls, denn übereinstimmende Hashes belegen nicht, wer
+die Dateien erzeugt hat; `--allow-unsigned` akzeptiert reine Hash-Konsistenz. Das
+JSON-Ergebnis enthält `authenticated: true` nur, wenn eine Signatur verifiziert wurde.
 
 #### Benannte Delegationskette (v0.23.0)
 

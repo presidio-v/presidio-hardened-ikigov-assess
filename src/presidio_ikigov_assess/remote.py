@@ -19,8 +19,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
+import math
 import os
+import time
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
@@ -31,6 +34,8 @@ from presidio_ikigov_assess.sanitize import ValidationError, validate_use_case
 _ORG_ROOT_ENV = "IGA_ORG_ROOT"
 _MAX_PER_ORG_ENV = "IGA_MCP_MAX_PER_ORG"
 _DEFAULT_MAX_PER_ORG = 1000
+_WINDOW_ENV = "IGA_MCP_WINDOW_SECONDS"
+_DEFAULT_WINDOW_SECONDS = 3600
 _HEX64 = 64
 
 
@@ -103,17 +108,46 @@ def _max_per_org() -> int:
         return _DEFAULT_MAX_PER_ORG
 
 
-class OrgRateLimiter:
-    """In-memory per-org request cap (generalises the per-session abuse guard)."""
+def _window_seconds() -> int:
+    try:
+        return max(1, int(os.environ.get(_WINDOW_ENV, _DEFAULT_WINDOW_SECONDS)))
+    except ValueError:
+        return _DEFAULT_WINDOW_SECONDS
 
-    def __init__(self, max_per_org: int | None = None) -> None:
+
+class OrgRateLimiter:
+    """Per-org fixed-window request limit: ``max_per_org`` requests per window.
+
+    Each org's count resets when its window (``IGA_MCP_WINDOW_SECONDS``, default
+    3600) has elapsed. This used to be a lifetime counter that never reset, so a
+    busy org stayed locked out until the server restarted. State is one entry per
+    org in the token store, so it cannot grow from request traffic.
+    """
+
+    def __init__(
+        self,
+        max_per_org: int | None = None,
+        window_seconds: int | None = None,
+        clock=time.monotonic,
+    ) -> None:
         self.max_per_org = max_per_org if max_per_org is not None else _max_per_org()
-        self._counts: dict[str, int] = {}
+        self.window_seconds = window_seconds if window_seconds is not None else _window_seconds()
+        self._clock = clock
+        self._windows: dict[str, tuple[float, int]] = {}
 
     def check(self, org: str) -> bool:
-        """Count one request for *org*; return False once its cap is exceeded."""
-        self._counts[org] = self._counts.get(org, 0) + 1
-        return self._counts[org] <= self.max_per_org
+        """Count one request for *org*; return False while its window's cap is exceeded."""
+        now = self._clock()
+        start, count = self._windows.get(org, (now, 0))
+        if now - start >= self.window_seconds:
+            start, count = now, 0
+        self._windows[org] = (start, count + 1)
+        return count + 1 <= self.max_per_org
+
+    def retry_after(self, org: str) -> int:
+        """Whole seconds until *org*'s current window resets (at least 1)."""
+        start, _ = self._windows.get(org, (self._clock(), 0))
+        return max(1, math.ceil(start + self.window_seconds - self._clock()))
 
     def enforce(self, org: str) -> None:
         if not self.check(org):
@@ -129,7 +163,9 @@ def _bearer_token(scope: Mapping) -> str:
     return ""
 
 
-async def _reject(send, status: int, message: str) -> None:
+async def _reject(
+    send, status: int, message: str, extra_headers: list[tuple[bytes, bytes]] | None = None
+) -> None:
     """Send a minimal JSON error response and end the request."""
     body = json.dumps({"error": message}).encode("utf-8")
     await send(
@@ -139,6 +175,7 @@ async def _reject(send, status: int, message: str) -> None:
             "headers": [
                 (b"content-type", b"application/json"),
                 (b"content-length", str(len(body)).encode("ascii")),
+                *(extra_headers or []),
             ],
         }
     )
@@ -225,7 +262,10 @@ class OrgAuthMiddleware:
             await _reject(send, 401, "unauthorized")
             return
         if not self.limiter.check(org):
-            await _reject(send, 429, f"rate limit exceeded for org '{org}'")
+            retry = str(self.limiter.retry_after(org)).encode("ascii")
+            await _reject(
+                send, 429, f"rate limit exceeded for org '{org}'", [(b"retry-after", retry)]
+            )
             return
         token = store.use_db_path(org_db_path(org, self.root))
         try:
@@ -240,19 +280,51 @@ def build_asgi_app(  # pragma: no cover - needs the [mcp] extra and full transpo
     """The org-scoped ASGI app: the FastMCP streamable-HTTP app behind the auth guard."""
     from presidio_ikigov_assess.mcp_server import build_server
 
-    return OrgAuthMiddleware(build_server().streamable_http_app(), token_store, root=root)
+    # The process-wide assess counter is shared by every org, so it is off here;
+    # OrgRateLimiter bounds each org separately (audit N-1).
+    return OrgAuthMiddleware(
+        build_server(session_guard=False).streamable_http_app(), token_store, root=root
+    )
+
+
+def is_loopback_host(host: str) -> bool:
+    """True for ``localhost`` and loopback IP literals (127.0.0.0/8, ::1)."""
+    if host.strip().lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host.strip().strip("[]")).is_loopback
+    except ValueError:
+        return False
+
+
+def check_bind(host: str, behind_tls_proxy: bool) -> None:
+    """Refuse a non-loopback bind unless TLS termination in front is acknowledged.
+
+    The server speaks plain HTTP and bearer tokens are its only credential, so a
+    reachable non-loopback bind without a TLS-terminating proxy sends them in clear.
+    """
+    if not is_loopback_host(host) and not behind_tls_proxy:
+        raise RemoteError(
+            f"refusing to bind {host!r}: the endpoint serves plain HTTP and bearer tokens "
+            "would cross the network in clear. Put a TLS-terminating reverse proxy in front "
+            "and pass --behind-tls-proxy, or bind 127.0.0.1."
+        )
 
 
 def serve(  # pragma: no cover - thin transport wiring, exercised behind the [mcp] extra
     host: str = "127.0.0.1",
     port: int = 8080,
     token_store_path: str | None = None,
+    behind_tls_proxy: bool = False,
 ) -> None:
     """Run the org-scoped MCP server over streamable HTTP (requires the ``[mcp]`` extra).
 
     Each request's bearer token is authenticated to an org, the per-org rate limit is
-    enforced, and the store is scoped to that org before the IKI-Gov tools run.
+    enforced, and the store is scoped to that org before the IKI-Gov tools run. The
+    server has no TLS of its own: binding beyond loopback requires
+    ``--behind-tls-proxy`` to acknowledge a TLS-terminating proxy in front.
     """
+    check_bind(host, behind_tls_proxy)
     path = token_store_path or os.environ.get("IGA_MCP_TOKENS")
     if not path:
         raise RemoteError("set --token-store / IGA_MCP_TOKENS to a {org: token_hash} JSON file")

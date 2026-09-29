@@ -21,6 +21,11 @@ env:
 jobs:
   publish:
     name: Publish server.json
+    # OIDC grants the whole io.github.presidio-v/* namespace, so a manual run must
+    # not publish a server.json from an unreviewed branch or a pushed tag: only
+    # main (two-person reviewed) may be dispatched. Calls from publish.yml keep the
+    # caller's event and are already gated by the `release` environment approval.
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read

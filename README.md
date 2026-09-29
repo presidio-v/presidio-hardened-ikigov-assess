@@ -387,6 +387,8 @@ Ed25519 (RFC 8032) public-key verification lets a verifier hold **only public ke
 shared secret with the producer) and requires the `[crypto]` extra. Signatures are over the
 canonical `{content_hash, signer}` message; signer keys are resolved from the local trust
 store only (no network). Evidence references carry hashes and opaque ledger URIs, never PII.
+Because that message does not name the item, one signed ref claimed for several items
+verifies for none of them: each piece of evidence backs exactly one item.
 
 > **How this fits the wider suite:** ikigov-assess is the governance *spine* that consumes
 > evidence from peer `presidio-hardened-*` controls. For the cross-repo overview (how the
@@ -469,7 +471,8 @@ verify unchanged:
   `attested`) is honoured only under `@2` and round-trips into the certificate. It is a
   *declaration*: the verifier re-checks the ref's signature, never a fraud proof or a zk
   proof, and reports the weakest declared tier so `--min-evidence-tier` can demand a floor
-  (`evidence-tier-below-minimum`). The certificate's own `assurance_tier` is `attested`
+  (`evidence-tier-below-minimum`); a certificate with no embedded ref fails that floor too
+  (`no-evidence-for-tier-floor`). The certificate's own `assurance_tier` is `attested`
   and nothing else; a certificate declaring any other tier is rejected
   (`unsupported-assurance-tier`), which keeps a future zk gate certificate from being
   mistaken for one this verifier can check.
@@ -788,7 +791,9 @@ iga workshop verify \
 ```
 
 Exit 0 if all artifact hashes and the signature verify; exit 1 otherwise
-(fail-closed).
+(fail-closed). An UNSIGNED leave-behind fails too, because matching hashes alone prove
+nothing about who produced the files; pass `--allow-unsigned` to accept hash consistency
+only. The JSON result carries `authenticated: true` only when a signature verified.
 
 #### Named delegation chain (v0.23.0)
 

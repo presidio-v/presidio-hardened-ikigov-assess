@@ -6,6 +6,57 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ---
 
+## [Unreleased]
+
+Remediation of an in-depth security audit (2026-09-30) across four surfaces: signing and
+verification, the network and MCP surface, parsers and files, and the supply chain. Each
+fix carries a regression test that reproduces the finding.
+
+### Security
+
+- **One signed evidence-ref counts for at most one item.** The evidence-ref signature
+  covers `{content_hash, signer}` but not `item_id`, so one genuine ref copied under all
+  25 item ids verified 25 times, and `--require-evidence` counted 25/25 items and opened
+  every gate from a single piece of evidence. A ref claimed for more than one item now
+  verifies for none of them, in every command, `verify-evidence`, the MCP tool and
+  refs embedded in gate certificates. Reuse is reported (`reused_refs_not_verified`).
+- **A gate certificate's `issuer` must be its signer** (`issuer-signer-mismatch`). Any key
+  in the verifier's trust store could previously mint a certificate naming another issuer.
+- **`--min-evidence-tier` fails closed on a certificate with no embedded ref**
+  (`no-evidence-for-tier-floor`) instead of passing vacuously.
+- **`workshop verify` fails on an UNSIGNED leave-behind** unless `--allow-unsigned`; its
+  JSON result reports `authenticated`.
+- **Bundle and leave-behind verification read only plain, regular members up to 8 MiB.**
+  Manifest names like `../x` or `/etc/x`, symlinked members and devices could read files
+  outside the bundle as a hash oracle or exhaust memory.
+- **No writer follows a planted symlink** (`export`, `workshop run/sign/attest`, `keygen`).
+- **File-derived strings are stripped of control characters and Rich markup** before
+  reaching the console, so a crafted manifest cannot erase its own `FAIL` line or print a
+  styled fake `OK`.
+- **An external pack may replace a built-in `framework_id` only when allowed**
+  (`--allow-builtin-override` / `IGA_ALLOW_BUILTIN_OVERRIDE=1`), and an allowed override is
+  announced on stderr. Pack files are capped at 1 MB and deep nesting is a `ContentError`.
+- **Allow-list patterns anchor with `\Z`**, so a trailing newline no longer passes.
+- **Remote endpoint:** the process-wide assessment counter, which one tenant could exhaust
+  for every org, no longer applies there; the per-org limit is a real window
+  (`IGA_MCP_WINDOW_SECONDS`, `Retry-After` on 429) instead of a lifetime counter; and
+  `serve()` refuses a non-loopback bind without `--behind-tls-proxy`.
+
+### Build
+
+- **The release build uses a hash-pinned backend** (`hatchling` and its closure in
+  `release-build.txt`, `python -m build --no-isolation`).
+- **`publish.yml` attests `dist/` before anything installs unpinned packages;** the SBOM
+  moves to its own job and describes the wheel's runtime closure, not the build tooling.
+- **A manual MCP Registry publish runs only from `main`.**
+- Every checkout sets `persist-credentials: false`.
+
+### Documentation
+
+- `SECURITY.md` documents the one-ref-one-item rule, the remote transport model, the
+  dependency-check bypasses and the rate guard's scope. The CII `build_repeatable` answer
+  no longer claims `uv.lock` pins the published artefact.
+
 ## [0.26.0] — 2026-09-29
 
 Two arcs. **S-1** closes a fail-open in `--require-evidence` (Security, below).

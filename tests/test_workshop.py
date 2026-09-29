@@ -349,7 +349,7 @@ def test_workshop_verify_tampered_artifact_fails(tmp_path, _isolated_db, _no_dep
 
 
 def test_workshop_verify_unsigned_artifact(tmp_path, _isolated_db, _no_dep_check):
-    """Verify of an unsigned artifact: artifacts ok but signature=None, ok=True if artifacts ok."""
+    """Unsigned leave-behind: hashes match, but verify fails unless --allow-unsigned (audit C-4)."""
     runner.invoke(
         app,
         [
@@ -382,11 +382,21 @@ def test_workshop_verify_unsigned_artifact(tmp_path, _isolated_db, _no_dep_check
             "--quiet",
         ],
     )
-    # Unsigned artifacts: artifacts hash correctly, signature is None (absent), ok=True
-    assert verify_result.exit_code == 0
+    # Unsigned: artifacts hash correctly, but nothing authenticates them, so it fails.
+    assert verify_result.exit_code == 1
     verify_data = json.loads(verify_result.output)
     assert all(verify_data["artifacts"].values())
     assert verify_data["signature"] is None
+    assert verify_data["authenticated"] is False and verify_data["ok"] is False
+
+    allowed = runner.invoke(
+        app,
+        ["--no-dep-check", "workshop", "verify", "--dir", str(uc_dir), "--pubkey", pubkey_hex]
+        + ["--allow-unsigned", "--quiet"],
+    )
+    assert allowed.exit_code == 0
+    allowed_data = json.loads(allowed.output)
+    assert allowed_data["ok"] is True and allowed_data["authenticated"] is False
 
 
 # ── answers.json application ──────────────────────────────────────────────────

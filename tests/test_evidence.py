@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
@@ -42,6 +43,18 @@ def _ref(item_id="D1", *, content_hash=GOLDEN_CH, signer=GOLDEN_SIGNER, signatur
         signer=signer,
         signature=signature,
         claimed_at="2026-06-08T00:00:00+00:00",
+    )
+
+
+def _other_ref(item_id: str):
+    """A second, distinct piece of evidence: its own content hash, same trusted signer.
+
+    One signed ref reused under several item ids verifies for none of them (audit
+    C-1), so multi-item fixtures need one content hash per item, as a producer emits.
+    """
+    ch = hashlib.sha256(item_id.encode()).hexdigest()[:24]
+    return _ref(
+        item_id, content_hash=ch, signature=expected_signature(ch, GOLDEN_SIGNER, GOLDEN_KEY)
     )
 
 
@@ -111,7 +124,7 @@ def test_load_trust_store_deeply_nested_json_rejected():
 
 
 def test_classify_present_vs_verified():
-    refs = [_ref("D1"), _ref("O5")]
+    refs = [_ref("D1"), _other_ref("O5")]
     # No trust -> present but unverified.
     res = classify(refs, None)
     assert res.provenance == {"D1": EVIDENCE, "O5": EVIDENCE}
@@ -159,7 +172,7 @@ def _write(tmp_path, refs, trust=None):
 
 
 def test_cli_assess_with_evidence_affirms_and_reports_provenance(tmp_path):
-    ev, tr = _write(tmp_path, [_ref("D1"), _ref("O5")], {GOLDEN_SIGNER: GOLDEN_KEY})
+    ev, tr = _write(tmp_path, [_ref("D1"), _other_ref("O5")], {GOLDEN_SIGNER: GOLDEN_KEY})
     r = runner.invoke(
         app,
         ["--no-dep-check", "assess", "--affirm", "S1", "--evidence", ev, "--trust", tr, "--quiet"],

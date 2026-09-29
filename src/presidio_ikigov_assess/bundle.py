@@ -13,9 +13,11 @@ the same ``framework_content_hash`` — only the manifest timestamp differs betw
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import hmac
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -25,6 +27,12 @@ from presidio_ikigov_assess.euaiact import EU_AI_ACT_ARTICLE_GATES
 from presidio_ikigov_assess.sanitize import escape_for_report
 
 MANIFEST_SCHEMA = "presidio-hardened/evidence-pack@1"
+
+
+#: Upper bound on one member read during verification. Bundles and leave-behinds
+#: hold small text reports; a manifest naming anything larger is refused rather
+#: than read into memory.
+MAX_MEMBER_BYTES = 8 * 1024 * 1024
 
 
 class BundleError(RuntimeError):
@@ -125,21 +133,72 @@ def write_bundle(
     else:
         out_path.mkdir(parents=True, exist_ok=True)
         for name, content in files.items():
-            (out_path / name).write_text(content, encoding="utf-8")
+            write_text_nofollow(out_path / name, content)
     return out_path
+
+
+def write_text_nofollow(path: Path, text: str) -> None:
+    """Write *text* to *path* without following a symlink planted at *path*.
+
+    Output directories can be shared or handed over, so a pre-existing symlink
+    named like an artifact would otherwise redirect the write onto its target.
+    Raises :class:`OSError` (``ELOOP``) instead; callers already report OSError.
+    """
+    if path.is_symlink():
+        raise OSError(errno.ELOOP, "refusing to write through a symlink", str(path))
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(path, flags, 0o644)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
+def member_path(root: Path, name: object) -> Path:
+    """Resolve a manifest member *name* to a regular file directly inside *root*.
+
+    Manifest names are attacker-controlled when verifying a handed-over bundle:
+    only a plain file name is accepted (no separators, ``..``, absolute paths or
+    NUL), and the member must be a regular file, not a symlink or device, so
+    verification can neither read outside the bundle nor act as a hash oracle
+    for files the caller never meant to hand over.
+    """
+    if (
+        not isinstance(name, str)
+        or name in ("", ".", "..")
+        or "/" in name
+        or "\\" in name
+        or "\0" in name
+    ):
+        raise BundleError(f"invalid bundle member name: {name!r:.80}")
+    path = root / name
+    if path.is_symlink():
+        raise BundleError(f"bundle member is a symlink: {name}")
+    if not path.exists():
+        raise BundleError(f"missing bundle member: {name}")
+    if not path.is_file():
+        raise BundleError(f"bundle member is not a regular file: {name}")
+    return path
+
+
+def read_member_bytes(path: Path) -> bytes:
+    """Read *path*, refusing anything over :data:`MAX_MEMBER_BYTES`."""
+    with path.open("rb") as fh:
+        data = fh.read(MAX_MEMBER_BYTES + 1)
+    if len(data) > MAX_MEMBER_BYTES:
+        raise BundleError(f"bundle member exceeds {MAX_MEMBER_BYTES} bytes: {path.name}")
+    return data
 
 
 def _read_member(bundle: Path, name: str) -> str:
     if bundle.is_dir():
-        path = bundle / name
-        if not path.exists():
-            raise BundleError(f"missing bundle member: {name}")
-        return path.read_text(encoding="utf-8")
+        return read_member_bytes(member_path(bundle, name)).decode("utf-8")
     import zipfile
 
     try:
         with zipfile.ZipFile(bundle) as zf:
-            return zf.read(name).decode("utf-8")
+            info = zf.getinfo(name)
+            if info.file_size > MAX_MEMBER_BYTES:
+                raise BundleError(f"bundle member exceeds {MAX_MEMBER_BYTES} bytes: {name}")
+            return zf.read(info).decode("utf-8")
     except (KeyError, zipfile.BadZipFile) as exc:
         raise BundleError(f"cannot read {name} from zip: {exc}") from exc
 

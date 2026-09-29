@@ -17,6 +17,7 @@ read at all. These tests pin the corrected contract:
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -43,15 +44,20 @@ SIGNER = "presidio-hardened-ai"
 KEY = "shared-key"
 
 
+def _ch(item_id: str) -> str:
+    """One content hash per item: a ref reused across items verifies for none (audit C-1)."""
+    return hashlib.sha256(f"{CH}:{item_id}".encode()).hexdigest()[:24]
+
+
 def _ref(item_id: str, *, signer: str = SIGNER, signature: str | None = None) -> dict:
     return {
         "item_id": item_id,
         "source": "presidio-hardened-ai",
         "source_version": "0.30.0",
         "ledger_ref": "pai-ledger:seq/1",
-        "content_hash": CH,
+        "content_hash": _ch(item_id),
         "signer": signer,
-        "signature": signature or expected_signature(CH, signer, KEY),
+        "signature": signature or expected_signature(_ch(item_id), signer, KEY),
         "claimed_at": "2026-06-12T00:00:00+00:00",
     }
 

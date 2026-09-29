@@ -690,7 +690,9 @@ the local SQLite store (v0.6.0).
 
 ### Security
 Authn/z per request; **per-org rate limiting** (generalises the per-session abuse
-guard); TLS required; structured audit logging (no use-case content). Deployable as
+guard); TLS required (met by a TLS-terminating proxy in front: the server speaks plain
+HTTP and, since the 2026-09 audit, refuses a non-loopback bind without `--behind-tls-proxy`);
+structured audit logging (no use-case content). Deployable as
 a container; deferred network deps kept in an optional extra.
 
 ### Dependency

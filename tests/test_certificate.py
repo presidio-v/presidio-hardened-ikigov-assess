@@ -244,6 +244,19 @@ def test_tamper_issuer_unknown():
     assert res.ok is False and res.reason == cert_mod.REASON_UNKNOWN_ISSUER
 
 
+def test_issuer_must_be_the_signer():
+    # A second key in the same trust store signs a certificate that names the
+    # first party as issuer: the signature verifies, the identity claim must not.
+    doc = _build_open_cert()
+    doc.pop("signature")
+    cert_mod.sign(doc, alg="hmac-sha256", key_hex_or_secret="vendor-secret", signer="small-vendor")
+    trust = {**_trust(), "small-vendor": {"alg": "hmac-sha256", "key": "vendor-secret"}}
+    assert doc["issuer"] == ISSUER
+    res = cert_mod.verify_certificate(doc, trust)
+    assert res.ok is False and res.reason == cert_mod.REASON_ISSUER_SIGNER_MISMATCH
+    assert res.signer == "small-vendor"
+
+
 def test_unknown_schema():
     doc = _build_open_cert()
     doc["schema"] = "presidio-hardened/not-a-certificate@9"

@@ -541,6 +541,7 @@ def _build_external_profile_pack_json() -> str:
 
 def test_external_profile_pack_loaded_and_overrides_builtin(tmp_path, monkeypatch):
     monkeypatch.setenv("IGA_CONTENT_PATH", str(tmp_path))
+    monkeypatch.setenv("IGA_ALLOW_BUILTIN_OVERRIDE", "1")
     (tmp_path / "custom-profile.json").write_text(_build_external_profile_pack_json())
     packs = load_profile_packs()
     pack = packs.get("eai-classification-default")
@@ -568,6 +569,8 @@ def test_external_malformed_profile_pack_raises(tmp_path, monkeypatch):
 def test_loader_coexistence_both_pack_kinds(tmp_path, monkeypatch):
     """ContentPacks and ProfilePacks can coexist in the same IGA_CONTENT_PATH directory."""
     monkeypatch.setenv("IGA_CONTENT_PATH", str(tmp_path))
+    # The profile fixture reuses the built-in framework_id, which is opt-in.
+    monkeypatch.setenv("IGA_ALLOW_BUILTIN_OVERRIDE", "1")
 
     # Write a ContentPack
     content_pack = {

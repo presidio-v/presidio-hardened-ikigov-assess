@@ -752,6 +752,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "predicate content hash mismatch",
     },
     # ── Certificate lineage / validity / grounding / tiers (v0.26.0) ──────────
+    "cert_verify_reason_issuer-signer-mismatch": {
+        "de": "der signierte Aussteller (issuer) ist nicht der Schlüssel, der signiert hat",
+        "en": "the signed issuer is not the key that signed the certificate",
+    },
     "cert_verify_reason_expired": {
         "de": "Zertifikat abgelaufen (not_after überschritten)",
         "en": "certificate expired (past not_after)",
@@ -771,6 +775,10 @@ STRINGS: dict[str, dict[str, str]] = {
     "cert_verify_reason_evidence-tier-below-minimum": {
         "de": "eingebetteter Evidence-Ref deklariert eine Stufe unter dem geforderten Minimum",
         "en": "an embedded evidence-ref declares a tier below the required minimum",
+    },
+    "cert_verify_reason_no-evidence-for-tier-floor": {
+        "de": "--min-evidence-tier gefordert, aber das Zertifikat bettet keinen Evidence-Ref ein",
+        "en": "--min-evidence-tier was required but the certificate embeds no evidence-ref",
     },
     "cert_verify_grounding": {
         "de": "Fundierung: {grounding} · schwächste deklarierte Evidence-Stufe: {tier}",

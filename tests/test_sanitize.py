@@ -252,3 +252,32 @@ def test_escape_plain_string_unchanged():
 def test_escape_converts_non_string():
     result = escape_for_report(42)
     assert result == "42"
+
+
+@pytest.mark.parametrize("value", ["fraud\n", "fraud\r\n", "fraud\nG0 OPEN"])
+def test_use_case_rejects_trailing_or_embedded_newline(value):
+    # `$` also matches before a final newline; the allow-list must anchor with \Z.
+    with pytest.raises(ValidationError):
+        validate_use_case(value)
+
+
+def test_date_normalises_rather_than_passing_newline_through():
+    # validate_date strips first, so a trailing newline never survives validation.
+    assert validate_date("2026-09-30\n") == "2026-09-30"
+    with pytest.raises(ValidationError):
+        validate_date("2026-09-30\nx")
+
+
+def test_terminal_safe_neutralises_escapes_and_markup():
+    from presidio_ikigov_assess.sanitize import terminal_safe
+
+    hostile = "\x1b]0;PWNED\x07\x1b[2K[bold green]HASH OK[/bold green]\x9b"
+    out = terminal_safe(hostile)
+    assert "\x1b" not in out and "\x07" not in out and "\x9b" not in out
+    # Markup is escaped, so Rich prints the brackets instead of styling text.
+    from rich.console import Console
+
+    console = Console(record=True, force_terminal=True, color_system="truecolor", width=200)
+    console.print(out)
+    assert "[bold green]HASH OK[/bold green]" in console.export_text()
+    assert "\x1b]0;" not in console.export_text(styles=True)

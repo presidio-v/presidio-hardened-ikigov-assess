@@ -69,12 +69,18 @@ within 30 days of a confirmed vulnerability.
   the tool runs it on each invocation against the installed environment. The check is
   advisory: a *clean*, *unavailable* (pip-audit not installed), and *inconclusive*
   (timeout/error) result are reported distinctly so a non-completing scan is never
-  presented as "no vulnerabilities". Suppress with `--no-dep-check` in offline or CI contexts.
+  presented as "no vulnerabilities". Suppress with `--no-dep-check` or
+  `IGA_NO_DEP_CHECK=1` in offline or CI contexts. Every `iga workshop` command skips it
+  automatically, because workshops run on customer sites that are often offline.
 - **Rate limiting** — the tool enforces a configurable maximum number of assessments per
   session (`IGA_MAX_ASSESSMENTS` env var, default 100). The CLI uses a *persistent*
   per-session guard (`~/.iga/session.json`) so the limit holds across one-shot invocations;
   a session resets after an idle gap of `IGA_SESSION_IDLE_SECONDS` (default 3600s). The
-  long-lived MCP server uses an in-process counter for the lifetime of the server.
+  long-lived stdio MCP server uses an in-process counter for the lifetime of the server.
+  The remote HTTP endpoint does not use that counter: it is shared by every org, so one
+  tenant could exhaust it for all. The per-org limit below bounds each org instead.
+  The guard counts `iga assess` runs and the MCP assessment tools; read-only views
+  (`gate`, `report`, `export`, the gap commands) are not counted.
   Malformed values for these env vars fall back to the documented defaults with a warning
   rather than aborting the tool.
 - **Restricted file permissions** — `~/.iga/` is created with mode `700` and the security
@@ -104,6 +110,12 @@ controls in force:
 - **Local trust** — signer keys are resolved from a local trust-store file (`--trust`); no
   network key resolution. Signatures are over the canonical `{content_hash, signer}`
   message (byte-matched to the producer and locked by golden test vectors).
+- **One ref, one item** — that message does not cover `item_id`, so a genuine signed ref
+  copied under other item ids would still verify. A ref whose `(signer, content_hash)` is
+  claimed for more than one item therefore verifies for **none** of them: it is reported
+  as `reused` and, under `--require-evidence`, counted as asserted. The same holds for
+  refs embedded in a gate certificate (`evidence-ref-failure`). Binding `item_id` into the
+  signed message needs a family-wide wire-format change and is tracked separately.
 - **Algorithm in the trust store (v0.14.0)** — a trust entry is either a bare HMAC-secret
   string (back-compat) or an object `{"alg": "hmac-sha256"|"ed25519",
   "key"|"public_key": "<hex>"}`. `verify_ref` dispatches accordingly. **Ed25519**
@@ -161,8 +173,10 @@ app (`MCPServer.streamable_http_app()`, mcp 2.x) in a pure-ASGI guard
   resolves to an org via the token store (`{org: sha256(token)}`); `resolve_org` is
   timing-safe (`hmac.compare_digest`) and fail-closed. Missing/unknown tokens get **401**
   before any MCP processing. Tokens are stored only as sha256 hashes.
-- **Per-org rate limiting — enforced.** A configurable per-org request cap
-  (`IGA_MCP_MAX_PER_ORG`) returns **429** once exceeded; counts are per org.
+- **Per-org rate limiting — enforced.** Each org may make `IGA_MCP_MAX_PER_ORG` requests
+  (default 1000) per window of `IGA_MCP_WINDOW_SECONDS` (default 3600); beyond that it
+  gets **429** with `Retry-After`, and its count resets when the window elapses. Counts are
+  per org, so one tenant cannot exhaust another's budget.
 - **Per-org store scoping** — the org's database path is bound on a per-task **context var**
   (concurrency-safe; it replaced the earlier process-global `IGA_DB_PATH` mutation). The org
   id is allow-list validated, so a tenant id cannot traverse out of its store directory.
@@ -181,8 +195,14 @@ execution to a separate **session** task, so the per-request context-var binding
 reach the MCP tools. This is safe today because **all registered MCP tools are stateless**
 (none read or write the store), so no per-tenant persisted data is exposed over the endpoint.
 **Before exposing any store-backed tool remotely**, isolation must be re-established by binding
-the org to the MCP *session* (not the request). TLS and bind address are deployment
-configuration.
+the org to the MCP *session* (not the request).
+
+**Transport.** The server speaks plain HTTP and bearer tokens are its only credential, so it
+must sit behind a TLS-terminating reverse proxy when reachable beyond the host. `serve()`
+binds `127.0.0.1` by default and refuses any non-loopback `--host` unless `--behind-tls-proxy`
+acknowledges that proxy. The SDK's DNS-rebinding guard accepts only loopback `Host` headers,
+so the proxy must forward to `127.0.0.1` with a loopback `Host`; configurable allowed hosts
+and native TLS are deferred until the endpoint is deployed.
 
 ## Software Development Lifecycle
 

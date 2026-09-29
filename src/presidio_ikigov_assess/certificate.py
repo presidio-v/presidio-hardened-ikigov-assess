@@ -117,7 +117,7 @@ GROUNDINGS = (GROUNDING_SELF, GROUNDING_EVIDENCE_VERIFIED)
 GROUNDING_RANK = {g: rank for rank, g in enumerate(GROUNDINGS)}
 
 #: Family hex rule for content hashes (ADR-0002 P2, mirrors evidence.py).
-_HEX_RE = re.compile(r"^[0-9a-f]{8,128}$")
+_HEX_RE = re.compile(r"^[0-9a-f]{8,128}\Z")
 #: Strict RFC 3339 UTC form this module emits and accepts.
 _TIMESTAMP_FMT = "%Y-%m-%dT%H:%M:%SZ"
 _MAX_PARENTS = 64
@@ -443,6 +443,7 @@ REASON_UNKNOWN_SCHEMA = "unknown-schema"
 REASON_MALFORMED = "malformed-certificate"
 REASON_BAD_SIGNATURE = "bad-signature"
 REASON_UNKNOWN_ISSUER = "unknown-issuer"
+REASON_ISSUER_SIGNER_MISMATCH = "issuer-signer-mismatch"
 REASON_EVIDENCE_REF_FAILURE = "evidence-ref-failure"
 REASON_DECISION_MISMATCH = "decision-mismatch"
 REASON_PREDICATE_MISMATCH = "predicate-content-mismatch"
@@ -451,6 +452,7 @@ REASON_UNSUPPORTED_TIER = "unsupported-assurance-tier"
 REASON_GROUNDING_MISMATCH = "grounding-mismatch"
 REASON_GROUNDING_BELOW_MINIMUM = "grounding-below-minimum"
 REASON_EVIDENCE_TIER_BELOW_MINIMUM = "evidence-tier-below-minimum"
+REASON_NO_EVIDENCE_FOR_TIER = "no-evidence-for-tier-floor"
 
 
 @dataclass(frozen=True)
@@ -620,7 +622,9 @@ def verify_certificate(
        ``unknown-schema``.
     2. **issuer signature** — the detached signature over
        :func:`signing_bytes` must verify against ``trust`` (``bad-signature`` /
-       ``unknown-issuer``).
+       ``unknown-issuer``), and the signed ``issuer`` must name that signer
+       (``issuer-signer-mismatch``): any key in the trust store could otherwise
+       mint a certificate claiming to be issued by another party.
     3. **assurance tier** — a certificate declaring any tier this verifier
        cannot check ⇒ ``unsupported-assurance-tier``.
     4. **predicate identity** — ``framework_content_hash`` and
@@ -656,6 +660,8 @@ def verify_certificate(
     sig_ok, sig_reason, signer = _verify_issuer_signature(document, trust)
     if not sig_ok:
         return VerificationResult(False, sig_reason, signer=signer)
+    if document.get("issuer") != signer:
+        return VerificationResult(False, REASON_ISSUER_SIGNER_MISMATCH, signer=signer)
 
     # (3) the certificate's own tier: only the attested form is verifiable here.
     tier = document.get("assurance_tier", CERTIFICATE_ASSURANCE_TIER)
@@ -699,6 +705,8 @@ def verify_certificate(
     evidence_checked = 0
     evidence_ok = 0
     weakest_tier: Optional[str] = None
+    # A ref embedded under more than one item proves none of them (evidence.reused_refs).
+    ref_items: dict[tuple[str, str], str] = {}
     for entry in aff_set:
         if not isinstance(entry, Mapping):
             return VerificationResult(False, REASON_MALFORMED, **common)
@@ -708,7 +716,11 @@ def verify_certificate(
         evidence_checked += 1
         ref = _parse_embedded_ref(raw)
         # The embedded ref must parse and carry the item it affirms.
-        if ref is None or ref.item_id != entry.get("id") or not verify_ref(ref, trust):
+        reused = (
+            ref is not None
+            and ref_items.setdefault((ref.signer, ref.content_hash), ref.item_id) != ref.item_id
+        )
+        if ref is None or ref.item_id != entry.get("id") or reused or not verify_ref(ref, trust):
             return VerificationResult(
                 False,
                 REASON_EVIDENCE_REF_FAILURE,
@@ -724,12 +736,13 @@ def verify_certificate(
         evidence_ok=evidence_ok,
         evidence_tier_min=weakest_tier or "",
     )
-    if (
-        min_evidence_tier is not None
-        and weakest_tier is not None
-        and TIER_RANK[weakest_tier] < TIER_RANK[min_evidence_tier]
-    ):
-        return VerificationResult(False, REASON_EVIDENCE_TIER_BELOW_MINIMUM, **common)
+    if min_evidence_tier is not None:
+        # A floor with nothing to measure fails closed: a certificate without
+        # embedded refs must not pass a caller who demanded evidence of a tier.
+        if weakest_tier is None:
+            return VerificationResult(False, REASON_NO_EVIDENCE_FOR_TIER, **common)
+        if TIER_RANK[weakest_tier] < TIER_RANK[min_evidence_tier]:
+            return VerificationResult(False, REASON_EVIDENCE_TIER_BELOW_MINIMUM, **common)
 
     # (7) recompute the decision from the certificate alone
     claimed = document.get("decision")
@@ -805,6 +818,7 @@ __all__ = [
     "REASON_MALFORMED",
     "REASON_BAD_SIGNATURE",
     "REASON_UNKNOWN_ISSUER",
+    "REASON_ISSUER_SIGNER_MISMATCH",
     "REASON_EVIDENCE_REF_FAILURE",
     "REASON_DECISION_MISMATCH",
     "REASON_PREDICATE_MISMATCH",
@@ -813,6 +827,7 @@ __all__ = [
     "REASON_GROUNDING_MISMATCH",
     "REASON_GROUNDING_BELOW_MINIMUM",
     "REASON_EVIDENCE_TIER_BELOW_MINIMUM",
+    "REASON_NO_EVIDENCE_FOR_TIER",
     "parse_timestamp",
     "now_iso",
     "add_days",

@@ -18,6 +18,7 @@ Coverage:
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from datetime import datetime, timezone
 
@@ -47,15 +48,20 @@ def _gate_ids(gate: str) -> frozenset[str]:
     return frozenset(item.id for item in ITEMS_BY_GATE[gate])
 
 
+def _ch(item_id: str) -> str:
+    return hashlib.sha256(f"{GOLDEN_CH}:{item_id}".encode()).hexdigest()[:24]
+
+
 def _ref(item_id: str, tier: str = "attested") -> EvidenceRef:
     return EvidenceRef(
         item_id=item_id,
         source="presidio-hardened-ai",
         source_version="0.30.0",
         ledger_ref="pai-ledger:seq/1",
-        content_hash=GOLDEN_CH,
+        # One content hash per item: a ref embedded under several items proves none.
+        content_hash=_ch(item_id),
         signer=GOLDEN_SIGNER,
-        signature=GOLDEN_SIG,
+        signature=expected_signature(_ch(item_id), GOLDEN_SIGNER, GOLDEN_KEY),
         claimed_at="2026-06-12T00:00:00+00:00",
         assurance_tier=tier,
     )
@@ -316,10 +322,13 @@ def test_min_evidence_tier_floor():
         cert_mod.verify_certificate(doc, _trust(evidence=True), min_evidence_tier="platinum")
 
 
-def test_min_evidence_tier_is_vacuous_without_embedded_refs():
+def test_min_evidence_tier_fails_closed_without_embedded_refs():
+    # A floor with nothing to measure must not pass (audit C-3; was vacuously ok).
     doc = _cert()
-    res = cert_mod.verify_certificate(doc, _trust(), min_evidence_tier="zk")
-    assert res.ok and res.evidence_tier_min == ""
+    for tier in ("attested", "zk"):
+        res = cert_mod.verify_certificate(doc, _trust(), min_evidence_tier=tier)
+        assert res.ok is False and res.reason == cert_mod.REASON_NO_EVIDENCE_FOR_TIER
+    assert cert_mod.verify_certificate(doc, _trust()).ok
 
 
 def test_embedded_ref_with_unknown_tier_is_evidence_ref_failure():

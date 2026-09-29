@@ -39,7 +39,7 @@ _VALID_TYPES = frozenset(f"T{i}" for i in range(1, 7))
 _VALID_LEVELS = frozenset(f"L{i}" for i in range(1, 7))
 
 # Use-case id: same rules as validate_use_case in sanitize.py
-_USE_CASE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
+_USE_CASE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{1,128}\Z")
 
 
 class ClassificationError(ValueError):

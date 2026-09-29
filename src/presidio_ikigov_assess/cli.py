@@ -53,6 +53,7 @@ from presidio_ikigov_assess.renderer import (
 )
 from presidio_ikigov_assess.sanitize import (
     ValidationError,
+    terminal_safe,
     validate_date,
     validate_format,
     validate_gate,
@@ -127,6 +128,14 @@ def main_callback(
         help="Skip the on-startup CVE/dependency check (for offline/CI use).",
         is_eager=True,
     ),
+    allow_builtin_override: bool = typer.Option(
+        False,
+        "--allow-builtin-override",
+        help=(
+            "Let an external content or profile pack replace a built-in framework_id "
+            "(also IGA_ALLOW_BUILTIN_OVERRIDE=1). Refused by default."
+        ),
+    ),
 ) -> None:
     """IKI-Gov Assessment Tool (iga).
 
@@ -135,6 +144,9 @@ def main_callback(
     and would silently rot. ``iga --version`` reads ``__version__`` instead.
     """
     global _NO_DEP_CHECK
+    if allow_builtin_override:
+        # The loader reads the env var, so the flag reaches every command that loads packs.
+        os.environ[content_mod.ALLOW_OVERRIDE_ENV] = "1"
     # IGA_NO_DEP_CHECK=1 bypasses the dep check without --no-dep-check on argv.
     # Workshop mode automatically sets this env var (air-gapped customer sites:
     # pip-audit requires network access which would hang then time out, emitting
@@ -495,14 +507,18 @@ def verify_evidence(
 
     results = []
     all_ok = bool(refs)
+    reused = evidence_mod.reused_refs(refs)
     for ref in refs:
-        ok = evidence_mod.verify_ref(ref, store_keys)
+        # A ref claimed for several items verifies for none (see reused_refs).
+        is_reused = (ref.signer, ref.content_hash) in reused
+        ok = not is_reused and evidence_mod.verify_ref(ref, store_keys)
         all_ok = all_ok and ok
         results.append(
             {
                 "item_id": ref.item_id,
                 "signer": ref.signer,
                 "verified": ok,
+                "reused": is_reused,
                 "ledger_ref": ref.ledger_ref,
             }
         )
@@ -518,7 +534,10 @@ def verify_evidence(
                 t("verify_evidence_ok", lang) if r["verified"] else t("verify_evidence_fail", lang)
             )
             colour = "green" if r["verified"] else "red"
-            console.print(f"[{colour}]{mark}[/{colour}] {r['item_id']}  signer={r['signer']}")
+            console.print(
+                f"[{colour}]{mark}[/{colour}] {terminal_safe(r['item_id'])}"
+                f"  signer={terminal_safe(r['signer'])}"
+            )
         if not refs:
             err_console.print(f"[yellow]{t('verify_evidence_no_refs', lang)}[/yellow]")
     if not all_ok:
@@ -733,7 +752,10 @@ def verify_certificate_cmd(
     min_evidence_tier: Optional[str] = typer.Option(
         None,
         "--min-evidence-tier",
-        help="Require every embedded ref to declare at least: attested | optimistic | zk.",
+        help=(
+            "Require embedded evidence-refs, each declaring at least: attested | optimistic"
+            " | zk. A certificate with no embedded ref fails this check."
+        ),
     ),
     lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
@@ -818,7 +840,7 @@ def verify_certificate_cmd(
         )
     elif result.ok:
         console.print(
-            f"[green]{t('cert_verify_ok', lang, signer=result.signer, decision=result.decision_recomputed)}[/green]"
+            f"[green]{t('cert_verify_ok', lang, signer=terminal_safe(result.signer), decision=result.decision_recomputed)}[/green]"
         )
         console.print(
             f"[dim]{t('cert_verify_grounding', lang, grounding=result.grounding, tier=result.evidence_tier_min or '-')}[/dim]"
@@ -1174,7 +1196,7 @@ def verify_bundle(
         for name, ok in report["artifacts"].items():
             colour = "green" if ok else "red"
             mark = t("verify_evidence_ok", "en") if ok else t("verify_evidence_fail", "en")
-            console.print(f"[{colour}]{mark}[/{colour}] {name}")
+            console.print(f"[{colour}]{mark}[/{colour}] {terminal_safe(name)}")
         if report["signature"] is not None:
             sig_ok = report["signature"]
             sig_label = t("verify_bundle_ok", "en") if sig_ok else t("verify_bundle_invalid", "en")

@@ -13,8 +13,8 @@ from datetime import datetime
 
 from presidio_ikigov_assess.checklist import VALID_GATES, VALID_ITEM_IDS, VALID_RISK_CLASSES
 
-_USE_CASE_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
-_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_USE_CASE_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{1,128}\Z")
+_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}\Z")
 _LANG_ALLOWED = {"de", "en"}
 _FORMAT_ALLOWED = {"markdown", "json"}
 
@@ -146,6 +146,26 @@ def validate_output_path(value: str) -> str:
     if len(v) > _MAX_PATH_LEN:
         raise ValidationError(f"Output path too long (max {_MAX_PATH_LEN} characters).")
     return v
+
+
+# C0 and C1 control characters, including ESC (0x1b) and DEL. Rich strips only a
+# few of these (BEL, BS, VT, FF, CR), so ESC-introduced CSI/OSC sequences would
+# otherwise reach the terminal.
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def terminal_safe(value: object) -> str:
+    """Render an untrusted, file-derived value inert for Rich console output.
+
+    Control characters become ``?`` so no escape sequence can retitle the
+    terminal, move the cursor or erase a line, and Rich markup is escaped so a
+    value like ``[bold green]OK[/]`` prints literally instead of styling text.
+    Use on every string from a file under verification (member names, signer
+    names, reasons, producer fields, pack metadata) before it reaches a console.
+    """
+    from rich.markup import escape
+
+    return escape(_CONTROL_CHARS.sub("?", str(value)))
 
 
 def _truncate(value: str, max_len: int = 40) -> str:

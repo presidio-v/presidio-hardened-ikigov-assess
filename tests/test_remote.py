@@ -260,3 +260,68 @@ def test_middleware_drops_unknown_scope_type(tmp_path):
     mw, probe = _scope_middleware(tmp_path)
     assert _drive(mw, {"type": "some-future-protocol"}) == []
     assert probe.types == []
+
+
+# ── Audit N-1/N-2/N-3: per-org windowed limit, no shared counter, bind guard ──
+
+
+def test_rate_limiter_window_resets():
+    now = [1000.0]
+    limiter = OrgRateLimiter(max_per_org=2, window_seconds=60, clock=lambda: now[0])
+    assert limiter.check("acme") and limiter.check("acme")
+    assert limiter.check("acme") is False
+    assert limiter.retry_after("acme") == 60
+    now[0] += 59
+    assert limiter.check("acme") is False and limiter.retry_after("acme") == 1
+    now[0] += 1  # window elapsed: the org is not locked out for the server's lifetime
+    assert limiter.check("acme") is True
+
+
+def test_429_carries_retry_after(tmp_path):
+    from presidio_ikigov_assess.remote import OrgAuthMiddleware
+
+    sent: list[dict] = []
+
+    async def app(scope, receive, send):  # pragma: no cover - never reached over cap
+        raise AssertionError("over-cap request reached the app")
+
+    async def send(message):
+        sent.append(message)
+
+    async def receive():
+        return {"type": "http.request"}
+
+    token_store = {"acme": hash_token("t-acme")}
+    mw = OrgAuthMiddleware(app, token_store, OrgRateLimiter(max_per_org=0), root=tmp_path)
+    scope = {"type": "http", "headers": [(b"authorization", b"Bearer t-acme")]}
+    asyncio.run(mw(scope, receive, send))
+    start = sent[0]
+    assert start["status"] == 429
+    assert dict(start["headers"])[b"retry-after"].isdigit()
+
+
+def test_remote_server_disables_the_process_wide_session_guard(monkeypatch):
+    # One counter shared by every org let one tenant exhaust assess for all (N-1).
+    from presidio_ikigov_assess import mcp_server, security
+
+    monkeypatch.setattr(security, "_session_count", 10**6)
+    payload = mcp_server.assess(["S1"], None, "low", "en", "uc", False, session_guard=False)
+    assert "scores" in payload and "gates" in payload
+    with pytest.raises(mcp_server.ToolInputError):
+        mcp_server.assess(["S1"], None, "low", "en", "uc", False)
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost", "::1", "[::1]", "127.0.0.2"])
+def test_loopback_bind_allowed(host):
+    from presidio_ikigov_assess.remote import check_bind
+
+    check_bind(host, behind_tls_proxy=False)
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "192.168.1.10", "mcp.example.com", "::"])
+def test_non_loopback_bind_needs_tls_acknowledgement(host):
+    from presidio_ikigov_assess.remote import RemoteError, check_bind
+
+    with pytest.raises(RemoteError, match="behind-tls-proxy"):
+        check_bind(host, behind_tls_proxy=False)
+    check_bind(host, behind_tls_proxy=True)

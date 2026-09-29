@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
@@ -232,3 +233,87 @@ def test_sign_key_file_precedes_inline_and_env(tmp_path):
         ],
     )
     assert json.loads(v.stdout)["signature"] is True
+
+
+# ── Verification reads only confined, regular, bounded members (audit F-1) ────
+
+
+def _bundle_with_members(tmp_path, members: dict) -> object:
+    out = write_bundle(
+        tmp_path / "pack", report_md=MD, report_json=JS, use_case="uc", risk_class="low"
+    )
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    manifest["artifacts"] = members
+    (out / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    return out
+
+
+def test_verify_refuses_traversal_and_absolute_names(tmp_path):
+    secret = tmp_path / "secret.txt"
+    secret.write_text("outside the bundle", encoding="utf-8")
+    real = hashlib.sha256(secret.read_bytes()).hexdigest()
+    out = _bundle_with_members(
+        tmp_path, {"../secret.txt": {"sha256": real}, str(secret): {"sha256": real}}
+    )
+    report = verify_bundle(out)
+    # The traversal would have hashed to True (a content oracle); it must not be read.
+    assert report["ok"] is False
+    assert report["artifacts"] == {"../secret.txt": False, str(secret): False}
+
+
+def test_verify_refuses_symlinked_member(tmp_path):
+    secret = tmp_path / "secret.txt"
+    secret.write_text("outside the bundle", encoding="utf-8")
+    real = hashlib.sha256(secret.read_bytes()).hexdigest()
+    out = _bundle_with_members(tmp_path, {"report.md": {"sha256": real}})
+    (out / "report.md").unlink()
+    (out / "report.md").symlink_to(secret)
+    assert verify_bundle(out)["artifacts"] == {"report.md": False}
+
+
+def test_verify_refuses_non_regular_and_oversized_members(tmp_path, monkeypatch):
+    import presidio_ikigov_assess.bundle as bundle_mod
+
+    out = _bundle_with_members(tmp_path, {"sub": {"sha256": "00"}, "big": {"sha256": "00"}})
+    (out / "sub").mkdir()
+    (out / "big").write_bytes(b"x" * 64 * 1024)
+    monkeypatch.setattr(bundle_mod, "MAX_MEMBER_BYTES", 16 * 1024)
+    assert verify_bundle(out)["artifacts"] == {"sub": False, "big": False}
+
+
+# ── Writers never follow a planted symlink (audit F-2) ────────────────────────
+
+
+def test_write_bundle_refuses_planted_symlink(tmp_path):
+    victim = tmp_path / "victim.txt"
+    victim.write_text("keep me", encoding="utf-8")
+    out = tmp_path / "pack"
+    out.mkdir()
+    (out / "report.md").symlink_to(victim)
+    with pytest.raises(OSError):
+        write_bundle(out, report_md=MD, report_json=JS, use_case="uc", risk_class="low")
+    assert victim.read_text(encoding="utf-8") == "keep me"
+
+
+def test_export_cli_reports_planted_symlink(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    victim = tmp_path / "victim.txt"
+    victim.write_text("keep me", encoding="utf-8")
+    out = tmp_path / "pack"
+    out.mkdir()
+    (out / "report.json").symlink_to(victim)
+    result = CliRunner().invoke(
+        app,
+        [
+            "--no-dep-check",
+            "export",
+            "--use-case",
+            "uc",
+            "--risk-class",
+            "low",
+            "--bundle",
+            str(out),
+        ],
+    )
+    assert result.exit_code == 1
+    assert victim.read_text(encoding="utf-8") == "keep me"

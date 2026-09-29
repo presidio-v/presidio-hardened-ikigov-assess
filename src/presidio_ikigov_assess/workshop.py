@@ -55,6 +55,12 @@ from rich.text import Text
 
 from presidio_ikigov_assess import __version__
 from presidio_ikigov_assess import content as content_mod
+from presidio_ikigov_assess.bundle import (
+    BundleError,
+    member_path,
+    read_member_bytes,
+    write_text_nofollow,
+)
 from presidio_ikigov_assess.classification import (
     ClassificationDocument,
     ClassificationError,
@@ -71,6 +77,7 @@ from presidio_ikigov_assess.renderer import (
 )
 from presidio_ikigov_assess.sanitize import (
     ValidationError,
+    terminal_safe,
     validate_lang,
     validate_output_path,
 )
@@ -374,8 +381,8 @@ def _write_use_case_artifact(
 
     # Write all manifest-listed artifacts, then the manifest itself.
     for name, content in artifacts.items():
-        (uc_dir / name).write_text(content, encoding="utf-8")
-    (uc_dir / "manifest.json").write_text(manifest_pretty, encoding="utf-8")
+        write_text_nofollow(uc_dir / name, content)
+    write_text_nofollow(uc_dir / "manifest.json", manifest_pretty)
 
     if sign_key_hex is not None:
         try:
@@ -388,22 +395,19 @@ def _write_use_case_artifact(
                 },
                 indent=2,
             )
-            (uc_dir / "manifest.sig").write_text(sig_content, encoding="utf-8")
+            write_text_nofollow(uc_dir / "manifest.sig", sig_content)
         except Exception as exc:
             _err_console.print(
                 f"[yellow]{t('workshop_warn_sign_failed', lang, uc=uc.id, err=str(exc))}[/yellow]"
             )
             # Write UNSIGNED marker
-            (uc_dir / "manifest.sig").write_text(
+            write_text_nofollow(
+                uc_dir / "manifest.sig",
                 json.dumps({"UNSIGNED": True, "reason": str(exc)}, indent=2),
-                encoding="utf-8",
             )
     else:
         # No key provided — write explicit UNSIGNED marker.
-        (uc_dir / "manifest.sig").write_text(
-            json.dumps({"UNSIGNED": True}, indent=2),
-            encoding="utf-8",
-        )
+        write_text_nofollow(uc_dir / "manifest.sig", json.dumps({"UNSIGNED": True}, indent=2))
 
     return uc_dir
 
@@ -871,7 +875,11 @@ def workshop_keygen(
     fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w") as fh:
         fh.write(priv_hex + "\n")
-    Path(str(out_path) + ".pub").write_text(pub_hex + "\n", encoding="utf-8")
+    try:
+        write_text_nofollow(Path(str(out_path) + ".pub"), pub_hex + "\n")
+    except OSError as exc:
+        _err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
 
     _console.print(f"[green]{t('keygen_done', lang, priv=str(out_path), pub=pub_hex)}[/green]")
     _console.print(f"\n[bold]{t('keygen_pubkey_label', lang)}:[/bold] {pub_hex}")
@@ -931,7 +939,9 @@ def workshop_sign(
         raise typer.Exit(1) from exc
 
     if replaced:
-        _err_console.print(f"[yellow]{t('sign_warn_replaces', lang, signer=replaced)}[/yellow]")
+        _err_console.print(
+            f"[yellow]{t('sign_warn_replaces', lang, signer=terminal_safe(replaced))}[/yellow]"
+        )
     _console.print(f"[green]{t('sign_done', lang, signer=signer)}[/green]")
     _console.print(f"[bold]{t('keygen_pubkey_label', lang)}:[/bold] {pub_hex}")
     log_security_event({"event": "iga-workshop-sign", "role": "owner", "replaced": bool(replaced)})
@@ -1017,12 +1027,16 @@ def workshop_attest(
         )
         raise typer.Exit(1) from exc
 
-    (uc_dir / "attestation.content.json").write_text(
-        json.dumps(reading, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-    (uc_dir / "attestation.json").write_text(
-        json.dumps(envelope, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    try:
+        write_text_nofollow(
+            uc_dir / "attestation.content.json", json.dumps(reading, indent=2, ensure_ascii=False)
+        )
+        write_text_nofollow(
+            uc_dir / "attestation.json", json.dumps(envelope, indent=2, ensure_ascii=False)
+        )
+    except OSError as exc:
+        _err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
     manifest_hash = reading["attested_content"]["attests"]
     _console.print(
         f"[green]{t('attest_done', lang, path=str(uc_dir / 'attestation.json'), hash=manifest_hash[:16])}[/green]"
@@ -1072,6 +1086,14 @@ def workshop_verify(
         "--require-chain",
         help="Fail-closed unless the delegation chain has an owner link (implies --show-chain).",
     ),
+    allow_unsigned: bool = typer.Option(
+        False,
+        "--allow-unsigned",
+        help=(
+            "Accept a leave-behind without a manifest signature (hash consistency only). "
+            "Without it an UNSIGNED manifest fails verification."
+        ),
+    ),
     lang: str = typer.Option("de", "--lang", "-l", help="Output language: de | en."),
     quiet: bool = typer.Option(
         False,
@@ -1110,12 +1132,13 @@ def workshop_verify(
         raise typer.Exit(1)
 
     # Load manifest.
-    manifest_path = artifact_dir / "manifest.json"
-    if not manifest_path.exists():
+    try:
+        manifest_path = member_path(artifact_dir, "manifest.json")
+        manifest_text = read_member_bytes(manifest_path).decode("utf-8")
+    except (BundleError, UnicodeDecodeError) as exc:
         _err_console.print(f"[red]{t('workshop_verify_err_no_manifest', lang)}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
-    manifest_text = manifest_path.read_text(encoding="utf-8")
     try:
         manifest = json.loads(manifest_text)
     except json.JSONDecodeError as exc:
@@ -1132,11 +1155,13 @@ def workshop_verify(
     # Re-hash artifacts.
     artifact_results: dict[str, bool] = {}
     for name, meta in manifest.get("artifacts", {}).items():
-        artifact_path = artifact_dir / name
-        if not artifact_path.exists():
+        # Names come from the manifest under verification: confine them to the
+        # directory and refuse symlinks, devices and oversized members.
+        try:
+            content = read_member_bytes(member_path(artifact_dir, name))
+        except BundleError:
             artifact_results[name] = False
             continue
-        content = artifact_path.read_bytes()
         expected_hash = meta.get("sha256", "")
         actual_hash = _sha256_hex(content)
         artifact_results[name] = actual_hash == expected_hash
@@ -1205,10 +1230,12 @@ def workshop_verify(
             ]
 
     all_artifacts_ok = all(artifact_results.values()) if artifact_results else False
+    # An unsigned manifest proves only that the files match each other: anyone can
+    # regenerate both. It passes only when the caller accepts that explicitly.
     ok = (
         schema_ok
         and all_artifacts_ok
-        and (signature_ok is not False)
+        and (signature_ok is True or (signature_ok is None and allow_unsigned))
         and (attestation_ok is not False)
         and (chain_ok is not False)
     )
@@ -1234,6 +1261,7 @@ def workshop_verify(
                     "schema_ok": schema_ok,
                     "artifacts": artifact_results,
                     "signature": signature_ok,
+                    "authenticated": signature_ok is True,
                     "signature_role": sig_role or None,
                     "owner_signed": isinstance(owner_block, dict),
                     "attestation": attestation_ok,
@@ -1249,12 +1277,12 @@ def workshop_verify(
         for name, art_ok in artifact_results.items():
             colour = "green" if art_ok else "red"
             mark = "OK  " if art_ok else "FAIL"
-            _console.print(f"[{colour}]{mark}[/{colour}] {name}")
+            _console.print(f"[{colour}]{mark}[/{colour}] {terminal_safe(name)}")
         if signature_ok is True:
             _console.print(f"[green]{t('workshop_verify_sig_ok', lang)}[/green]")
             if sig_role:
                 _console.print(
-                    f"[dim]{t('verify_owner_label', lang, role=sig_role, signer=sig_signer)}[/dim]"
+                    f"[dim]{t('verify_owner_label', lang, role=terminal_safe(sig_role), signer=terminal_safe(sig_signer))}[/dim]"
                 )
         elif signature_ok is False:
             _console.print(f"[red]{t('workshop_verify_sig_fail', lang)}[/red]")
@@ -1263,23 +1291,23 @@ def workshop_verify(
         if require_attestation:
             if attestation_ok:
                 _console.print(
-                    f"[green]{t('verify_attestation_ok', lang, signer=attestation_signer)}[/green]"
+                    f"[green]{t('verify_attestation_ok', lang, signer=terminal_safe(attestation_signer))}[/green]"
                 )
             elif attestation_reason == "missing":
                 _console.print(f"[red]{t('verify_attestation_missing', lang)}[/red]")
             else:
                 _console.print(
-                    f"[red]{t('verify_attestation_fail', lang, reason=attestation_reason)}[/red]"
+                    f"[red]{t('verify_attestation_fail', lang, reason=terminal_safe(attestation_reason))}[/red]"
                 )
         if chain_results is not None:
             for link in chain_results:
                 if link["ok"]:
                     _console.print(
-                        f"[green]{t('chain_link_ok', lang, role=link['role'], signer=link['signer'])}[/green]"
+                        f"[green]{t('chain_link_ok', lang, role=terminal_safe(link['role']), signer=terminal_safe(link['signer']))}[/green]"
                     )
                 else:
                     _console.print(
-                        f"[red]{t('chain_link_fail', lang, role=link['role'], reason=link['reason'])}[/red]"
+                        f"[red]{t('chain_link_fail', lang, role=terminal_safe(link['role']), reason=terminal_safe(link['reason']))}[/red]"
                     )
 
     if not ok:

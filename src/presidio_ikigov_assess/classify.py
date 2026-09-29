@@ -35,6 +35,7 @@ from presidio_ikigov_assess.renderer import (
 )
 from presidio_ikigov_assess.sanitize import (
     ValidationError,
+    terminal_safe,
     validate_lang,
     validate_output_path,
     validate_use_case,
@@ -210,11 +211,12 @@ def ingest(
         rp = r["risk_presumption"]
         col = _risk_colour.get(rp, "white")
         strict_str = "✓" if r["strict"] else ""
-        obs_str = ", ".join(r["obligations"])
-        note_str = r["note"][:120] + "…" if len(r["note"]) > 120 else r["note"]
+        obs_str = terminal_safe(", ".join(r["obligations"]))
+        note = r["note"][:120] + "…" if len(r["note"]) > 120 else r["note"]
+        note_str = terminal_safe(note)
         tbl.add_row(
-            r["id"],
-            r["cell"],
+            terminal_safe(r["id"]),
+            terminal_safe(r["cell"]),
             f"[{col}]{_risk_label(rp, lang)}[/{col}]",
             strict_str,
             obs_str,
@@ -224,9 +226,10 @@ def ingest(
     _console.print(tbl)
     if doc.producer:
         prod_str = json.dumps(doc.producer) if not isinstance(doc.producer, str) else doc.producer
-        _console.print(f"[dim]producer: {prod_str[:80]}[/dim]")
+        _console.print(f"[dim]producer: {terminal_safe(prod_str[:80])}[/dim]")
     _console.print(
-        f"[dim]profile pack: {pack.framework_id} v{pack.version} ({pack.content_hash[:12]})[/dim]"
+        f"[dim]profile pack: {terminal_safe(pack.framework_id)} v{terminal_safe(pack.version)}"
+        f" ({terminal_safe(pack.content_hash[:12])})[/dim]"
     )
 
 
