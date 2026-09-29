@@ -57,10 +57,20 @@ def framework_content_hash() -> str:
 
 
 def build_manifest(
-    artifacts: dict[str, str], *, use_case: str, risk_class: str
+    artifacts: dict[str, str],
+    *,
+    use_case: str,
+    risk_class: str,
+    evidence: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    """Build the manifest: per-artifact sha256 + framework hash + provenance."""
-    return {
+    """Build the manifest: per-artifact sha256 + framework hash + provenance.
+
+    ``evidence`` (v0.26.0 S-1) is the marking block: which affirmed items were
+    verified, evidence-backed or self-attested, and which were asserted but not
+    counted under ``--require-evidence``. It sits in the manifest, so a signed
+    pack states on its face what its numbers rest on.
+    """
+    manifest: dict[str, object] = {
         "schema": MANIFEST_SCHEMA,
         "tool": "presidio-hardened-ikigov-assess",
         "tool_version": __version__,
@@ -72,6 +82,9 @@ def build_manifest(
             name: {"sha256": _sha256_hex(content)} for name, content in sorted(artifacts.items())
         },
     }
+    if evidence is not None:
+        manifest["evidence"] = evidence
+    return manifest
 
 
 def sign_manifest(manifest_bytes: str, key: str) -> str:
@@ -88,10 +101,13 @@ def write_bundle(
     risk_class: str,
     as_zip: bool = False,
     sign_key: str | None = None,
+    evidence: dict[str, object] | None = None,
 ) -> Path:
     """Write the evidence pack to a directory (or a ``.zip``). Returns the path written."""
     artifacts = {"report.md": report_md, "report.json": report_json}
-    manifest = build_manifest(artifacts, use_case=use_case, risk_class=risk_class)
+    manifest = build_manifest(
+        artifacts, use_case=use_case, risk_class=risk_class, evidence=evidence
+    )
     manifest_text = json.dumps(manifest, indent=2, ensure_ascii=False)
     files = dict(artifacts)
     files["manifest.json"] = manifest_text

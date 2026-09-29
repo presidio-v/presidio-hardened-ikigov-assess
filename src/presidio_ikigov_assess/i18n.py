@@ -105,6 +105,31 @@ STRINGS: dict[str, dict[str, str]] = {
     "answer_affirmed": {"de": "bestätigt", "en": "affirmed"},
     "answer_denied": {"de": "nicht bestätigt", "en": "not affirmed"},
     "answer_skipped": {"de": "übersprungen", "en": "skipped"},
+    # v0.26.0 S-1: self-attested under --require-evidence, recorded, not counted.
+    "answer_asserted": {"de": "behauptet (nicht gewertet)", "en": "asserted (not counted)"},
+    "col_provenance": {"de": "Nachweis", "en": "Evidence"},
+    "provenance_self": {"de": "Selbstauskunft", "en": "self-attested"},
+    "provenance_evidence": {
+        "de": "Nachweis vorhanden (unverifiziert)",
+        "en": "evidence (unverified)",
+    },
+    "provenance_evidence-verified": {"de": "Nachweis verifiziert", "en": "evidence-verified"},
+    "asserted_label": {
+        "de": "Behauptet, nicht gewertet (--require-evidence)",
+        "en": "Asserted, not counted (--require-evidence)",
+    },
+    "evidence_summary_line": {
+        "de": "Nachweise: {verified} verifiziert, {backed} belegt von {total} bestätigten Elementen; {asserted} behauptet und nicht gewertet.",
+        "en": "Evidence: {verified} verified, {backed} evidence-backed of {total} affirmed items; {asserted} asserted and not counted.",
+    },
+    "require_evidence_asserted_notice": {
+        "de": "--require-evidence: {n} selbst bestätigte(s) Element(e) ohne verifizierten Nachweis nicht gewertet: {items}",
+        "en": "--require-evidence: {n} self-attested item(s) without verified evidence not counted: {items}",
+    },
+    "require_evidence_no_trust_notice": {
+        "de": "--require-evidence ohne --trust: kein Nachweis kann verifiziert werden, nichts wird gewertet.",
+        "en": "--require-evidence without --trust: no evidence can verify, nothing is counted.",
+    },
     "col_item": {"de": "Element", "en": "Item"},
     "col_status": {"de": "Status", "en": "Status"},
     "col_dimension": {"de": "Dimension", "en": "Dimension"},

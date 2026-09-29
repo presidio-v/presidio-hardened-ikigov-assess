@@ -67,6 +67,10 @@ SELF = "self"
 EVIDENCE = "evidence"
 EVIDENCE_VERIFIED = "evidence-verified"
 
+#: Answer status of a self-attested item under ``--require-evidence``: recorded,
+#: shown in every output, and **not counted** as affirmed (v0.26.0 S-1).
+ASSERTED = "asserted"
+
 
 class EvidenceError(ValueError):
     """Raised when an evidence document or reference is malformed."""
@@ -327,6 +331,88 @@ def merge_provenance(
 ) -> dict[str, str]:
     """Provenance for every affirmed item: evidence(-verified) where present, else self."""
     return {item: evidence_provenance.get(item, SELF) for item in sorted(affirmed)}
+
+
+@dataclass(frozen=True)
+class Affirmations:
+    """The resolved answer set every command scores, gates and renders from.
+
+    ``affirmed`` is what counts. ``asserted`` is what the assessor claimed
+    without verified evidence while ``require_evidence`` was in force: it is
+    carried so every output can show it, and it is never scored. ``provenance``
+    covers ``affirmed`` and ``asserted``; ``coverage`` is computed over
+    ``affirmed`` only and records the policy that produced it.
+    """
+
+    affirmed: frozenset[str]
+    skipped: frozenset[str]
+    asserted: frozenset[str]
+    provenance: dict[str, str]
+    coverage: dict[str, object]
+    require_evidence: bool
+    n_refs: int = 0
+    n_verified: int = 0
+
+
+def resolve_affirmations(
+    self_affirmed: frozenset[str],
+    skipped: frozenset[str],
+    refs: list[EvidenceRef] | None,
+    trust: Mapping[str, object] | None,
+    *,
+    require_evidence: bool = False,
+) -> Affirmations:
+    """Merge self-attested answers with signed evidence under one policy.
+
+    This is the single merge point for ``--affirm`` / the wizard, ``--evidence``
+    and ``--require-evidence`` (v0.26.0 S-1). Without ``require_evidence`` the
+    behaviour is the v0.13.0 one: self-attested items count, evidence adds
+    items, and an item explicitly skipped is never affirmed by evidence.
+
+    With ``require_evidence`` the flag means what it says: **only an item whose
+    evidence-ref verifies against ``trust`` is affirmed**. A self-attested item
+    without such a ref is *asserted*: kept, shown, not counted. With no
+    ``refs`` or no ``trust`` nothing can verify, so nothing is affirmed. This
+    is fail-closed by construction: the counted set is a subset of the verified
+    set, whatever else was supplied.
+    """
+    result = classify(list(refs or []), trust, require_verified=require_evidence)
+    self_affirmed = frozenset(self_affirmed) - skipped
+    via_evidence = result.affirmed - skipped
+    if require_evidence:
+        affirmed = via_evidence
+        asserted = self_affirmed - via_evidence
+    else:
+        affirmed = self_affirmed | via_evidence
+        asserted = frozenset()
+    provenance = merge_provenance(affirmed, result.provenance)
+    for item in sorted(asserted):
+        provenance[item] = SELF
+    coverage = evidence_coverage({i: p for i, p in provenance.items() if i in affirmed})
+    coverage["require_evidence"] = require_evidence
+    coverage["asserted_not_counted"] = len(asserted)
+    return Affirmations(
+        affirmed=affirmed,
+        skipped=frozenset(skipped),
+        asserted=asserted,
+        provenance=provenance,
+        coverage=coverage,
+        require_evidence=require_evidence,
+        n_refs=result.n_refs,
+        n_verified=result.n_verified,
+    )
+
+
+def evidence_block(aff: Affirmations) -> dict[str, object]:
+    """The per-item evidence marking block shared by every JSON output."""
+    prov = aff.provenance
+    return {
+        "require_evidence": aff.require_evidence,
+        "verified": sorted(i for i in aff.affirmed if prov.get(i) == EVIDENCE_VERIFIED),
+        "evidence_backed": sorted(i for i in aff.affirmed if prov.get(i) == EVIDENCE),
+        "self_attested": sorted(i for i in aff.affirmed if prov.get(i, SELF) == SELF),
+        "asserted_not_counted": sorted(aff.asserted),
+    }
 
 
 def evidence_coverage(provenance: Mapping[str, str]) -> dict[str, object]:

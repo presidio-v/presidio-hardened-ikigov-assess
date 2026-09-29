@@ -6,12 +6,43 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ---
 
-## [Unreleased] — v0.26.0 T-B6
+## [0.26.0] — Unreleased
 
-Certificate lineage, validity, grounding and tiers. Additive within
-`gate-certificate@1` and `evidence-ref` consumption; no removals, no new required
-fields; every pre-v0.26 certificate and evidence document verifies unchanged.
-Deliberation: `PRESIDIO-REQ.md` v0.26.0 T-B6.
+Two arcs. **S-1** closes a fail-open in `--require-evidence` (Security, below).
+**T-B6** adds certificate lineage, validity, grounding and tiers. Both are additive
+for users who do not pass `--require-evidence`: scores, gates and exit codes are
+unchanged, and every pre-v0.26 certificate and evidence document verifies unchanged.
+Deliberations: `PRESIDIO-REQ.md` v0.26.0 S-1 and T-B6.
+
+### Security
+
+- **`--require-evidence` no longer fails open** (S-1; affects every release from
+  0.13.0 through 0.25.0). The flag was documented as "Fail-closed: only evidence that
+  verifies against --trust affirms its item", but it only filtered `--evidence` inputs:
+  a bare `--affirm` (or a wizard answer) still counted, and without `--evidence` the flag
+  was never read. `iga assess --affirm <all 25> --require-evidence --trust '{}'` therefore
+  reported 100 % and every gate OPEN, and a signed `iga export` pack from the same
+  answers carried no marking at all. Now a single merge point
+  (`evidence.resolve_affirmations`) applies the policy in every command: under the flag
+  an item counts **only** if a reference in `--evidence` verifies against `--trust`;
+  a self-attested item without one is **asserted**, named on stderr, shown in every
+  output as `asserted (not counted)`, and excluded from scores and gates. Nothing
+  verifies with no `--evidence`, no `--trust`, an empty store, an unknown signer, a
+  wrong key or a tampered signature. The same two commands now report 0 % with every
+  gate BLOCKED. Reported 2026-09-28; the lab that pins 0.21.1 and 0.25.0 for
+  20.10.–03.11.2026 is unaffected because no published version is changed.
+- **Every output marks each item** as evidenced / asserted / open, whatever flags
+  produced it: per-item `provenance` is always present on affirmed and asserted rows,
+  JSON carries `answers.asserted` and `evidence_coverage.{require_evidence,
+  asserted_not_counted}`, `gate` and the gap commands carry an `evidence` block, the
+  Markdown report gains an *Evidence* column and a summary line, and the signed export
+  manifest carries the `evidence` block inside the signed bytes.
+- `--evidence` / `--trust` / `--require-evidence` are now accepted by `gate`, `report`,
+  `export`, `framework-gap`, `iso-gap` and `euaiact-gap` (previously `assess`,
+  `certify` and `classify assess` only), so the release-gate use
+  `iga gate --require-evidence --assert-gate` promised in the v0.13.0 deliberation works.
+- `certify --require-evidence` (previously a documented no-op) drops bare affirmations
+  and writes `require_evidence: true` into the signed certificate.
 
 ### Added
 

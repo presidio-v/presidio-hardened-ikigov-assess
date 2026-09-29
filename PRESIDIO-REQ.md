@@ -109,6 +109,8 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.23.0 T-B5 | Gate certificates (`presidio-hardened/gate-certificate@1`) — signed, third-party-verifiable proof of a gate decision (`iga certify` / `iga verify-certificate`); recomputes the decision from embedded predicate inputs against a trust store, DB-free and fail-closed. Named workshop delegation chain (`--show-chain` / `--require-chain`) exposing the customer→manifest→assessor lineage as explicit walked links | Shipped v0.23.0 (2026-07-05); issue-time evidence verification requires `--trust`, verify-time independently re-verifies embedded refs |
 | v0.24.0 | Maintenance and supply chain — coverage-guided fuzzing (`fuzz` extra, Atheris) over the two untrusted-input boundaries, the fail-closed parser guards that harness found (`UnicodeError` / `RecursionError` no longer leak past `ClassificationError` / `EvidenceError`), and `mcp` capped to `>=1.2.0,<2` | Shipped v0.24.0 (2026-08-02); no new assessment surface. The cap is a hold, not a fix: mcp 2.0.0 relocated `mcp.server.fastmcp`, so `[mcp]` installs of v0.23.0 are broken and the 2.x port is deferred work |
 | v0.25.0 | `iga --version` / `-V` (eager, answers before the startup CVE check so it works offline); **mcp 2.x port** — `mcp.server.mcpserver.MCPServer` replaces `FastMCP`, extra moves from `>=1.2.0,<2` to `>=2,<3`; `OrgAuthMiddleware` refuses non-HTTP ASGI scopes instead of forwarding them | Shipped v0.25.0 (2026-08-02); the mcp floor rises, so 1.x no longer works with the extra — no compat shim by choice. The WebSocket passthrough was not exploitable in any shipped release (no WebSocket route is mounted), fixed because that was an accident of `streamable_http_app()` rather than a guarantee |
+| v0.26.0 S-1 | **Security:** `--require-evidence` fails closed everywhere — one merge point (`evidence.resolve_affirmations`); bare affirmations become `asserted` (shown, never counted); every output marks evidenced / asserted / open; evidence options on `gate` / `report` / `export` / gap commands | Fixed 2026-09-29, unreleased (0.26.0); affects 0.13.0–0.25.0; no published version touched |
+| v0.26.0 T-B6 | Certificate lineage (`parents`, ADR-0002), validity (`not_after`), `grounding`, `evidence-ref@2` assurance tiers surfaced with verifier floors | Unreleased (0.26.0) |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -1640,6 +1642,103 @@ evidence-ref@2 lands here, per-evidence tier is surfaceable without a break.
   tampered certificate per field class; embedded evidence-ref failing the
   trust-store check; decision-mismatch detection; old-manifest compatibility;
   chain-link failures. Full existing suite green, zero regressions.
+
+## v0.26.0 S-1 — `--require-evidence` Fails Closed Everywhere
+
+**Reported:** 2026-09-28 (reproduced on 0.21.1 and 0.25.0). **Deliberated and
+fixed:** 2026-09-29. Security arc; no schema break; behaviour without the flag is
+unchanged. No published version is yanked, deleted or retagged (a university lab
+pins 0.21.1 and 0.25.0 for 20.10.–03.11.2026 and its exercise *is* the old behaviour).
+
+### Root cause
+
+`cli.assess` parsed `--affirm` / the wizard into `affirmed`, then, **only if**
+`--evidence` was given, called `_apply_evidence`, which ran
+`evidence.classify(refs, trust, require_verified=require_evidence)` and merged
+`affirmed | (result.affirmed - skipped)`. `require_verified` filtered the *refs*
+only; the self-attested set passed through untouched, and without `--evidence`
+the flag was never read. `mcp_server.assess_with_evidence` and `classify assess`
+had the same merge. `gate`, `report`, `export` and the gap commands took no
+evidence options at all, so a signed export from assertion-only answers carried
+no marking.
+
+### Verdict: a bug in the contract, with a documentation defect on top
+
+The v0.13.0 deliberation designed the flag as a filter on the evidence channel and
+explicitly **deferred** the stricter "items must carry evidence" variant. That
+deferral never reached the help text, the README or SECURITY.md, all of which read as
+evidence-only, and the flag's name promises evidence-only. A user who sets a flag
+called `--require-evidence` and reads "fail-closed" is entitled to believe the output
+rests on evidence; it did not, and nothing in the output said so. The fix makes the
+flag mean what its name says rather than re-wording the help.
+
+### Decision 1 — asserted, not rejected
+
+Under the flag a self-attested item without a verified reference is **asserted**:
+recorded, named on stderr, shown in every output as `asserted (not counted)`, and
+excluded from scores and gates. Rejecting the run was the alternative. Asserting is
+preferred because (a) it produces one truthful artefact from one run, which is what
+a release gate and an auditor need; (b) mixed input (`--affirm` for the workshop
+answers plus `--evidence` for the controls that have producers) is the normal
+workflow, and refusing it would push users back to the unflagged run; (c) the
+assessor's claim is information worth keeping next to the evidence that is missing.
+Fail-closed is preserved: the counted set is a subset of the verified set by
+construction.
+
+### Decision 2 — one merge point
+
+`evidence.resolve_affirmations(self_affirmed, skipped, refs, trust, require_evidence)`
+returns an `Affirmations` record (affirmed, asserted, skipped, provenance, coverage,
+policy) and is the only place the three inputs meet. `cli._resolve_answers` wraps it
+for every command; the MCP tool and `classify assess` call it directly. `certify`
+keeps its own always-verified path and applies the same drop, writing
+`require_evidence: true` into the signed certificate.
+
+### Decision 3 — every output marks every item, whatever the flags
+
+Per-item `provenance` is always present on affirmed and asserted rows (`self` when no
+evidence was attached), JSON carries `answers.asserted` and
+`evidence_coverage.{require_evidence, asserted_not_counted}`, `gate` and the three gap
+commands carry an `evidence` block, the Markdown report gains an *Evidence* column and
+a summary line under the score, and the export manifest carries the `evidence` block
+inside the signed bytes. The v0.13.0 "legacy schema unchanged when flags are absent"
+promise is superseded by additive keys only; nothing was removed or retyped.
+
+### Decision 4 — evidence options everywhere
+
+`--evidence` / `--trust` / `--require-evidence` are added to `gate`, `report`,
+`export`, `framework-gap`, `iso-gap` and `euaiact-gap`, which closes the v0.13.0
+interface promise `iga gate ... --require-evidence --assert-gate`.
+
+### Severity and disclosure
+
+Governance-integrity defect, local, no privilege escalation, requires the user to
+rely on the flag: **Moderate**. CWE-636 (Not Failing Securely) with CWE-451
+(misrepresentation of critical information). A GitHub Security Advisory is
+warranted because signed export packs and reports produced under the flag on
+0.13.0–0.25.0 look authoritative and carry no marking; the advisory names those
+versions, the fixed version, and the reading rule for old artefacts (self-attested
+unless `provenance` says `evidence-verified`). No CVE request is required for a
+defect of this class in a tool with no network exposure; the founder decides.
+
+### Requirements
+
+- R1 `evidence.Affirmations`, `resolve_affirmations`, `evidence_block`, `ASSERTED`. — **Delivered.**
+- R2 `cli._resolve_answers` used by `assess`, `gate`, `report`, `export`,
+  `framework-gap`, `iso-gap`, `euaiact-gap`; `certify` drop + `require_evidence`
+  field; MCP and `classify assess` on the same function; stderr notices, DE/EN. — **Delivered.**
+- R3 Marking in `renderer` (status `asserted`, provenance always, summary line,
+  Evidence column, gate/iso/euaiact `evidence` block) and `bundle` (manifest
+  `evidence`). — **Delivered.**
+- R4 Tests `tests/test_require_evidence.py`: the two reported commands (0 %, all
+  gates BLOCKED); empty trust store; signer not in trust; tampered signature; wrong
+  key; no trust; malformed file exits 1; mixed input counts only evidenced items;
+  skipped never affirmed; gate `--assert-gate` exits 3; report both formats; signed
+  export manifest + report marking, bundle still verifies; three gap commands; certify;
+  MCP; legacy behaviour unchanged; i18n. — **Delivered.**
+- R5 README (EN/DE), CHANGELOG (Security section), SECURITY.md (supported-version
+  note + control), this entry; version 0.26.0. — **Delivered.** Tag and publish are
+  founder-signed steps.
 
 ## v0.26.0 T-B6 — Certificate Lineage, Validity, Grounding and Tiers
 

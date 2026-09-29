@@ -304,8 +304,13 @@ def build_certificate(
     assessed_at: Optional[str] = None,
     parents: Optional[Sequence[str]] = None,
     not_after: Optional[str] = None,
+    require_evidence: bool = False,
 ) -> dict[str, object]:
     """Build (unsigned) the gate certificate document for a single gate.
+
+    ``require_evidence`` records that the issuer counted only evidence-verified
+    affirmations (the caller has already dropped the rest); it is written into
+    the signed content only when true, so older certificates are byte-stable.
 
     Recomputes the gate decision via :func:`gates.evaluate_gate` (the one
     authority), records the sufficient affirmation set with embedded
@@ -372,6 +377,8 @@ def build_certificate(
         document["parents"] = parent_list
     if not_after is not None:
         document["not_after"] = not_after
+    if require_evidence:
+        document["require_evidence"] = True
     return document
 
 
@@ -670,6 +677,8 @@ def verify_certificate(
             raise CertificateError("now must be timezone-aware")
         if moment > bound:
             return VerificationResult(False, REASON_EXPIRED, signer=signer, not_after=not_after)
+    if not isinstance(document.get("require_evidence", False), bool):
+        return VerificationResult(False, REASON_MALFORMED, signer=signer)
     raw_parents = document.get("parents")
     parents: tuple[str, ...] = ()
     if raw_parents is not None:
