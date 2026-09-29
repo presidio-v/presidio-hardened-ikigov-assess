@@ -4,10 +4,18 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.26.x  | Yes       |
-| 0.25.x  | Yes, but see the `--require-evidence` note below |
-| 0.24.x  | Yes, but see the `--require-evidence` note below |
+| 0.27.x  | Yes       |
+| 0.26.x  | Yes, but see the 0.27.0 audit note below |
+| 0.25.x  | Yes, but see both notes below |
+| 0.24.x  | Yes, but see both notes below |
 | < 0.24  | No        |
+
+> **0.26.x and earlier: fixed in 0.27.0 (2026-09 audit).** One genuine signed evidence-ref
+> copied under several item ids verified for each of them, so `--require-evidence` could
+> count every item from a single piece of evidence (since 0.13.0). A gate certificate's
+> `issuer` was not bound to its signer (since 0.23.0). `verify-bundle` and
+> `workshop verify` read manifest-named paths outside the bundle. Treat pre-0.27 outputs
+> that show several `evidence-verified` items as needing re-verification with 0.27.0.
 
 > **0.13.0 – 0.25.0: `--require-evidence` fails open (fixed in 0.26.0, S-1).** In those
 > releases the flag only filtered `--evidence` inputs; bare `--affirm` and wizard answers

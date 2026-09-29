@@ -41,7 +41,11 @@ treated as a breaking change regardless of which version component moves.
 - **Dependency check on by default** — the startup CVE check runs unless explicitly
   suppressed with `--no-dep-check`.
 - **Session rate limiting** — `IGA_MAX_ASSESSMENTS` is enforced across the one-shot
-  CLI and the MCP server.
+  CLI and the stdio MCP server. The multi-tenant remote endpoint (`iga-mcp-remote`)
+  bounds each org instead (`IGA_MCP_MAX_PER_ORG` per `IGA_MCP_WINDOW_SECONDS`), since
+  one process-wide counter let one tenant exhaust it for all (since 0.27.0).
+- **One signed evidence-ref, one item** — a ref claimed for more than one item never
+  counts as verified for any of them (since 0.27.0).
 
 ## Verifying an installation
 
