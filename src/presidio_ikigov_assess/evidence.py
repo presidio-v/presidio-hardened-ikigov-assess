@@ -13,6 +13,19 @@ Wire format (must byte-match the producer): the detached signature is
 ``HMAC-SHA256(key, canonical_json({"content_hash": ..., "signer": ...}))`` where
 ``canonical_json`` is ``json.dumps(sort_keys=True, separators=(",", ":"),
 ensure_ascii=False)``. Keys are resolved from a local trust store only — no network.
+
+Assurance tiers (``evidence-ref@2``, presidio-evidence ADR-0003)
+-----------------------------------------------------------------
+An ``@2`` document is the ``@1`` shape with the envelope ``schema`` REQUIRED and
+one additive optional per-ref field, ``assurance_tier`` ∈ {``attested``,
+``optimistic``, ``zk``} (default ``attested`` when absent). The signed message is
+unchanged, so ``@1`` and ``@2`` refs verify identically. Declared tiers are
+honoured **only under ``@2``**: an ``@1`` record carrying ``assurance_tier`` is an
+inert extra that resolves to ``attested`` (the @1 schema has no
+``additionalProperties: false``; the family golden vector
+``evidence-ref-v2/valid-v1-with-extra-tier`` pins this). A tier is a producer's
+*declaration* of the regime the referenced evidence lives under; this consumer
+verifies signatures only, so it never upgrades a declared tier into a verified one.
 """
 
 from __future__ import annotations
@@ -27,6 +40,15 @@ from dataclasses import dataclass
 from presidio_ikigov_assess.checklist import VALID_ITEM_IDS
 
 SCHEMA_ID = "presidio-hardened/evidence-ref@1"
+SCHEMA_ID_V2 = "presidio-hardened/evidence-ref@2"
+#: Accepted envelope schemas (fail-closed on anything else).
+SCHEMA_IDS = (SCHEMA_ID, SCHEMA_ID_V2)
+
+#: Assurance tiers, weakest to strongest (ADR-0003 / CJ Pillar II).
+ASSURANCE_TIERS = ("attested", "optimistic", "zk")
+DEFAULT_ASSURANCE_TIER = "attested"
+TIER_RANK = {tier: rank for rank, tier in enumerate(ASSURANCE_TIERS)}
+
 _CONTRACT_FIELDS = (
     "item_id",
     "source",
@@ -45,6 +67,10 @@ SELF = "self"
 EVIDENCE = "evidence"
 EVIDENCE_VERIFIED = "evidence-verified"
 
+#: Answer status of a self-attested item under ``--require-evidence``: recorded,
+#: shown in every output, and **not counted** as affirmed (v0.26.0 S-1).
+ASSERTED = "asserted"
+
 
 class EvidenceError(ValueError):
     """Raised when an evidence document or reference is malformed."""
@@ -60,6 +86,8 @@ class EvidenceRef:
     signer: str
     signature: str
     claimed_at: str
+    #: Declared assurance regime (ADR-0003). Not part of the signed message.
+    assurance_tier: str = DEFAULT_ASSURANCE_TIER
 
 
 def _canonical(payload: Mapping[str, object]) -> bytes:
@@ -86,7 +114,16 @@ def _str_field(raw: Mapping[str, object], name: str) -> str:
     return value
 
 
-def _parse_ref(raw: object) -> EvidenceRef:
+def parse_assurance_tier(raw: object) -> str:
+    """Validate a declared ``assurance_tier`` value (fail-closed on anything unknown)."""
+    if not isinstance(raw, str) or raw not in ASSURANCE_TIERS:
+        raise EvidenceError(
+            f"evidence ref assurance_tier must be one of {', '.join(ASSURANCE_TIERS)}"
+        )
+    return raw
+
+
+def _parse_ref(raw: object, *, honour_tiers: bool = False) -> EvidenceRef:
     if not isinstance(raw, Mapping):
         raise EvidenceError("each evidence entry must be an object")
     missing = [f for f in _CONTRACT_FIELDS if f not in raw]
@@ -101,20 +138,33 @@ def _parse_ref(raw: object) -> EvidenceRef:
         raise EvidenceError("evidence ref content_hash must be lowercase hex")
     if not _HEX_RE.match(fields["signature"]):
         raise EvidenceError("evidence ref signature must be lowercase hex")
-    return EvidenceRef(**fields)
+    # ADR-0003: a declared tier is honoured only under @2; under @1 it is inert.
+    tier = DEFAULT_ASSURANCE_TIER
+    if honour_tiers and "assurance_tier" in raw:
+        tier = parse_assurance_tier(raw["assurance_tier"])
+    return EvidenceRef(**fields, assurance_tier=tier)
 
 
 def parse_document(doc: object) -> list[EvidenceRef]:
-    """Parse a producer evidence document (the ``export_evidence`` JSON shape)."""
+    """Parse a producer evidence document (the ``export_evidence`` JSON shape).
+
+    Accepts ``evidence-ref@1`` (``schema`` optional, back-compat) and
+    ``evidence-ref@2`` (``schema`` required by construction: only a document that
+    *names* @2 is read as @2). Declared ``assurance_tier`` values are honoured
+    only under @2 and must be a known tier; anything else fails closed.
+    """
     if not isinstance(doc, Mapping) or "evidence" not in doc:
         raise EvidenceError("evidence document must be an object with an 'evidence' array")
     schema = doc.get("schema")
-    if schema is not None and schema != SCHEMA_ID:
-        raise EvidenceError(f"unsupported evidence schema: {schema!r} (expected {SCHEMA_ID!r})")
+    if schema is not None and schema not in SCHEMA_IDS:
+        raise EvidenceError(
+            f"unsupported evidence schema: {schema!r} (expected one of {', '.join(SCHEMA_IDS)})"
+        )
     entries = doc.get("evidence")
     if not isinstance(entries, list):
         raise EvidenceError("'evidence' must be an array")
-    return [_parse_ref(entry) for entry in entries]
+    honour_tiers = schema == SCHEMA_ID_V2
+    return [_parse_ref(entry, honour_tiers=honour_tiers) for entry in entries]
 
 
 def load_evidence(text: str) -> list[EvidenceRef]:
@@ -281,6 +331,88 @@ def merge_provenance(
 ) -> dict[str, str]:
     """Provenance for every affirmed item: evidence(-verified) where present, else self."""
     return {item: evidence_provenance.get(item, SELF) for item in sorted(affirmed)}
+
+
+@dataclass(frozen=True)
+class Affirmations:
+    """The resolved answer set every command scores, gates and renders from.
+
+    ``affirmed`` is what counts. ``asserted`` is what the assessor claimed
+    without verified evidence while ``require_evidence`` was in force: it is
+    carried so every output can show it, and it is never scored. ``provenance``
+    covers ``affirmed`` and ``asserted``; ``coverage`` is computed over
+    ``affirmed`` only and records the policy that produced it.
+    """
+
+    affirmed: frozenset[str]
+    skipped: frozenset[str]
+    asserted: frozenset[str]
+    provenance: dict[str, str]
+    coverage: dict[str, object]
+    require_evidence: bool
+    n_refs: int = 0
+    n_verified: int = 0
+
+
+def resolve_affirmations(
+    self_affirmed: frozenset[str],
+    skipped: frozenset[str],
+    refs: list[EvidenceRef] | None,
+    trust: Mapping[str, object] | None,
+    *,
+    require_evidence: bool = False,
+) -> Affirmations:
+    """Merge self-attested answers with signed evidence under one policy.
+
+    This is the single merge point for ``--affirm`` / the wizard, ``--evidence``
+    and ``--require-evidence`` (v0.26.0 S-1). Without ``require_evidence`` the
+    behaviour is the v0.13.0 one: self-attested items count, evidence adds
+    items, and an item explicitly skipped is never affirmed by evidence.
+
+    With ``require_evidence`` the flag means what it says: **only an item whose
+    evidence-ref verifies against ``trust`` is affirmed**. A self-attested item
+    without such a ref is *asserted*: kept, shown, not counted. With no
+    ``refs`` or no ``trust`` nothing can verify, so nothing is affirmed. This
+    is fail-closed by construction: the counted set is a subset of the verified
+    set, whatever else was supplied.
+    """
+    result = classify(list(refs or []), trust, require_verified=require_evidence)
+    self_affirmed = frozenset(self_affirmed) - skipped
+    via_evidence = result.affirmed - skipped
+    if require_evidence:
+        affirmed = via_evidence
+        asserted = self_affirmed - via_evidence
+    else:
+        affirmed = self_affirmed | via_evidence
+        asserted = frozenset()
+    provenance = merge_provenance(affirmed, result.provenance)
+    for item in sorted(asserted):
+        provenance[item] = SELF
+    coverage = evidence_coverage({i: p for i, p in provenance.items() if i in affirmed})
+    coverage["require_evidence"] = require_evidence
+    coverage["asserted_not_counted"] = len(asserted)
+    return Affirmations(
+        affirmed=affirmed,
+        skipped=frozenset(skipped),
+        asserted=asserted,
+        provenance=provenance,
+        coverage=coverage,
+        require_evidence=require_evidence,
+        n_refs=result.n_refs,
+        n_verified=result.n_verified,
+    )
+
+
+def evidence_block(aff: Affirmations) -> dict[str, object]:
+    """The per-item evidence marking block shared by every JSON output."""
+    prov = aff.provenance
+    return {
+        "require_evidence": aff.require_evidence,
+        "verified": sorted(i for i in aff.affirmed if prov.get(i) == EVIDENCE_VERIFIED),
+        "evidence_backed": sorted(i for i in aff.affirmed if prov.get(i) == EVIDENCE),
+        "self_attested": sorted(i for i in aff.affirmed if prov.get(i, SELF) == SELF),
+        "asserted_not_counted": sorted(aff.asserted),
+    }
 
 
 def evidence_coverage(provenance: Mapping[str, str]) -> dict[str, object]:

@@ -309,13 +309,40 @@ fehlerhafte oder falsche Signatur gilt nie als verifiziert.
 iga assess --use-case "fraud-scoring" --risk-class high \
     --evidence evidence.json --trust trust.json
 
-# Fail-closed: nur Referenzen, die gegen --trust verifizieren, bestätigen ihren Punkt
+# Fail-closed: NUR Punkte, deren Referenz gegen --trust verifiziert, werden gewertet.
+# Nackte --affirm-/Assistenten-Antworten werden als „behauptet“ erfasst, nicht gewertet.
 iga assess --use-case "fraud-scoring" --risk-class high \
-    --evidence evidence.json --trust trust.json --require-evidence
+    --affirm S1,S2 --evidence evidence.json --trust trust.json --require-evidence
 
 # Ein Dokument für sich prüfen (Exit 0 nur, wenn jede Referenz verifiziert)
 iga verify-evidence --evidence evidence.json --trust trust.json
 ```
+
+### `--require-evidence` heißt: nur Nachweise (v0.26.0)
+
+`--require-evidence` gibt es auf jedem Befehl, der Antworten entgegennimmt: `assess`,
+`gate`, `report`, `export`, `certify`, `framework-gap`, `iso-gap`, `euaiact-gap`,
+`classify assess` und das MCP-Tool `iga_assess_with_evidence`. Unter dem Flag gilt ein
+Punkt **nur** dann als bestätigt, wenn eine Referenz in `--evidence` gegen `--trust`
+verifiziert. Eine nackte `--affirm`- (oder Assistenten-)Antwort ohne solche Referenz ist
+**behauptet**: sie wird erfasst, auf stderr benannt, in jeder Ausgabe als
+`behauptet (nicht gewertet)` gezeigt, und geht weder in die Bewertung noch in die Gates
+ein. Ohne `--evidence`, ohne `--trust`, mit leerem Trust Store, unbekanntem Signierer,
+falschem Schlüssel oder manipulierter Signatur verifiziert nichts, und nichts wird
+gewertet. Übersprungene Punkte bleiben übersprungen.
+
+> **Vor v0.26.0 filterte das Flag nur die `--evidence`-Eingaben.** Ein nacktes `--affirm`
+> zählte weiterhin, und ohne `--evidence` wurde das Flag gar nicht gelesen, sodass
+> `--require-evidence --trust '{}'` über alle 25 Punkte 100 % mit allen Gates OFFEN
+> meldete. Siehe `SECURITY.md` und `CHANGELOG.md` (0.26.0, Security).
+
+Jede Ausgabe kennzeichnet jetzt jeden Punkt, unabhängig von den Flags: die
+`provenance` je Punkt (`self` | `evidence` | `evidence-verified`) ist bei bestätigten und
+behaupteten Zeilen immer vorhanden, JSON führt `answers.asserted` und `evidence_coverage`
+(`require_evidence`, `asserted_not_counted`), Gate- und Gap-JSON tragen einen
+`evidence`-Block, der Markdown-Bericht hat eine Spalte *Nachweis* und eine Zusammenfassung
+unter der Bewertung, und das signierte Export-Manifest trägt denselben `evidence`-Block
+innerhalb der signierten Bytes, sodass ein Paket selbst sagt, worauf seine Zahlen beruhen.
 
 Ein **Nachweisdokument** ist das `EvidenceRef`-JSON des Producers:
 
@@ -424,9 +451,38 @@ ensure_ascii=False)` (UTF-8), SHA-256; die Ausstellersignatur ist HMAC-SHA256 od
 > deklarierten Prädikat und dem eingebetteten Bestätigungsset / den eingebetteten Nachweisen*
 > die Gate-Entscheidung auf den behaupteten Wert nachrechnet. Es beweist **nicht**, dass die
 > zugrunde liegenden Controls wirksam sind, noch dass die reale Aussage des Nachweises wahr
-> ist. Assurance-Tiers (`assurance_tier`, evidence-ref@2 / presidio-evidence ADR-0003) sind
-> ein **geplantes** Feld: die Evidence-Schicht dieses Repos (evidence-ref@1) modelliert noch
-> keine Tiers, daher tragen Zertifikate keinen Tier.
+> ist.
+
+### Herkunft, Gültigkeit, Fundierung und Stufen (v0.26.0)
+
+Vier additive, optionale Felder, alle innerhalb des signierten Inhalts; Zertifikate vor
+v0.26 verifizieren unverändert:
+
+- **`parents`** (`--parent <hex>`, wiederholbar) — Provenance-Parents nach ADR-0002: die
+  Content-Hashes der Nachweise, auf denen die Entscheidung beruht, typischerweise das
+  `eai-classification@1`-Dokument und das Workshop-Manifest. Mitsigniert, also nach der
+  Ausstellung nicht umverdrahtbar; azyklisch per Konstruktion; entfällt, wenn leer. Das
+  Auflösen eines Parents ist der Weg des Konsumenten, nicht des Prüfers.
+- **`not_after`** (`--valid-days N`) — eine Gültigkeitsgrenze. Ablauf ist bewusst der einzige
+  Widerruf dieses Formats: keine Sperrliste, kein Akkumulator, keine Koordination. Der Prüfer
+  schlägt danach fail-closed fehl (`expired`); `verify-certificate --at <UTC>` prüft zu einem
+  gegebenen Zeitpunkt und macht die Prüfung reproduzierbar. Ohne Grenze kein Ablauf.
+- **`grounding`** — die schwächste Herkunft in der Affirmationsmenge: `self`, wenn ein
+  bejahtes Gate-Item keinen eingebetteten Evidence-Ref hat, sonst `evidence-verified`. Eine
+  Selbstauskunft unter einer benannten Signatur ist *nicht* die Stufe „attested“; sie ist
+  eine ungebundene Zusicherung. Der Prüfer rechnet sie nach (`grounding-mismatch`), und
+  `--min-grounding evidence-verified` schlägt bei jeder Selbstauskunft fehl
+  (`grounding-below-minimum`).
+- **Assurance-Stufen** — Nachweisdokumente dürfen jetzt `evidence-ref@2` sein
+  (presidio-evidence ADR-0003); die deklarierte `assurance_tier` eines Refs (`attested` |
+  `optimistic` | `zk`, Standard `attested`) wird nur unter `@2` berücksichtigt und in das
+  Zertifikat übernommen. Sie ist eine *Deklaration*: der Prüfer prüft die Signatur des Refs
+  erneut, nie einen Fraud-Proof oder einen ZK-Beweis, und meldet die schwächste deklarierte
+  Stufe, damit `--min-evidence-tier` eine Untergrenze verlangen kann
+  (`evidence-tier-below-minimum`). Die eigene `assurance_tier` des Zertifikats ist `attested`
+  und nichts anderes; ein Zertifikat mit einer anderen Stufe wird abgewiesen
+  (`unsupported-assurance-tier`), damit ein künftiges ZK-Gate-Zertifikat nie für eines
+  gehalten wird, das dieser Prüfer prüfen kann.
 
 ---
 
@@ -788,6 +844,8 @@ In das Werkzeug eingebaute Sicherheitskontrollen:
 | v0.23.0 T-B5 | Gate-Zertifikate: signiertes `gate-certificate@1`, `iga certify` / `iga verify-certificate`, Nachweisprüfung bei Ausstellung und Verifikation, benannte Workshop-Delegationsketten | Veröffentlicht |
 | v0.24.0 | Wartung: abdeckungsgeführtes Fuzzing (`fuzz`-Extra, Atheris), fail-closed-Prüfungen an den JSON-Grenzen, `mcp` unterhalb 2.0 begrenzt, um das `[mcp]`-Extra zu reparieren | Veröffentlicht |
 | v0.25.0 | `iga --version`; Portierung auf das mcp-2.x-SDK (`MCPServer`, Extra benötigt jetzt `mcp>=2,<3`); `OrgAuthMiddleware` weist Nicht-HTTP-ASGI-Scopes ab, statt sie durchzureichen | Veröffentlicht |
+| v0.26.0 S-1 | **Security:** `--require-evidence` ist überall fail-closed; nackte Bestätigungen sind `behauptet`, werden gezeigt, nie gewertet; jede Ausgabe kennzeichnet nachgewiesen / behauptet / offen | Unveröffentlicht |
+| v0.26.0 T-B6 | Zertifikat-Herkunft (`parents`, ADR-0002), Gültigkeit (`not_after`), `grounding`, `evidence-ref@2`-Assurance-Stufen mit Prüfer-Untergrenzen | Unveröffentlicht |
 
 Vollständiges Versions-Deliberationslog: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

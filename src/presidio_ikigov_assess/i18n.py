@@ -105,6 +105,31 @@ STRINGS: dict[str, dict[str, str]] = {
     "answer_affirmed": {"de": "bestätigt", "en": "affirmed"},
     "answer_denied": {"de": "nicht bestätigt", "en": "not affirmed"},
     "answer_skipped": {"de": "übersprungen", "en": "skipped"},
+    # v0.26.0 S-1: self-attested under --require-evidence, recorded, not counted.
+    "answer_asserted": {"de": "behauptet (nicht gewertet)", "en": "asserted (not counted)"},
+    "col_provenance": {"de": "Nachweis", "en": "Evidence"},
+    "provenance_self": {"de": "Selbstauskunft", "en": "self-attested"},
+    "provenance_evidence": {
+        "de": "Nachweis vorhanden (unverifiziert)",
+        "en": "evidence (unverified)",
+    },
+    "provenance_evidence-verified": {"de": "Nachweis verifiziert", "en": "evidence-verified"},
+    "asserted_label": {
+        "de": "Behauptet, nicht gewertet (--require-evidence)",
+        "en": "Asserted, not counted (--require-evidence)",
+    },
+    "evidence_summary_line": {
+        "de": "Nachweise: {verified} verifiziert, {backed} belegt von {total} bestätigten Elementen; {asserted} behauptet und nicht gewertet.",
+        "en": "Evidence: {verified} verified, {backed} evidence-backed of {total} affirmed items; {asserted} asserted and not counted.",
+    },
+    "require_evidence_asserted_notice": {
+        "de": "--require-evidence: {n} selbst bestätigte(s) Element(e) ohne verifizierten Nachweis nicht gewertet: {items}",
+        "en": "--require-evidence: {n} self-attested item(s) without verified evidence not counted: {items}",
+    },
+    "require_evidence_no_trust_notice": {
+        "de": "--require-evidence ohne --trust: kein Nachweis kann verifiziert werden, nichts wird gewertet.",
+        "en": "--require-evidence without --trust: no evidence can verify, nothing is counted.",
+    },
     "col_item": {"de": "Element", "en": "Item"},
     "col_status": {"de": "Status", "en": "Status"},
     "col_dimension": {"de": "Dimension", "en": "Dimension"},
@@ -725,6 +750,43 @@ STRINGS: dict[str, dict[str, str]] = {
     "cert_verify_reason_predicate-content-mismatch": {
         "de": "Prädikat-Inhalts-Hash stimmt nicht überein",
         "en": "predicate content hash mismatch",
+    },
+    # ── Certificate lineage / validity / grounding / tiers (v0.26.0) ──────────
+    "cert_verify_reason_expired": {
+        "de": "Zertifikat abgelaufen (not_after überschritten)",
+        "en": "certificate expired (past not_after)",
+    },
+    "cert_verify_reason_unsupported-assurance-tier": {
+        "de": "Zertifikat deklariert eine Assurance-Stufe, die dieser Prüfer nicht verifizieren kann",
+        "en": "certificate declares an assurance tier this verifier cannot check",
+    },
+    "cert_verify_reason_grounding-mismatch": {
+        "de": "aufgezeichnete Fundierung stimmt nicht mit der Affirmationsmenge überein",
+        "en": "recorded grounding does not match the affirmation set",
+    },
+    "cert_verify_reason_grounding-below-minimum": {
+        "de": "Fundierung unter der geforderten Mindeststufe (Selbstauskunft enthalten)",
+        "en": "grounding below the required minimum (self-attestation present)",
+    },
+    "cert_verify_reason_evidence-tier-below-minimum": {
+        "de": "eingebetteter Evidence-Ref deklariert eine Stufe unter dem geforderten Minimum",
+        "en": "an embedded evidence-ref declares a tier below the required minimum",
+    },
+    "cert_verify_grounding": {
+        "de": "Fundierung: {grounding} · schwächste deklarierte Evidence-Stufe: {tier}",
+        "en": "Grounding: {grounding} · weakest declared evidence tier: {tier}",
+    },
+    "cert_err_bad_at": {
+        "de": "--at muss die Form YYYY-MM-DDTHH:MM:SSZ (UTC) haben.",
+        "en": "--at must be YYYY-MM-DDTHH:MM:SSZ (UTC).",
+    },
+    "cert_err_bad_grounding": {
+        "de": "--min-grounding muss self oder evidence-verified sein.",
+        "en": "--min-grounding must be self or evidence-verified.",
+    },
+    "cert_err_bad_tier": {
+        "de": "--min-evidence-tier muss attested, optimistic oder zk sein.",
+        "en": "--min-evidence-tier must be attested, optimistic or zk.",
     },
     # ── Named workshop delegation chain (v0.23.0, T-B5) ──────────────────────
     "chain_link_ok": {

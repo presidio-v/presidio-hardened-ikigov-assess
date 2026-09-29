@@ -227,8 +227,11 @@ def assess_with_evidence(
     """Assess a use case, affirming items backed by signed evidence references.
 
     ``evidence`` is a list of EvidenceRef objects (the producer's export shape);
-    ``trust`` maps signer id -> verification key. Items with valid (and, under
-    ``require_evidence``, verified) evidence are affirmed, and the payload carries
+    ``trust`` maps signer id -> verification key. Without ``require_evidence``,
+    self-attested ``affirmed`` items count and evidence adds items. With
+    ``require_evidence`` **only items whose evidence verifies against ``trust``
+    count**; self-attested items without such evidence are returned under
+    ``answers.asserted`` and are not scored (v0.26.0 S-1). The payload carries
     per-item provenance plus an ``evidence_coverage`` block.
     """
     lang = _validated(lang, validate_lang)
@@ -241,21 +244,31 @@ def assess_with_evidence(
         refs = evidence_mod.parse_document({"evidence": evidence or []})
     except evidence_mod.EvidenceError as exc:
         raise ToolInputError(str(exc)) from exc
-    result = evidence_mod.classify(refs, trust, require_verified=require_evidence)
-    merged = (affirm_ids | result.affirmed) - skip_ids
-    provenance = evidence_mod.merge_provenance(merged, result.provenance)
-    coverage = evidence_mod.evidence_coverage(provenance)
+    aff = evidence_mod.resolve_affirmations(
+        affirm_ids, skip_ids, refs, trust, require_evidence=require_evidence
+    )
 
-    scores = compute_scores(merged, skip_ids, risk_class)
-    gate_results = evaluate_all_gates(merged, skip_ids, risk_class, strict)
+    scores = compute_scores(aff.affirmed, aff.skipped, risk_class)
+    gate_results = evaluate_all_gates(aff.affirmed, aff.skipped, risk_class, strict)
     payload = build_payload(
-        use_case, risk_class, scores, gate_results, merged, skip_ids, lang, provenance, coverage
+        use_case,
+        risk_class,
+        scores,
+        gate_results,
+        aff.affirmed,
+        aff.skipped,
+        lang,
+        aff.provenance,
+        aff.coverage,
+        aff.asserted,
+        aff.require_evidence,
     )
     log_security_event(
         {
             "event": "iga-mcp-evidence-assess",
-            "n_refs": result.n_refs,
-            "n_verified": result.n_verified,
+            "n_refs": aff.n_refs,
+            "n_verified": aff.n_verified,
+            "n_asserted_not_counted": len(aff.asserted),
             "require_evidence": require_evidence,
             "lang": lang,
         }

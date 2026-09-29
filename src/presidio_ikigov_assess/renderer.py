@@ -34,10 +34,21 @@ def _bar(score: float) -> str:
     return _FILLED * filled + _EMPTY * (_BAR_WIDTH - filled)
 
 
-def classify_answer(item_id: str, affirmed: frozenset[str], skipped: frozenset[str]) -> str:
-    """Return the answer status for an item: affirmed | skipped | denied."""
+def classify_answer(
+    item_id: str,
+    affirmed: frozenset[str],
+    skipped: frozenset[str],
+    asserted: frozenset[str] = frozenset(),
+) -> str:
+    """Return the answer status for an item: affirmed | asserted | skipped | denied.
+
+    ``asserted`` (v0.26.0 S-1) is a self-attestation made under
+    ``--require-evidence``: recorded and shown, never counted.
+    """
     if item_id in affirmed:
         return "affirmed"
+    if item_id in asserted:
+        return "asserted"
     if item_id in skipped:
         return "skipped"
     return "denied"
@@ -48,17 +59,19 @@ def item_answers(
     skipped: frozenset[str],
     lang: str,
     provenance: dict[str, str] | None = None,
+    asserted: frozenset[str] = frozenset(),
 ) -> list[dict[str, object]]:
     """Build the per-item answer detail for every checklist item, in order.
 
-    When ``provenance`` is supplied (v0.13.0 evidence-backed affirmation), each
-    affirmed item carries how it was substantiated: ``self`` | ``evidence`` |
-    ``evidence-verified``. Omitted entirely when ``provenance`` is None, so the
-    legacy schema is unchanged.
+    Every affirmed or asserted item carries ``provenance``: how it was
+    substantiated (``self`` | ``evidence`` | ``evidence-verified``). Since
+    v0.26.0 the field is always present for those rows (``self`` when no
+    evidence was attached), so a reader of any output can tell an assertion
+    from evidence without knowing which flags were used.
     """
     rows: list[dict[str, object]] = []
     for item in CHECKLIST:
-        status = classify_answer(item.id, affirmed, skipped)
+        status = classify_answer(item.id, affirmed, skipped, asserted)
         row: dict[str, object] = {
             "id": item.id,
             "status": status,
@@ -68,10 +81,36 @@ def item_answers(
             "iso_clauses": list(item.iso_clauses),
             "text": item.text(lang),
         }
-        if provenance is not None and status == "affirmed":
-            row["provenance"] = provenance.get(item.id, "self")
+        if status in ("affirmed", "asserted"):
+            row["provenance"] = (provenance or {}).get(item.id, "self")
         rows.append(row)
     return rows
+
+
+def _evidence_summary_line(coverage: dict[str, object], lang: str) -> str:
+    """One-line evidence summary shown under the overall score in every report."""
+    return t(
+        "evidence_summary_line",
+        lang,
+        verified=coverage.get("verified", 0),
+        backed=coverage.get("evidence_backed", 0),
+        total=coverage.get("affirmed_total", 0),
+        asserted=coverage.get("asserted_not_counted", 0),
+    )
+
+
+def _default_coverage(
+    affirmed: frozenset[str],
+    provenance: dict[str, str] | None,
+    asserted: frozenset[str],
+    require_evidence: bool,
+) -> dict[str, object]:
+    from presidio_ikigov_assess.evidence import evidence_coverage, merge_provenance
+
+    coverage = evidence_coverage(merge_provenance(affirmed, provenance or {}))
+    coverage["require_evidence"] = require_evidence
+    coverage["asserted_not_counted"] = len(asserted)
+    return coverage
 
 
 def gate_detail_segments(result: GateResult, lang: str, text_width: int = 0) -> list[str]:
@@ -111,8 +150,16 @@ def print_assessment(
     gate_results: dict[str, GateResult],
     skipped_ids: frozenset[str],
     lang: str,
+    *,
+    coverage: dict[str, object] | None = None,
+    asserted: frozenset[str] = frozenset(),
 ) -> None:
-    """Render the full assessment result to *console*."""
+    """Render the full assessment result to *console*.
+
+    ``coverage`` (always shown when given) and ``asserted`` mark what the
+    numbers rest on: how many affirmed items are evidence-backed or verified,
+    and which self-attestations were recorded but not counted.
+    """
     risk_label = t(RISK_LABEL_KEY[risk_class], lang)
     title = t("assessment_title", lang)
     risk_key = t("risk_label", lang)
@@ -132,7 +179,14 @@ def print_assessment(
     console.rule(style="dim")
     overall_label = t("overall_label", lang)
     overall_bar = _bar(scores.overall)
-    console.print(f"  {'':>3}  {overall_label:<36} {overall_bar}  {scores.overall:5.1f} %\n")
+    console.print(f"  {'':>3}  {overall_label:<36} {overall_bar}  {scores.overall:5.1f} %")
+    if coverage is not None:
+        console.print(f"  {'':>3}  [dim]{_evidence_summary_line(coverage, lang)}[/dim]")
+    if asserted:
+        console.print(
+            f"  {'':>3}  [yellow]{t('asserted_label', lang)}: {', '.join(sorted(asserted))}[/yellow]"
+        )
+    console.print()
 
     # ── Gate Readiness ───────────────────────────────────────────────────────
     console.print(f"[bold]{t('gates_header', lang)}[/bold]")
@@ -159,9 +213,20 @@ def render_markdown(
     affirmed: frozenset[str],
     skipped: frozenset[str],
     lang: str,
+    provenance: dict[str, str] | None = None,
+    coverage: dict[str, object] | None = None,
+    asserted: frozenset[str] = frozenset(),
+    require_evidence: bool = False,
 ) -> str:
-    """Return the assessment report as a Markdown string."""
+    """Return the assessment report as a Markdown string.
+
+    The answers table always carries a provenance column and the score is
+    followed by an evidence summary line, so a report never shows a number
+    without saying what it rests on (v0.26.0 S-1).
+    """
     safe_use_case = escape_markdown(use_case)
+    if coverage is None:
+        coverage = _default_coverage(affirmed, provenance, asserted, require_evidence)
     risk_label = t(RISK_LABEL_KEY[risk_class], lang)
     title = t("assessment_title", lang)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -192,6 +257,12 @@ def render_markdown(
         "",
         f"**{t('overall_label', lang)}: {scores.overall:.1f} %**",
         "",
+        f"*{_evidence_summary_line(coverage, lang)}*",
+    ]
+    if asserted:
+        lines.append(f"*{t('asserted_label', lang)}: {', '.join(sorted(asserted))}*")
+    lines += [
+        "",
         f"## {t('gates_header', lang)}",
         "",
         f"| {t('col_gate', lang)} | {t('col_status', lang)} | {t('col_blocking_skipped', lang)} |",
@@ -208,13 +279,17 @@ def render_markdown(
         "",
         f"## {t('answers_header', lang)}",
         "",
-        f"| ID | {t('col_dimension', lang)} | {t('col_status', lang)} | {t('col_item', lang)} |",
-        "|---|---|---|---|",
+        f"| ID | {t('col_dimension', lang)} | {t('col_status', lang)} |"
+        f" {t('col_provenance', lang)} | {t('col_item', lang)} |",
+        "|---|---|---|---|---|",
     ]
-    for row in item_answers(affirmed, skipped, lang):
+    for row in item_answers(affirmed, skipped, lang, provenance, asserted):
         # Escape item text and neutralise table-breaking pipes before embedding.
         text = escape_for_report(str(row["text"])).replace("|", "\\|")
-        lines.append(f"| {row['id']} | {row['dimension']} | {row['status_label']} | {text} |")
+        prov = t(f"provenance_{row['provenance']}", lang) if "provenance" in row else "—"
+        lines.append(
+            f"| {row['id']} | {row['dimension']} | {row['status_label']} | {prov} | {text} |"
+        )
 
     lines += [
         "",
@@ -237,18 +312,23 @@ def build_payload(
     lang: str,
     provenance: dict[str, str] | None = None,
     coverage: dict[str, object] | None = None,
+    asserted: frozenset[str] = frozenset(),
+    require_evidence: bool = False,
 ) -> dict[str, object]:
     """Build the structured (JSON-serialisable) assessment payload.
 
     Shared by the CLI JSON report and the MCP server so both front-ends emit
     an identical schema. The use-case name is output-sanitised before inclusion.
 
-    When ``provenance``/``coverage`` are supplied (v0.13.0 evidence-backed
-    affirmation), per-item provenance and an ``evidence_coverage`` block are added.
-    Both default to None, leaving the legacy schema unchanged.
+    Since v0.26.0 every payload carries per-item ``provenance`` on affirmed and
+    asserted rows, ``answers.asserted`` and an ``evidence_coverage`` block
+    (with ``require_evidence`` and ``asserted_not_counted``), whatever flags
+    produced it. Additive over the v0.13.0 schema: no key was removed or retyped.
     """
     safe_use_case = escape_for_report(use_case)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if coverage is None:
+        coverage = _default_coverage(affirmed, provenance, asserted, require_evidence)
 
     payload: dict[str, object] = {
         "use_case": safe_use_case,
@@ -278,13 +358,13 @@ def build_payload(
         },
         "answers": {
             "affirmed": sorted(affirmed),
+            "asserted": sorted(asserted),
             "skipped": sorted(skipped),
-            "items": item_answers(affirmed, skipped, lang, provenance),
+            "items": item_answers(affirmed, skipped, lang, provenance, asserted),
         },
+        "evidence_coverage": coverage,
         "disclaimer": t("report_disclaimer", lang),
     }
-    if coverage is not None:
-        payload["evidence_coverage"] = coverage
     return payload
 
 
@@ -298,10 +378,22 @@ def render_json(
     lang: str,
     provenance: dict[str, str] | None = None,
     coverage: dict[str, object] | None = None,
+    asserted: frozenset[str] = frozenset(),
+    require_evidence: bool = False,
 ) -> str:
     """Return the assessment report as a JSON string."""
     data = build_payload(
-        use_case, risk_class, scores, gate_results, affirmed, skipped, lang, provenance, coverage
+        use_case,
+        risk_class,
+        scores,
+        gate_results,
+        affirmed,
+        skipped,
+        lang,
+        provenance,
+        coverage,
+        asserted,
+        require_evidence,
     )
     return json.dumps(data, indent=2, ensure_ascii=False)
 
@@ -348,10 +440,11 @@ def build_iso_payload(
     risk_class: str,
     coverage: dict[str, ClauseCoverage],
     lang: str,
+    evidence: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Build the structured ISO/IEC 42001 coverage payload."""
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return {
+    payload: dict[str, object] = {
         "use_case": escape_for_report(use_case),
         "risk_class": risk_class,
         "lang": lang,
@@ -369,6 +462,9 @@ def build_iso_payload(
         },
         "disclaimer": t("report_disclaimer", lang),
     }
+    if evidence is not None:
+        payload["evidence"] = evidence
+    return payload
 
 
 def render_iso_json(
@@ -376,10 +472,11 @@ def render_iso_json(
     risk_class: str,
     coverage: dict[str, ClauseCoverage],
     lang: str,
+    evidence: dict[str, object] | None = None,
 ) -> str:
     """Return the ISO/IEC 42001 coverage analysis as a JSON string."""
     return json.dumps(
-        build_iso_payload(use_case, risk_class, coverage, lang),
+        build_iso_payload(use_case, risk_class, coverage, lang, evidence),
         indent=2,
         ensure_ascii=False,
     )
@@ -562,10 +659,11 @@ def build_euaiact_payload(
     risk_class: str,
     coverage: dict[str, ArticleCoverage],
     lang: str,
+    evidence: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Build the structured EU AI Act coverage payload."""
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return {
+    payload: dict[str, object] = {
         "use_case": escape_for_report(use_case),
         "risk_class": risk_class,
         "lang": lang,
@@ -583,6 +681,9 @@ def build_euaiact_payload(
         },
         "disclaimer": t("report_disclaimer", lang),
     }
+    if evidence is not None:
+        payload["evidence"] = evidence
+    return payload
 
 
 def render_euaiact_json(
@@ -590,10 +691,11 @@ def render_euaiact_json(
     risk_class: str,
     coverage: dict[str, ArticleCoverage],
     lang: str,
+    evidence: dict[str, object] | None = None,
 ) -> str:
     """Return the EU AI Act coverage analysis as a JSON string."""
     return json.dumps(
-        build_euaiact_payload(use_case, risk_class, coverage, lang),
+        build_euaiact_payload(use_case, risk_class, coverage, lang, evidence),
         indent=2,
         ensure_ascii=False,
     )
@@ -604,8 +706,13 @@ def render_gate_json(
     risk_class: str,
     strict: bool,
     lang: str,
+    evidence: dict[str, object] | None = None,
 ) -> str:
-    """Return a single gate-readiness result as a JSON string (for ``--quiet``)."""
+    """Return a single gate-readiness result as a JSON string (for ``--quiet``).
+
+    ``evidence`` (v0.26.0) is the shared marking block: which of the gate's
+    items were verified, evidence-backed, self-attested, or asserted-not-counted.
+    """
     data: dict[str, object] = {
         "gate": result.gate,
         "status": result.status.value,
@@ -616,4 +723,6 @@ def render_gate_json(
         "skipped": [item.id for item in result.skipped_items],
         "blocking_skips": [item.id for item in result.blocking_skips],
     }
+    if evidence is not None:
+        data["evidence"] = evidence
     return json.dumps(data, indent=2, ensure_ascii=False)

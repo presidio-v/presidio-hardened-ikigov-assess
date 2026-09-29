@@ -4,9 +4,18 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.25.x  | Yes       |
-| 0.24.x  | Yes       |
+| 0.26.x  | Yes       |
+| 0.25.x  | Yes, but see the `--require-evidence` note below |
+| 0.24.x  | Yes, but see the `--require-evidence` note below |
 | < 0.24  | No        |
+
+> **0.13.0 – 0.25.0: `--require-evidence` fails open (fixed in 0.26.0, S-1).** In those
+> releases the flag only filtered `--evidence` inputs; bare `--affirm` and wizard answers
+> still counted, and without `--evidence` the flag was not read at all. An assessment,
+> report, gate check or signed export produced under the flag could show 100 % and every
+> gate OPEN with no verified evidence and no marking. Upgrade, or treat any pre-0.26
+> output produced under `--require-evidence` as self-attested unless its per-item
+> `provenance` says `evidence-verified`.
 
 > **0.23.x and earlier: the `[mcp]` extra is broken, not merely unsupported.** Those
 > releases declare an unbounded `mcp>=1.2.0`, so a fresh install resolves an SDK major
@@ -82,6 +91,13 @@ controls in force:
   silently as verified; the item stays `evidence` (present, unproven) or, under
   `--require-evidence`, is not affirmed at all. `verify-evidence` exits non-zero on any
   failure.
+- **`--require-evidence` is evidence-only (v0.26.0 S-1)** — under the flag an item counts
+  as affirmed only if a reference in `--evidence` verifies against `--trust`; a bare
+  `--affirm` or wizard answer is *asserted*: recorded, named on stderr, shown in every
+  output, never scored. The counted set is a subset of the verified set by construction
+  (`evidence.resolve_affirmations`, the single merge point used by every command and the
+  MCP tool). Every output marks each item as evidenced / asserted / open, and the signed
+  export manifest carries that marking inside the signed bytes.
 - **Commitments only** — an `EvidenceRef` carries hashes and opaque ledger URIs, never PII
   or raw organisational data, consistent with the structural-only logging rule. All fields
   are length-bounded, scheme/format-validated, and escaped on export like every other input.

@@ -28,6 +28,7 @@ from presidio_ikigov_assess import __version__, store
 from presidio_ikigov_assess import bundle as bundle_mod
 from presidio_ikigov_assess import content as content_mod
 from presidio_ikigov_assess import evidence as evidence_mod
+from presidio_ikigov_assess.checklist import ITEMS_BY_GATE
 from presidio_ikigov_assess.classify import classify_app
 from presidio_ikigov_assess.euaiact import evaluate_euaiact
 from presidio_ikigov_assess.gates import evaluate_all_gates, evaluate_gate
@@ -225,46 +226,91 @@ def _resolve_sign_key(
     return os.environ.get("IGA_SIGN_KEY") or None
 
 
-def _apply_evidence(
-    affirmed: frozenset[str],
-    skipped: frozenset[str],
-    evidence_path: str,
-    trust_path: Optional[str],
-    require_evidence: bool,
-    lang: str,
-    quiet: bool,
-) -> tuple[frozenset[str], dict[str, str], dict[str, object]]:
-    """Load signed evidence, affirm the items it substantiates, return provenance+coverage."""
-    evidence_path = _validated(evidence_path, validate_output_path, lang)
+REQUIRE_EVIDENCE_HELP = (
+    "Fail-closed: an item counts as affirmed only if a reference in --evidence verifies "
+    "against --trust. Bare --affirm / wizard answers are recorded as 'asserted' and do not "
+    "count; with no --evidence or no --trust nothing counts."
+)
+
+
+def _evidence_option():
+    return typer.Option(
+        None,
+        "--evidence",
+        help="Signed EvidenceRef JSON from a presidio-hardened-* control (affirms items).",
+    )
+
+
+def _trust_option():
+    return typer.Option(
+        None,
+        "--trust",
+        help="Trust-store JSON {signer: key|entry} used to verify evidence signatures.",
+    )
+
+
+def _require_evidence_option():
+    return typer.Option(False, "--require-evidence", help=REQUIRE_EVIDENCE_HELP)
+
+
+def _load_evidence_inputs(
+    evidence_path: Optional[str], trust_path: Optional[str], lang: str
+) -> tuple[list[evidence_mod.EvidenceRef], Optional[dict[str, dict[str, object]]]]:
+    """Read and validate the optional evidence document and trust store (fail-closed)."""
+    refs: list[evidence_mod.EvidenceRef] = []
+    trust: Optional[dict[str, dict[str, object]]] = None
     try:
-        refs = evidence_mod.load_evidence(_read_file(evidence_path, lang))
-        trust = None
+        if evidence_path is not None:
+            path = _validated(evidence_path, validate_output_path, lang)
+            refs = evidence_mod.load_evidence(_read_file(path, lang))
         if trust_path is not None:
-            trust_path = _validated(trust_path, validate_output_path, lang)
-            trust = evidence_mod.load_trust_store(_read_file(trust_path, lang))
-        result = evidence_mod.classify(refs, trust, require_verified=require_evidence)
+            path = _validated(trust_path, validate_output_path, lang)
+            trust = evidence_mod.load_trust_store(_read_file(path, lang))
     except evidence_mod.EvidenceError as exc:
         err_console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
+    return refs, trust
 
-    # Evidence cannot affirm an item explicitly skipped by the assessor.
-    affirmed_via_evidence = result.affirmed - skipped
-    merged = affirmed | affirmed_via_evidence
-    provenance = evidence_mod.merge_provenance(merged, result.provenance)
-    coverage = evidence_mod.evidence_coverage(provenance)
 
-    log_security_event(
-        {
-            "event": "iga-evidence-attached",
-            "n_refs": result.n_refs,
-            "n_verified": result.n_verified,
-            "n_affirmed": len(affirmed_via_evidence),
-            "require_evidence": require_evidence,
-            "trust": trust_path is not None,
-            "lang": lang,
-        }
+def _resolve_answers(
+    affirmed: frozenset[str],
+    skipped: frozenset[str],
+    evidence_path: Optional[str],
+    trust_path: Optional[str],
+    require_evidence: bool,
+    lang: str,
+) -> evidence_mod.Affirmations:
+    """The one place self-attested answers, signed evidence and the policy meet.
+
+    Every command that takes answers goes through here (v0.26.0 S-1), so
+    ``--require-evidence`` means the same thing everywhere: only an item whose
+    evidence-ref verifies against the trust store counts; a bare affirmation is
+    recorded as *asserted*, named on stderr, and not counted.
+    """
+    refs, trust = _load_evidence_inputs(evidence_path, trust_path, lang)
+    aff = evidence_mod.resolve_affirmations(
+        affirmed, skipped, refs, trust, require_evidence=require_evidence
     )
-    return merged, provenance, coverage
+    if require_evidence and trust is None:
+        err_console.print(f"[yellow]{t('require_evidence_no_trust_notice', lang)}[/yellow]")
+    if aff.asserted:
+        err_console.print(
+            f"[yellow]{t('require_evidence_asserted_notice', lang, n=len(aff.asserted), items=', '.join(sorted(aff.asserted)))}[/yellow]"
+        )
+    if evidence_path is not None or require_evidence:
+        log_security_event(
+            {
+                "event": "iga-evidence-attached",
+                "n_refs": aff.n_refs,
+                "n_verified": aff.n_verified,
+                "n_affirmed": len(aff.affirmed),
+                "n_asserted_not_counted": len(aff.asserted),
+                "require_evidence": require_evidence,
+                "trust": trust is not None,
+                "lang": lang,
+            }
+        )
+    return aff
 
 
 @app.command()
@@ -329,11 +375,7 @@ def assess(
         "--trust",
         help="Trust-store JSON {signer: key} used to verify evidence signatures.",
     ),
-    require_evidence: bool = typer.Option(
-        False,
-        "--require-evidence",
-        help="Fail-closed: only evidence that verifies against --trust affirms its item.",
-    ),
+    require_evidence: bool = _require_evidence_option(),
 ) -> None:
     """Assess an AI use case against the IKI-Gov checklist."""
     lang = _validated(lang, validate_lang, lang)
@@ -357,12 +399,9 @@ def assess(
     else:
         affirmed, skipped_set = _parse_answers(affirm, skip, lang)
 
-    provenance: dict[str, str] | None = None
-    coverage: dict[str, object] | None = None
-    if evidence is not None:
-        affirmed, provenance, coverage = _apply_evidence(
-            affirmed, skipped_set, evidence, trust, require_evidence, lang, quiet
-        )
+    aff = _resolve_answers(affirmed, skipped_set, evidence, trust, require_evidence, lang)
+    affirmed, skipped_set = aff.affirmed, aff.skipped
+    provenance, coverage = aff.provenance, aff.coverage
 
     scores = compute_scores(affirmed, skipped_set, risk_class)
     gate_results = evaluate_all_gates(affirmed, skipped_set, risk_class, strict)
@@ -384,7 +423,11 @@ def assess(
             use_case=use_case,
             risk_class=risk_class,
             lang=lang,
-            answers={"affirmed": sorted(affirmed), "skipped": sorted(skipped_set)},
+            answers={
+                "affirmed": sorted(affirmed),
+                "asserted": sorted(aff.asserted),
+                "skipped": sorted(skipped_set),
+            },
             scores={
                 **{dim: ds.score for dim, ds in scores.dimensions.items()},
                 "overall": scores.overall,
@@ -409,6 +452,8 @@ def assess(
                 lang,
                 provenance,
                 coverage,
+                aff.asserted,
+                aff.require_evidence,
             )
         )
         return
@@ -421,11 +466,9 @@ def assess(
         gate_results=gate_results,
         skipped_ids=skipped_set,
         lang=lang,
+        coverage=coverage,
+        asserted=aff.asserted,
     )
-    if coverage is not None:
-        console.print(
-            f"[dim]{t('evidence_coverage_line', lang, backed=coverage['evidence_backed'], total=coverage['affirmed_total'], verified=coverage['verified'])}[/dim]"
-        )
 
 
 @app.command(name="verify-evidence")
@@ -510,7 +553,11 @@ def certify(
     require_evidence: bool = typer.Option(
         False,
         "--require-evidence",
-        help="Deprecated for certificates: --evidence is always verified fail-closed.",
+        help=(
+            "Fail-closed: only items with a verified evidence-ref are affirmed in the "
+            "certificate; bare --affirm items are dropped (named on stderr) and the "
+            "certificate records require_evidence=true. Embedded refs are always verified."
+        ),
     ),
     issuer: str = typer.Option(
         ..., "--issuer", help="Issuer id embedded in the certificate and signed over."
@@ -527,6 +574,22 @@ def certify(
         None,
         "--sign-key-file",
         help="File holding the issuer signing key (keeps it off argv; also reads $IGA_SIGN_KEY).",
+    ),
+    parent: Optional[list[str]] = typer.Option(
+        None,
+        "--parent",
+        help=(
+            "Content hash (lowercase hex) of upstream evidence this decision rests on "
+            "(ADR-0002 provenance parent, e.g. the classification document or the "
+            "workshop manifest). Repeatable; signed over."
+        ),
+    ),
+    valid_days: Optional[int] = typer.Option(
+        None,
+        "--valid-days",
+        min=1,
+        max=3650,
+        help="Validity in days; sets a signed `not_after` bound. Omit for no expiry.",
     ),
     output: Optional[str] = typer.Option(
         None, "--output", "-o", help="Write the certificate JSON here instead of stdout."
@@ -584,6 +647,19 @@ def certify(
         affirmed = affirmed | affirmed_via_evidence
         refs_by_item = dict(result.refs_by_item)
 
+    if require_evidence:
+        # Same policy as every other command (v0.26.0 S-1): a self-attested item
+        # without a verified ref is not affirmed. The certificate's partition
+        # records it as denied and its `grounding` is therefore evidence-verified.
+        asserted = affirmed - set(refs_by_item)
+        if asserted:
+            err_console.print(
+                f"[yellow]{t('require_evidence_asserted_notice', lang, n=len(asserted), items=', '.join(sorted(asserted)))}[/yellow]"
+            )
+        affirmed = affirmed - asserted
+
+    assessed_at = cert_mod.now_iso()
+    not_after = cert_mod.add_days(assessed_at, valid_days) if valid_days is not None else None
     try:
         document = cert_mod.build_certificate(
             use_case=use_case,
@@ -594,6 +670,10 @@ def certify(
             strict=strict,
             evidence_refs=refs_by_item,
             issuer=issuer,
+            assessed_at=assessed_at,
+            parents=parent or None,
+            not_after=not_after,
+            require_evidence=require_evidence,
         )
         cert_mod.sign(document, alg=sign_alg, key_hex_or_secret=seal_key, signer=issuer)
     except cert_mod.CertificateError as exc:
@@ -610,6 +690,9 @@ def certify(
             "risk_class": risk_class,
             "sign_alg": sign_alg,
             "embedded_evidence": len(refs_by_item),
+            "grounding": document["grounding"],
+            "parents": len(parent or ()),
+            "not_after": not_after,
             "lang": lang,
         }
     )
@@ -637,6 +720,21 @@ def certify(
 def verify_certificate_cmd(
     certificate: str = typer.Option(..., "--certificate", help="Gate certificate JSON to verify."),
     trust: str = typer.Option(..., "--trust", help="Trust-store JSON {signer: key|entry}."),
+    at: Optional[str] = typer.Option(
+        None,
+        "--at",
+        help="Verify as of this UTC instant (YYYY-MM-DDTHH:MM:SSZ) instead of now.",
+    ),
+    min_grounding: Optional[str] = typer.Option(
+        None,
+        "--min-grounding",
+        help="Require the affirmation set's grounding: self | evidence-verified.",
+    ),
+    min_evidence_tier: Optional[str] = typer.Option(
+        None,
+        "--min-evidence-tier",
+        help="Require every embedded ref to declare at least: attested | optimistic | zk.",
+    ),
     lang: str = typer.Option("en", "--lang", "-l", help="Output language: de | en."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
 ) -> None:
@@ -665,7 +763,26 @@ def verify_certificate_cmd(
         err_console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
 
-    result = cert_mod.verify_certificate(document, trust_store)
+    now = None
+    if at is not None:
+        now = cert_mod.parse_timestamp(at)
+        if now is None:
+            err_console.print(f"[red]Error:[/red] {t('cert_err_bad_at', lang)}")
+            raise typer.Exit(1)
+    if min_grounding is not None and min_grounding not in cert_mod.GROUNDINGS:
+        err_console.print(f"[red]Error:[/red] {t('cert_err_bad_grounding', lang)}")
+        raise typer.Exit(1)
+    if min_evidence_tier is not None and min_evidence_tier not in evidence_mod.ASSURANCE_TIERS:
+        err_console.print(f"[red]Error:[/red] {t('cert_err_bad_tier', lang)}")
+        raise typer.Exit(1)
+
+    result = cert_mod.verify_certificate(
+        document,
+        trust_store,
+        now=now,
+        min_grounding=min_grounding,
+        min_evidence_tier=min_evidence_tier,
+    )
 
     log_security_event(
         {
@@ -674,6 +791,8 @@ def verify_certificate_cmd(
             "reason": result.reason,
             "signer": result.signer or None,
             "evidence_checked": result.evidence_checked,
+            "grounding": result.grounding or None,
+            "evidence_tier_min": result.evidence_tier_min or None,
             "lang": lang,
         }
     )
@@ -689,6 +808,10 @@ def verify_certificate_cmd(
                     "decision_recomputed": result.decision_recomputed or None,
                     "evidence_checked": result.evidence_checked,
                     "evidence_ok": result.evidence_ok,
+                    "grounding": result.grounding or None,
+                    "evidence_tier_min": result.evidence_tier_min or None,
+                    "not_after": result.not_after or None,
+                    "parents": list(result.parents),
                 },
                 ensure_ascii=False,
             )
@@ -696,6 +819,9 @@ def verify_certificate_cmd(
     elif result.ok:
         console.print(
             f"[green]{t('cert_verify_ok', lang, signer=result.signer, decision=result.decision_recomputed)}[/green]"
+        )
+        console.print(
+            f"[dim]{t('cert_verify_grounding', lang, grounding=result.grounding, tier=result.evidence_tier_min or '-')}[/dim]"
         )
     else:
         reason_label = t(f"cert_verify_reason_{result.reason}", lang)
@@ -751,6 +877,9 @@ def gate(
         "-q",
         help="Emit machine-readable JSON only (no progress bars).",
     ),
+    evidence: Optional[str] = _evidence_option(),
+    trust: Optional[str] = _trust_option(),
+    require_evidence: bool = _require_evidence_option(),
 ) -> None:
     """Check readiness for a specific IKI-Gov lifecycle gate."""
     lang = _validated(lang, validate_lang, lang)
@@ -758,8 +887,11 @@ def gate(
     risk_class = _validated(risk_class, validate_risk_class, lang)
 
     affirmed, skipped_set = _parse_answers(affirm, skip, lang)
+    aff = _resolve_answers(affirmed, skipped_set, evidence, trust, require_evidence, lang)
 
-    result = evaluate_gate(gate_id, affirmed, skipped_set, risk_class, strict)
+    result = evaluate_gate(gate_id, aff.affirmed, aff.skipped, risk_class, strict)
+    gate_item_ids = {item.id for item in ITEMS_BY_GATE.get(gate_id, [])}
+    asserted_here = sorted(aff.asserted & gate_item_ids)
     status_str = t(result.status.value, lang)
 
     log_security_event(
@@ -769,17 +901,21 @@ def gate(
             "status": result.status.value,
             "risk_class": risk_class,
             "strict": strict or risk_class == "high",
+            "require_evidence": require_evidence,
+            "n_asserted_not_counted": len(asserted_here),
             "lang": lang,
         }
     )
 
     if quiet:
-        print(render_gate_json(result, risk_class, strict, lang))
+        print(render_gate_json(result, risk_class, strict, lang, evidence_mod.evidence_block(aff)))
     else:
         colour_map = {"OPEN": "green", "PARTIAL": "yellow", "BLOCKED": "red"}
         colour = colour_map.get(result.status.value, "white")
         line = f"\n[bold]{gate_id}[/bold]  [{colour}]{status_str}[/{colour}]"
         details = gate_detail_segments(result, lang, text_width=50)
+        if asserted_here:
+            details.append(f"{t('asserted_label', lang)}: {', '.join(asserted_here)}")
         if details:
             line += "  — " + " · ".join(details)
         console.print(line)
@@ -856,6 +992,9 @@ def report(
         "-o",
         help="Write the report to this file instead of stdout.",
     ),
+    evidence: Optional[str] = _evidence_option(),
+    trust: Optional[str] = _trust_option(),
+    require_evidence: bool = _require_evidence_option(),
 ) -> None:
     """Render an assessment report (Markdown or JSON) to stdout or a file.
 
@@ -870,6 +1009,8 @@ def report(
     out_path = _validated(output, validate_output_path, lang) if output is not None else None
 
     affirmed, skipped_set = _parse_answers(affirm, skip, lang)
+    aff = _resolve_answers(affirmed, skipped_set, evidence, trust, require_evidence, lang)
+    affirmed, skipped_set = aff.affirmed, aff.skipped
 
     scores = compute_scores(affirmed, skipped_set, risk_class)
     gate_results = evaluate_all_gates(affirmed, skipped_set, risk_class, strict)
@@ -884,14 +1025,20 @@ def report(
         }
     )
 
-    if fmt == "json":
-        report_text = render_json(
-            use_case, risk_class, scores, gate_results, affirmed, skipped_set, lang
-        )
-    else:
-        report_text = render_markdown(
-            use_case, risk_class, scores, gate_results, affirmed, skipped_set, lang
-        )
+    render = render_json if fmt == "json" else render_markdown
+    report_text = render(
+        use_case,
+        risk_class,
+        scores,
+        gate_results,
+        affirmed,
+        skipped_set,
+        lang,
+        aff.provenance,
+        aff.coverage,
+        aff.asserted,
+        aff.require_evidence,
+    )
 
     if out_path is None:
         print(report_text)
@@ -944,6 +1091,9 @@ def export(
         help="File holding the HMAC seal key, keeping it off argv (also reads $IGA_SIGN_KEY).",
     ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
+    evidence: Optional[str] = _evidence_option(),
+    trust: Optional[str] = _trust_option(),
+    require_evidence: bool = _require_evidence_option(),
 ) -> None:
     """Export a signed, audit-ready evidence pack (report + hash manifest) for an assessment."""
     lang = _validated(lang, validate_lang, lang)
@@ -952,15 +1102,15 @@ def export(
     bundle = _validated(bundle, validate_output_path, lang)
     seal_key = _resolve_sign_key(sign_key, sign_key_file, lang)
     affirmed, skipped_set = _parse_answers(affirm, skip, lang)
+    aff = _resolve_answers(affirmed, skipped_set, evidence, trust, require_evidence, lang)
+    affirmed, skipped_set = aff.affirmed, aff.skipped
 
     scores = compute_scores(affirmed, skipped_set, risk_class)
     gate_results = evaluate_all_gates(affirmed, skipped_set, risk_class, strict)
-    report_md = render_markdown(
-        use_case, risk_class, scores, gate_results, affirmed, skipped_set, lang
-    )
-    report_json = render_json(
-        use_case, risk_class, scores, gate_results, affirmed, skipped_set, lang
-    )
+    render_args = (use_case, risk_class, scores, gate_results, affirmed, skipped_set, lang)
+    marking = (aff.provenance, aff.coverage, aff.asserted, aff.require_evidence)
+    report_md = render_markdown(*render_args, *marking)
+    report_json = render_json(*render_args, *marking)
 
     try:
         out = bundle_mod.write_bundle(
@@ -971,13 +1121,21 @@ def export(
             risk_class=risk_class,
             as_zip=as_zip,
             sign_key=seal_key,
+            evidence=evidence_mod.evidence_block(aff),
         )
     except (OSError, bundle_mod.BundleError) as exc:
         err_console.print(f"[red]Error:[/red] could not write evidence pack: {exc}")
         raise typer.Exit(1) from exc
 
     log_security_event(
-        {"event": "iga-export", "as_zip": as_zip, "signed": seal_key is not None, "lang": lang}
+        {
+            "event": "iga-export",
+            "as_zip": as_zip,
+            "signed": seal_key is not None,
+            "require_evidence": require_evidence,
+            "n_asserted_not_counted": len(aff.asserted),
+            "lang": lang,
+        }
     )
     if quiet:
         print(json.dumps({"bundle": str(out), "signed": seal_key is not None, "zip": as_zip}))
@@ -1079,6 +1237,9 @@ def framework_gap(
         False, "--strict", help="Treat skipped gate-critical items as blocking."
     ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
+    evidence: Optional[str] = _evidence_option(),
+    trust: Optional[str] = _trust_option(),
+    require_evidence: bool = _require_evidence_option(),
 ) -> None:
     """Coverage gap against any installed content pack (generic over the pack engine)."""
     lang = _validated(lang, validate_lang, lang)
@@ -1086,6 +1247,8 @@ def framework_gap(
     use_case = _validated(use_case, validate_use_case, lang)
     risk_class = _validated(risk_class, validate_risk_class, lang)
     affirmed, skipped_set = _parse_answers(affirm, skip, lang)
+    aff = _resolve_answers(affirmed, skipped_set, evidence, trust, require_evidence, lang)
+    affirmed, skipped_set = aff.affirmed, aff.skipped
 
     packs = content_mod.load_packs()
     pack = packs.get(framework)
@@ -1113,6 +1276,7 @@ def framework_gap(
                     "framework_id": pack.framework_id,
                     "version": pack.version,
                     "content_hash": pack.content_hash,
+                    "evidence": evidence_mod.evidence_block(aff),
                     "coverage": {
                         t: {
                             "status": c.status.value,
@@ -1138,6 +1302,10 @@ def framework_gap(
             if c.outstanding:
                 line += f"  — outstanding: {', '.join(c.outstanding)}"
             console.print(line)
+        if aff.asserted:
+            console.print(
+                f"  [yellow]{t('asserted_label', lang)}: {', '.join(sorted(aff.asserted))}[/yellow]"
+            )
 
 
 @app.command(name="iso-gap")
@@ -1176,6 +1344,9 @@ def iso_gap(
         "-q",
         help="Emit machine-readable JSON only.",
     ),
+    evidence: Optional[str] = _evidence_option(),
+    trust: Optional[str] = _trust_option(),
+    require_evidence: bool = _require_evidence_option(),
 ) -> None:
     """Map assessment results to ISO/IEC 42001 clause-level coverage.
 
@@ -1187,9 +1358,10 @@ def iso_gap(
     use_case = _validated(use_case, validate_use_case, lang)
     risk_class = _validated(risk_class, validate_risk_class, lang)
 
-    affirmed, _skipped_set = _parse_answers(affirm, skip, lang)
+    affirmed, skipped_set = _parse_answers(affirm, skip, lang)
+    aff = _resolve_answers(affirmed, skipped_set, evidence, trust, require_evidence, lang)
 
-    coverage = evaluate_iso_coverage(affirmed)
+    coverage = evaluate_iso_coverage(aff.affirmed)
     gaps = [clause for clause, cov in coverage.items() if cov.status.value != "covered"]
 
     log_security_event(
@@ -1202,9 +1374,15 @@ def iso_gap(
     )
 
     if quiet:
-        print(render_iso_json(use_case, risk_class, coverage, lang))
+        print(
+            render_iso_json(use_case, risk_class, coverage, lang, evidence_mod.evidence_block(aff))
+        )
     else:
         print_iso_coverage(console, use_case, risk_class, coverage, lang)
+        if aff.asserted:
+            console.print(
+                f"  [yellow]{t('asserted_label', lang)}: {', '.join(sorted(aff.asserted))}[/yellow]"
+            )
 
 
 @app.command(name="euaiact-gap")
@@ -1234,6 +1412,9 @@ def euaiact_gap(
         help="Treat skipped gate-critical items as blocking (implied at high risk).",
     ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Emit machine-readable JSON only."),
+    evidence: Optional[str] = _evidence_option(),
+    trust: Optional[str] = _trust_option(),
+    require_evidence: bool = _require_evidence_option(),
 ) -> None:
     """Map gate readiness to EU AI Act high-risk obligations (Art. 9–17).
 
@@ -1250,7 +1431,8 @@ def euaiact_gap(
         raise typer.Exit(1)
 
     affirmed, skipped_set = _parse_answers(affirm, skip, lang)
-    gate_results = evaluate_all_gates(affirmed, skipped_set, risk_class, strict)
+    aff = _resolve_answers(affirmed, skipped_set, evidence, trust, require_evidence, lang)
+    gate_results = evaluate_all_gates(aff.affirmed, aff.skipped, risk_class, strict)
     coverage = evaluate_euaiact(gate_results)
 
     blocked = [a for a, cov in coverage.items() if cov.status == "BLOCKED"]
@@ -1264,9 +1446,17 @@ def euaiact_gap(
     )
 
     if quiet:
-        print(render_euaiact_json(use_case, risk_class, coverage, lang))
+        print(
+            render_euaiact_json(
+                use_case, risk_class, coverage, lang, evidence_mod.evidence_block(aff)
+            )
+        )
     else:
         print_euaiact(console, use_case, risk_class, coverage, lang)
+        if aff.asserted:
+            console.print(
+                f"  [yellow]{t('asserted_label', lang)}: {', '.join(sorted(aff.asserted))}[/yellow]"
+            )
 
 
 @app.command(name="list")

@@ -288,7 +288,11 @@ def classify_assess(
     require_evidence: bool = typer.Option(
         False,
         "--require-evidence",
-        help="Only evidence-verified items count as affirmed.",
+        help=(
+            "Fail-closed: an item counts as affirmed only if a reference in --evidence "
+            "verifies against --trust. Bare --affirm answers are recorded as asserted "
+            "and do not count."
+        ),
     ),
     profile: Optional[str] = typer.Option(
         None,
@@ -354,35 +358,42 @@ def classify_assess(
         )
         raise typer.Exit(1)
 
-    # Apply evidence if provided.
-    provenance: dict[str, str] | None = None
-    ev_coverage: dict[str, object] | None = None
-    if evidence is not None:
-        evidence_path = _validated(evidence, validate_output_path, lang)
+    # Resolve self-attested answers and signed evidence under one policy
+    # (v0.26.0 S-1): with --require-evidence only verified evidence counts.
+    refs: list[evidence_mod.EvidenceRef] = []
+    trust_store = None
+    if evidence is not None or require_evidence:
         try:
-            raw_evidence = Path(evidence_path).read_text(encoding="utf-8")
-            refs = evidence_mod.load_evidence(raw_evidence)
-            trust_store = None
+            if evidence is not None:
+                evidence_path = _validated(evidence, validate_output_path, lang)
+                refs = evidence_mod.load_evidence(Path(evidence_path).read_text(encoding="utf-8"))
             if trust is not None:
                 trust_path = _validated(trust, validate_output_path, lang)
-                trust_raw = Path(trust_path).read_text(encoding="utf-8")
-                trust_store = evidence_mod.load_trust_store(trust_raw)
-            result = evidence_mod.classify(refs, trust_store, require_verified=require_evidence)
-        except evidence_mod.EvidenceError as exc:
+                trust_store = evidence_mod.load_trust_store(
+                    Path(trust_path).read_text(encoding="utf-8")
+                )
+        except (OSError, evidence_mod.EvidenceError) as exc:
             _err_console.print(f"[red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
-
-        affirmed_via_evidence = result.affirmed - skipped_ids
-        affirmed_ids = affirmed_ids | affirmed_via_evidence
-        provenance = evidence_mod.merge_provenance(affirmed_ids, result.provenance)
-        ev_coverage = evidence_mod.evidence_coverage(provenance)
-
+    aff = evidence_mod.resolve_affirmations(
+        affirmed_ids, skipped_ids, refs, trust_store, require_evidence=require_evidence
+    )
+    if require_evidence and trust_store is None:
+        _err_console.print(f"[yellow]{t('require_evidence_no_trust_notice', lang)}[/yellow]")
+    if aff.asserted:
+        _err_console.print(
+            f"[yellow]{t('require_evidence_asserted_notice', lang, n=len(aff.asserted), items=', '.join(sorted(aff.asserted)))}[/yellow]"
+        )
+    affirmed_ids, skipped_ids = aff.affirmed, aff.skipped
+    provenance, ev_coverage = aff.provenance, aff.coverage
+    if evidence is not None or require_evidence:
         log_security_event(
             {
                 "event": "iga-evidence-attached",
-                "n_refs": result.n_refs,
-                "n_verified": result.n_verified,
-                "n_affirmed": len(affirmed_via_evidence),
+                "n_refs": aff.n_refs,
+                "n_verified": aff.n_verified,
+                "n_affirmed": len(aff.affirmed),
+                "n_asserted_not_counted": len(aff.asserted),
                 "require_evidence": require_evidence,
                 "trust": trust is not None,
                 "lang": lang,
@@ -439,6 +450,8 @@ def classify_assess(
                 lang,
                 provenance,
                 ev_coverage,
+                aff.asserted,
+                require_evidence,
             )
         )
         # Augment with classify-specific fields.
@@ -466,11 +479,9 @@ def classify_assess(
         gate_results=gate_results,
         skipped_ids=skipped_ids,
         lang=lang,
+        coverage=ev_coverage,
+        asserted=aff.asserted,
     )
     _console.print(
         f"[dim]{t('cell_info_line', lang, cell=cid, fid=pack.framework_id, hash=pack.content_hash[:12])}[/dim]"
     )
-    if ev_coverage is not None:
-        _console.print(
-            f"[dim]{t('evidence_coverage_line', lang, backed=ev_coverage['evidence_backed'], total=ev_coverage['affirmed_total'], verified=ev_coverage['verified'])}[/dim]"
-        )
