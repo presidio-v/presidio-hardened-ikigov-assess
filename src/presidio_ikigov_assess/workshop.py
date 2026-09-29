@@ -55,7 +55,12 @@ from rich.text import Text
 
 from presidio_ikigov_assess import __version__
 from presidio_ikigov_assess import content as content_mod
-from presidio_ikigov_assess.bundle import BundleError, member_path, read_member_bytes
+from presidio_ikigov_assess.bundle import (
+    BundleError,
+    member_path,
+    read_member_bytes,
+    write_text_nofollow,
+)
 from presidio_ikigov_assess.classification import (
     ClassificationDocument,
     ClassificationError,
@@ -375,8 +380,8 @@ def _write_use_case_artifact(
 
     # Write all manifest-listed artifacts, then the manifest itself.
     for name, content in artifacts.items():
-        (uc_dir / name).write_text(content, encoding="utf-8")
-    (uc_dir / "manifest.json").write_text(manifest_pretty, encoding="utf-8")
+        write_text_nofollow(uc_dir / name, content)
+    write_text_nofollow(uc_dir / "manifest.json", manifest_pretty)
 
     if sign_key_hex is not None:
         try:
@@ -389,22 +394,19 @@ def _write_use_case_artifact(
                 },
                 indent=2,
             )
-            (uc_dir / "manifest.sig").write_text(sig_content, encoding="utf-8")
+            write_text_nofollow(uc_dir / "manifest.sig", sig_content)
         except Exception as exc:
             _err_console.print(
                 f"[yellow]{t('workshop_warn_sign_failed', lang, uc=uc.id, err=str(exc))}[/yellow]"
             )
             # Write UNSIGNED marker
-            (uc_dir / "manifest.sig").write_text(
+            write_text_nofollow(
+                uc_dir / "manifest.sig",
                 json.dumps({"UNSIGNED": True, "reason": str(exc)}, indent=2),
-                encoding="utf-8",
             )
     else:
         # No key provided — write explicit UNSIGNED marker.
-        (uc_dir / "manifest.sig").write_text(
-            json.dumps({"UNSIGNED": True}, indent=2),
-            encoding="utf-8",
-        )
+        write_text_nofollow(uc_dir / "manifest.sig", json.dumps({"UNSIGNED": True}, indent=2))
 
     return uc_dir
 
@@ -872,7 +874,11 @@ def workshop_keygen(
     fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w") as fh:
         fh.write(priv_hex + "\n")
-    Path(str(out_path) + ".pub").write_text(pub_hex + "\n", encoding="utf-8")
+    try:
+        write_text_nofollow(Path(str(out_path) + ".pub"), pub_hex + "\n")
+    except OSError as exc:
+        _err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
 
     _console.print(f"[green]{t('keygen_done', lang, priv=str(out_path), pub=pub_hex)}[/green]")
     _console.print(f"\n[bold]{t('keygen_pubkey_label', lang)}:[/bold] {pub_hex}")
@@ -1018,12 +1024,16 @@ def workshop_attest(
         )
         raise typer.Exit(1) from exc
 
-    (uc_dir / "attestation.content.json").write_text(
-        json.dumps(reading, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-    (uc_dir / "attestation.json").write_text(
-        json.dumps(envelope, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    try:
+        write_text_nofollow(
+            uc_dir / "attestation.content.json", json.dumps(reading, indent=2, ensure_ascii=False)
+        )
+        write_text_nofollow(
+            uc_dir / "attestation.json", json.dumps(envelope, indent=2, ensure_ascii=False)
+        )
+    except OSError as exc:
+        _err_console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
     manifest_hash = reading["attested_content"]["attests"]
     _console.print(
         f"[green]{t('attest_done', lang, path=str(uc_dir / 'attestation.json'), hash=manifest_hash[:16])}[/green]"

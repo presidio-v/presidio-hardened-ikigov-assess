@@ -13,9 +13,11 @@ the same ``framework_content_hash`` — only the manifest timestamp differs betw
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import hmac
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -131,8 +133,23 @@ def write_bundle(
     else:
         out_path.mkdir(parents=True, exist_ok=True)
         for name, content in files.items():
-            (out_path / name).write_text(content, encoding="utf-8")
+            write_text_nofollow(out_path / name, content)
     return out_path
+
+
+def write_text_nofollow(path: Path, text: str) -> None:
+    """Write *text* to *path* without following a symlink planted at *path*.
+
+    Output directories can be shared or handed over, so a pre-existing symlink
+    named like an artifact would otherwise redirect the write onto its target.
+    Raises :class:`OSError` (``ELOOP``) instead; callers already report OSError.
+    """
+    if path.is_symlink():
+        raise OSError(errno.ELOOP, "refusing to write through a symlink", str(path))
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(path, flags, 0o644)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(text)
 
 
 def member_path(root: Path, name: object) -> Path:

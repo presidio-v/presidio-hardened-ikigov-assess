@@ -35,6 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from presidio_ikigov_assess import __version__
+from presidio_ikigov_assess.bundle import write_text_nofollow
 
 ATTESTATION_SCHEMA = "presidio-hardened/workshop-attestation@1"
 ENVELOPE_SCHEMA = "presidio-hardened/evidence-ref@1"
@@ -515,19 +516,16 @@ def owner_sign_manifest(
     priv = ed25519.Ed25519PrivateKey.from_private_bytes(bytes.fromhex(private_key_hex))
     signature_hex = priv.sign(manifest_bytes).hex()
 
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
-    sig_path.write_text(
-        json.dumps(
-            {
-                "alg": "ed25519",
-                "role": "owner",
-                "signer": signer,
-                "signature": signature_hex,
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
+    sig_text = json.dumps(
+        {"alg": "ed25519", "role": "owner", "signer": signer, "signature": signature_hex},
+        indent=2,
     )
+    try:
+        # A handed-over leave-behind may carry planted symlinks; never write through one.
+        write_text_nofollow(manifest_path, json.dumps(manifest, indent=2, ensure_ascii=False))
+        write_text_nofollow(sig_path, sig_text)
+    except OSError as exc:
+        raise SovereigntyError(f"cannot write signed manifest: {exc}") from exc
     return pub_hex, replaced
 
 
