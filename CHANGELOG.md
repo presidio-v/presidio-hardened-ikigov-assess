@@ -42,6 +42,12 @@ fix carries a regression test that reproduces the finding.
   (`IGA_MCP_WINDOW_SECONDS`, `Retry-After` on 429) instead of a lifetime counter; and
   `serve()` refuses a non-loopback bind without `--behind-tls-proxy`.
 
+### Fixed
+
+- **The MCP server reports its version in the handshake.** `initialize` returned
+  `serverInfo.version: ""` because `MCPServer` defaults the version to an empty string;
+  it now reports the package version. A test reads it from a real stdio handshake.
+
 ### Build
 
 - **The release build uses a hash-pinned backend** (`hatchling` and its closure in
@@ -50,6 +56,13 @@ fix carries a regression test that reproduces the finding.
   moves to its own job and describes the wheel's runtime closure, not the build tooling.
 - **A manual MCP Registry publish runs only from `main`.**
 - Every checkout sets `persist-credentials: false`.
+
+- **`hatchling` is bounded to `>=1.31,<2`** instead of floating unbounded. The floor is
+  the version that built 0.25.0. The range cannot stop metadata changes inside a major:
+  hatchling 1.32 moved to Metadata-Version 2.5, which the pinned twine 6.2.0 rejected and
+  failed the first v0.26.0 tag build. `pytest.yml` therefore gains a *Build and check
+  metadata* job that runs the release build and `twine check --strict` on every PR, so
+  a backend/twine mismatch shows up before a tag.
 
 ### Documentation
 

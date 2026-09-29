@@ -1,5 +1,8 @@
 [build-system]
-requires = ["hatchling"]
+# Floor: the version that built 0.25.0 (1.31.0). Ceiling on the major, as with mcp.
+# The range does not freeze metadata output: 1.32 moved to Metadata-Version 2.5
+# inside it, so pytest.yml's build-check job runs the release twine check per PR.
+requires = ["hatchling>=1.31,<2"]
 build-backend = "hatchling.build"
 
 [project]

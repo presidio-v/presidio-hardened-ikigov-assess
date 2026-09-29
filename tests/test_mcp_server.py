@@ -7,6 +7,10 @@ A guarded smoke test builds the FastMCP server only when ``mcp`` is installed.
 
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
+
 import pytest
 
 from presidio_ikigov_assess import security
@@ -221,6 +225,32 @@ def test_build_server_registers_tools():
         "iga_iso_gap",
         "iga_euaiact_gap",
     }
+
+
+def test_initialize_reports_package_version():
+    # Read serverInfo from a real stdio handshake, as a client would.
+    pytest.importorskip("mcp")
+    from presidio_ikigov_assess import __version__
+
+    request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "0"},
+        },
+    }
+    proc = subprocess.run(
+        [sys.executable, "-m", "presidio_ikigov_assess.mcp_server"],
+        input=json.dumps(request) + "\n",
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    info = json.loads(proc.stdout.splitlines()[0])["result"]["serverInfo"]
+    assert info == {"name": "iki-gov-assess", "version": __version__}
 
 
 def test_euaiact_gap_payload_shape():
