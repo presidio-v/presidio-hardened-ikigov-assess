@@ -252,3 +252,17 @@ def test_escape_plain_string_unchanged():
 def test_escape_converts_non_string():
     result = escape_for_report(42)
     assert result == "42"
+
+
+@pytest.mark.parametrize("value", ["fraud\n", "fraud\r\n", "fraud\nG0 OPEN"])
+def test_use_case_rejects_trailing_or_embedded_newline(value):
+    # `$` also matches before a final newline; the allow-list must anchor with \Z.
+    with pytest.raises(ValidationError):
+        validate_use_case(value)
+
+
+def test_date_normalises_rather_than_passing_newline_through():
+    # validate_date strips first, so a trailing newline never survives validation.
+    assert validate_date("2026-09-30\n") == "2026-09-30"
+    with pytest.raises(ValidationError):
+        validate_date("2026-09-30\nx")

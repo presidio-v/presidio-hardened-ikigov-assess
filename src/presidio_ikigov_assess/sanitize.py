@@ -13,8 +13,8 @@ from datetime import datetime
 
 from presidio_ikigov_assess.checklist import VALID_GATES, VALID_ITEM_IDS, VALID_RISK_CLASSES
 
-_USE_CASE_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
-_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_USE_CASE_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{1,128}\Z")
+_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}\Z")
 _LANG_ALLOWED = {"de", "en"}
 _FORMAT_ALLOWED = {"markdown", "json"}
 

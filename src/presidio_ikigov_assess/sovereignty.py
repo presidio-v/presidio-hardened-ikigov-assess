@@ -42,8 +42,8 @@ DEFAULT_ASSESSOR_SIGNER = "presidio-hardened-ikigov-assess"
 #: Default scope wording — matches the frozen family golden vector.
 DEFAULT_SCOPE = "facilitation + methodology conformance"
 
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_HEX_RE = re.compile(r"^[0-9a-f]{8,128}$")
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\Z")
+_HEX_RE = re.compile(r"^[0-9a-f]{8,128}\Z")
 _PRINTABLE_ASCII = frozenset(string.printable) - frozenset("\t\n\r\x0b\x0c")
 _MAX_FIELD_LEN = 128
 _MAX_SCOPE_LEN = 512

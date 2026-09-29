@@ -59,7 +59,7 @@ _CONTRACT_FIELDS = (
     "signature",
     "claimed_at",
 )
-_HEX_RE = re.compile(r"^[0-9a-f]{8,128}$")
+_HEX_RE = re.compile(r"^[0-9a-f]{8,128}\Z")
 _MAX_STR = 512
 
 # Provenance states, weakest to strongest.

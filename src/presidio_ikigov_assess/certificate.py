@@ -117,7 +117,7 @@ GROUNDINGS = (GROUNDING_SELF, GROUNDING_EVIDENCE_VERIFIED)
 GROUNDING_RANK = {g: rank for rank, g in enumerate(GROUNDINGS)}
 
 #: Family hex rule for content hashes (ADR-0002 P2, mirrors evidence.py).
-_HEX_RE = re.compile(r"^[0-9a-f]{8,128}$")
+_HEX_RE = re.compile(r"^[0-9a-f]{8,128}\Z")
 #: Strict RFC 3339 UTC form this module emits and accepts.
 _TIMESTAMP_FMT = "%Y-%m-%dT%H:%M:%SZ"
 _MAX_PARENTS = 64
