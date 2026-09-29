@@ -398,7 +398,8 @@ def build_server(*, session_guard: bool = True):
     """
     from mcp.server.mcpserver import MCPServer
 
-    server = MCPServer("iki-gov-assess", instructions=_SERVER_INSTRUCTIONS)
+    # MCPServer defaults version to "", which clients see as serverInfo.version.
+    server = MCPServer("iki-gov-assess", version=__version__, instructions=_SERVER_INSTRUCTIONS)
 
     @server.tool()
     def iga_framework_info(lang: str = "en") -> dict:
