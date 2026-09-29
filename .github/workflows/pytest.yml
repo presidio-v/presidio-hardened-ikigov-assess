@@ -54,9 +54,10 @@ jobs:
         continue-on-error: true
 
   build-check:
-    # Same build and metadata check as publish.yml, on every PR. The build backend
-    # resolves at build time, so a new hatchling can emit metadata the pinned twine
-    # rejects; v0.26.0's first tag failed exactly there (Metadata-Version 2.5).
+    # Same build and metadata check as publish.yml, on every PR: the hash-pinned
+    # backend from release-build.txt, --no-isolation, then the pinned twine. A bump
+    # of either pin that changes metadata twine rejects fails here, on the bump PR,
+    # not at tag time; v0.26.0's first tag failed exactly there (Metadata-Version 2.5).
     name: Build and check metadata
     runs-on: ubuntu-latest
     steps:
@@ -69,7 +70,7 @@ jobs:
       - name: Build sdist and wheel
         run: |
           python -m pip install --require-hashes -r .github/constraints/release-build.txt
-          python -m build
+          python -m build --no-isolation
       - name: Check metadata
         run: |
           python -m pip install --require-hashes -r .github/constraints/twine.txt
