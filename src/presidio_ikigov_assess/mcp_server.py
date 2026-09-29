@@ -188,13 +188,16 @@ def assess(
     lang: str = "en",
     use_case: str = "unnamed",
     strict: bool = False,
+    *,
+    session_guard: bool = True,
 ) -> dict:
     """Run a full assessment and return scores, gate readiness and metadata."""
     lang = _validated(lang, validate_lang)
     risk_class = _validated(risk_class, validate_risk_class)
     use_case = _validated(use_case, validate_use_case)
     affirm_ids, skip_ids = _prepare_answers(affirmed, skipped)
-    _guard_session()
+    if session_guard:
+        _guard_session()
 
     scores = compute_scores(affirm_ids, skip_ids, risk_class)
     gate_results = evaluate_all_gates(affirm_ids, skip_ids, risk_class, strict)
@@ -223,6 +226,8 @@ def assess_with_evidence(
     use_case: str = "unnamed",
     strict: bool = False,
     require_evidence: bool = False,
+    *,
+    session_guard: bool = True,
 ) -> dict:
     """Assess a use case, affirming items backed by signed evidence references.
 
@@ -238,7 +243,8 @@ def assess_with_evidence(
     risk_class = _validated(risk_class, validate_risk_class)
     use_case = _validated(use_case, validate_use_case)
     affirm_ids, skip_ids = _prepare_answers(affirmed, skipped)
-    _guard_session()
+    if session_guard:
+        _guard_session()
 
     try:
         refs = evidence_mod.parse_document({"evidence": evidence or []})
@@ -368,8 +374,15 @@ def euaiact_gap(
 # ── MCP server wiring ────────────────────────────────────────────────────────
 
 
-def build_server():
+def build_server(*, session_guard: bool = True):
     """Construct and return the MCP server with all IKI-Gov tools registered.
+
+    ``session_guard`` applies the process-wide assessment cap (``IGA_MAX_ASSESSMENTS``)
+    to the assess tools. It suits the single-user stdio server. The multi-tenant
+    remote endpoint turns it off: one counter shared by every org let one tenant
+    exhaust the assess tools for all others, and tool calls run in the transport's
+    session task where the requesting org is not known. Its per-org limiter
+    (``remote.OrgRateLimiter``) bounds each org instead.
 
     Imports the SDK lazily so the pure logic above (and its tests) do not require
     the optional ``mcp`` dependency.
@@ -429,7 +442,9 @@ def build_server():
         M1–M6 scores, overall maturity, and gate readiness, where a gate is
         OPEN/PARTIAL/BLOCKED under the active risk policy.
         """
-        return assess(affirmed, skipped, risk_class, lang, use_case, strict)
+        return assess(
+            affirmed, skipped, risk_class, lang, use_case, strict, session_guard=session_guard
+        )
 
     @server.tool()
     def iga_assess_with_evidence(
@@ -454,7 +469,16 @@ def build_server():
         agent chain a control's evidence straight into an IKI-Gov assessment.
         """
         return assess_with_evidence(
-            affirmed, skipped, evidence, trust, risk_class, lang, use_case, strict, require_evidence
+            affirmed,
+            skipped,
+            evidence,
+            trust,
+            risk_class,
+            lang,
+            use_case,
+            strict,
+            require_evidence,
+            session_guard=session_guard,
         )
 
     @server.tool()
