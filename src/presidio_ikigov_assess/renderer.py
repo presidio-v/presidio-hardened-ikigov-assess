@@ -113,20 +113,42 @@ def _default_coverage(
     return coverage
 
 
+# Characters stripped from the end of a shortened item text so it never ends on
+# a dangling separator ("pipeline," → "pipeline…").
+_SHORTEN_STRIP = " ,;:.–—-("
+
+
+def shorten_text(text: str, width: int) -> str:
+    """Shorten *text* to at most *width* characters at a word boundary.
+
+    Text that fits is returned unchanged. Otherwise the cut falls on the last
+    space within *width* (a single over-long word is hard-cut), trailing
+    separators are dropped, and an ellipsis marks the truncation.
+    """
+    if len(text) <= width:
+        return text
+    cut = text[: width - 1]
+    space = cut.rfind(" ")
+    if space > 0:
+        cut = cut[:space]
+    return cut.rstrip(_SHORTEN_STRIP) + "…"
+
+
 def gate_detail_segments(result: GateResult, lang: str, text_width: int = 0) -> list[str]:
     """Build the human-readable detail segments for a gate result.
 
     Lists denied items as blocking, skips that block under strict/high-risk
     policy separately (so the reason for a BLOCKED-not-PARTIAL gate is visible),
-    and otherwise lists informational skips. *text_width* > 0 appends a truncated
-    item text after each blocking item id.
+    and otherwise lists informational skips. *text_width* > 0 appends the item
+    text, shortened at a word boundary, after each blocking item id.
     """
     segments: list[str] = []
 
     if result.blocking_items:
         if text_width > 0:
             items = ", ".join(
-                f"{item.id} ({item.text(lang)[:text_width]})" for item in result.blocking_items
+                f"{item.id} ({shorten_text(item.text(lang), text_width)})"
+                for item in result.blocking_items
             )
         else:
             items = ", ".join(item.id for item in result.blocking_items)
@@ -164,7 +186,7 @@ def print_assessment(
     title = t("assessment_title", lang)
     risk_key = t("risk_label", lang)
 
-    console.print(f"\n[bold]{title} — {use_case}[/bold]  [dim][{risk_key}: {risk_label}][/dim]\n")
+    console.print(f"\n[bold]{title} — {use_case}[/bold]  [dim]\\[{risk_key}: {risk_label}][/dim]\n")
 
     # ── Measurement Dimensions ───────────────────────────────────────────────
     console.print(f"[bold]{t('dimensions_header', lang)}[/bold]")
@@ -417,7 +439,7 @@ def print_iso_coverage(
     title = t("iso_gap_title", lang)
     risk_key = t("risk_label", lang)
 
-    console.print(f"\n[bold]{title} — {use_case}[/bold]  [dim][{risk_key}: {risk_label}][/dim]\n")
+    console.print(f"\n[bold]{title} — {use_case}[/bold]  [dim]\\[{risk_key}: {risk_label}][/dim]\n")
 
     for clause, cov in coverage.items():
         colour = _ISO_COVERAGE_COLOUR[cov.status]
@@ -638,7 +660,7 @@ def print_euaiact(
     title = t("euaiact_title", lang)
     risk_key = t("risk_label", lang)
 
-    console.print(f"\n[bold]{title} — {use_case}[/bold]  [dim][{risk_key}: {risk_label}][/dim]\n")
+    console.print(f"\n[bold]{title} — {use_case}[/bold]  [dim]\\[{risk_key}: {risk_label}][/dim]\n")
 
     for article, cov in coverage.items():
         colour = _ARTICLE_STATUS_COLOUR[cov.status]

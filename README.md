@@ -117,27 +117,40 @@ iga list
 
 ### Example output
 
+The worked example from the book (Anhang B, corrected proof), at a 100-column terminal:
+
+```bash
+iga assess --use-case fraud-scoring --risk-class medium --lang en \
+  --affirm S1,S2,S3,S4,S5,D1,D2,D4,D5,T1,T2,T3,T4,O1,O2,O3,I1 --skip D3
 ```
-IKI-Gov Assessment — fraud-scoring  [risk: HIGH]
+
+```
+IKI-Gov Assessment — fraud-scoring  [risk: MEDIUM]
 
 Measurement Dimensions
-  M1  Strategie & Ownership          ████████░░   80.0 %
-  M2  Data Quality & Lineage         ██████░░░░   60.0 %
-  M3  Validation & Fairness          ████░░░░░░   40.0 %
-  M4  Security & Robustness          █████████░   90.0 %
-  M5  Compliance Evidence            ███░░░░░░░   30.0 %
-  M6  Operations, Drift & Incidents  ██████░░░░   60.0 %
-  ──────────────────────────────────────────────────────
-       Overall maturity                           60.0 %
+  M1  Strategie & Ownership                ██████████  100.0 %
+  M2  Data Quality & Lineage               ██████████  100.0 %
+  M3  Validation & Fairness                ██████████  100.0 %
+  M4  Security & Robustness                █████░░░░░   50.0 %
+  M5  Compliance Evidence                  ██░░░░░░░░   20.0 %
+  M6  Operations, Drift & Incidents        ██████░░░░   60.0 %
+────────────────────────────────────────────────────────────────────────────────────────────────────
+       Overall maturity                     ███████░░░   71.7 %
+       Evidence: 0 verified, 0 evidence-backed of 17 affirmed items; 0 asserted and not counted.
 
 Gate Readiness
   G0  OPEN
   G1  OPEN
-  G2  PARTIAL  [skipped: D3]
-  G3  BLOCKED  — blocking: T5 (A security review of the model pipeline…)
-  G4  BLOCKED
-  G5  BLOCKED
+  G2  PARTIAL  — skipped: D3
+  G3  BLOCKED  — blocking: T5 (A security review of the model…)
+  G4  BLOCKED  — blocking: O4 (An incident response and change…), O5 (An audit log — capturing
+model…), I2 (Roles and responsibilities for AI…)
+  G5  BLOCKED  — blocking: O5 (An audit log — capturing model…), I2 (Roles and responsibilities for
+AI…), I3 (An AI risk register per ISO/IEC 42001…), I4 (The AI system lifecycle is documented…), I5
+(An internal audit of AI governance…)
 ```
+
+The same answers at `--risk-class high` turn G2 into `BLOCKED — blocking (skips not permitted): D3`. `tests/test_book_example.py` pins this output; see [docs/book-compatibility.md](docs/book-compatibility.md).
 
 ---
 
@@ -851,8 +864,8 @@ Security controls built into the tool:
 | v0.23.0 T-B5 | Gate certificates: signed `gate-certificate@1`, `iga certify` / `iga verify-certificate`, issue-time and verify-time evidence-ref verification, named workshop delegation chains | Released |
 | v0.24.0 | Maintenance: coverage-guided fuzzing (`fuzz` extra, Atheris), fail-closed guards at the JSON boundaries, `mcp` capped below 2.0 to unbreak the `[mcp]` extra | Released |
 | v0.25.0 | `iga --version`; ported to the mcp 2.x SDK (`MCPServer`, extra now needs `mcp>=2,<3`); `OrgAuthMiddleware` refuses non-HTTP ASGI scopes instead of forwarding them | Released |
-| v0.26.0 S-1 | **Security:** `--require-evidence` is fail-closed everywhere; bare affirmations are `asserted`, shown, never counted; every output marks evidenced / asserted / open | Unreleased |
-| v0.26.0 T-B6 | Certificate lineage (`parents`, ADR-0002), validity (`not_after`), `grounding`, `evidence-ref@2` assurance tiers surfaced with verifier floors | Unreleased |
+| v0.26.0 S-1 | **Security:** `--require-evidence` is fail-closed everywhere; bare affirmations are `asserted`, shown, never counted; every output marks evidenced / asserted / open | Released |
+| v0.26.0 T-B6 | Certificate lineage (`parents`, ADR-0002), validity (`not_after`), `grounding`, `evidence-ref@2` assurance tiers surfaced with verifier floors | Released |
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

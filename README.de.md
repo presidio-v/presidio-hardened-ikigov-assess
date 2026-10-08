@@ -114,27 +114,40 @@ iga list
 
 ### Beispielausgabe
 
+Das Rechenbeispiel aus dem Buch (Anhang B, korrigierter Abzug), bei 100 Spalten Terminalbreite:
+
+```bash
+iga assess --use-case fraud-scoring --risk-class medium --lang en \
+  --affirm S1,S2,S3,S4,S5,D1,D2,D4,D5,T1,T2,T3,T4,O1,O2,O3,I1 --skip D3
 ```
-IKI-Gov Assessment — fraud-scoring  [risk: HIGH]
+
+```
+IKI-Gov Assessment — fraud-scoring  [risk: MEDIUM]
 
 Measurement Dimensions
-  M1  Strategie & Ownership          ████████░░   80.0 %
-  M2  Data Quality & Lineage         ██████░░░░   60.0 %
-  M3  Validation & Fairness          ████░░░░░░   40.0 %
-  M4  Security & Robustness          █████████░   90.0 %
-  M5  Compliance Evidence            ███░░░░░░░   30.0 %
-  M6  Operations, Drift & Incidents  ██████░░░░   60.0 %
-  ──────────────────────────────────────────────────────
-       Overall maturity                           60.0 %
+  M1  Strategie & Ownership                ██████████  100.0 %
+  M2  Data Quality & Lineage               ██████████  100.0 %
+  M3  Validation & Fairness                ██████████  100.0 %
+  M4  Security & Robustness                █████░░░░░   50.0 %
+  M5  Compliance Evidence                  ██░░░░░░░░   20.0 %
+  M6  Operations, Drift & Incidents        ██████░░░░   60.0 %
+────────────────────────────────────────────────────────────────────────────────────────────────────
+       Overall maturity                     ███████░░░   71.7 %
+       Evidence: 0 verified, 0 evidence-backed of 17 affirmed items; 0 asserted and not counted.
 
 Gate Readiness
   G0  OPEN
   G1  OPEN
-  G2  PARTIAL  [skipped: D3]
-  G3  BLOCKED  — blocking: T5 (A security review of the model pipeline…)
-  G4  BLOCKED
-  G5  BLOCKED
+  G2  PARTIAL  — skipped: D3
+  G3  BLOCKED  — blocking: T5 (A security review of the model…)
+  G4  BLOCKED  — blocking: O4 (An incident response and change…), O5 (An audit log — capturing
+model…), I2 (Roles and responsibilities for AI…)
+  G5  BLOCKED  — blocking: O5 (An audit log — capturing model…), I2 (Roles and responsibilities for
+AI…), I3 (An AI risk register per ISO/IEC 42001…), I4 (The AI system lifecycle is documented…), I5
+(An internal audit of AI governance…)
 ```
+
+Dieselben Antworten mit `--risk-class high` machen G2 zu `BLOCKED — blocking (skips not permitted): D3`. `tests/test_book_example.py` hält diese Ausgabe fest; siehe [docs/book-compatibility.md](docs/book-compatibility.md).
 
 > Die Beispielausgabe zeigt den `--lang en`-Lauf. Unter `--lang de` sind alle Laufzeitausgaben
 > vollständig auf Deutsch.
@@ -855,8 +868,8 @@ In das Werkzeug eingebaute Sicherheitskontrollen:
 | v0.23.0 T-B5 | Gate-Zertifikate: signiertes `gate-certificate@1`, `iga certify` / `iga verify-certificate`, Nachweisprüfung bei Ausstellung und Verifikation, benannte Workshop-Delegationsketten | Veröffentlicht |
 | v0.24.0 | Wartung: abdeckungsgeführtes Fuzzing (`fuzz`-Extra, Atheris), fail-closed-Prüfungen an den JSON-Grenzen, `mcp` unterhalb 2.0 begrenzt, um das `[mcp]`-Extra zu reparieren | Veröffentlicht |
 | v0.25.0 | `iga --version`; Portierung auf das mcp-2.x-SDK (`MCPServer`, Extra benötigt jetzt `mcp>=2,<3`); `OrgAuthMiddleware` weist Nicht-HTTP-ASGI-Scopes ab, statt sie durchzureichen | Veröffentlicht |
-| v0.26.0 S-1 | **Security:** `--require-evidence` ist überall fail-closed; nackte Bestätigungen sind `behauptet`, werden gezeigt, nie gewertet; jede Ausgabe kennzeichnet nachgewiesen / behauptet / offen | Unveröffentlicht |
-| v0.26.0 T-B6 | Zertifikat-Herkunft (`parents`, ADR-0002), Gültigkeit (`not_after`), `grounding`, `evidence-ref@2`-Assurance-Stufen mit Prüfer-Untergrenzen | Unveröffentlicht |
+| v0.26.0 S-1 | **Security:** `--require-evidence` ist überall fail-closed; nackte Bestätigungen sind `behauptet`, werden gezeigt, nie gewertet; jede Ausgabe kennzeichnet nachgewiesen / behauptet / offen | Veröffentlicht |
+| v0.26.0 T-B6 | Zertifikat-Herkunft (`parents`, ADR-0002), Gültigkeit (`not_after`), `grounding`, `evidence-ref@2`-Assurance-Stufen mit Prüfer-Untergrenzen | Veröffentlicht |
 
 Vollständiges Versions-Deliberationslog: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 
