@@ -842,6 +842,11 @@ Security controls built into the tool:
 - On-startup CVE check via `pip-audit` (suppress with `--no-dep-check`; `iga --version` skips it, so reporting the installed version works offline)
 - Session rate limiting (default: 100 assessments; override via `IGA_MAX_ASSESSMENTS`)
 
+Project supply chain: OpenSSF Best Practices **silver** and OpenSSF Scorecard (current
+scores in the badges at the top). Changes to `main` need a second reviewer's approval;
+release tags are signed; each release publishes to PyPI via OIDC Trusted Publishing with
+a provenance attestation and a CycloneDX SBOM; the parsers are fuzzed (Atheris).
+
 ---
 
 ## Roadmap
@@ -876,8 +881,6 @@ Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 
 Directional; planned or in-flight work, not commitments:
 
-- **In progress** — OpenSSF Best Practices (silver) and Scorecard hardening:
-  governance docs, a two-person code-owner review gate, and supply-chain checks.
 - **Next** — broader framework-gap coverage (ISO/IEC 42001 refinements and EU AI
   Act updates as implementing acts land) and additional evidence producers feeding
   the `assess --evidence` / gate-certificate flow.
