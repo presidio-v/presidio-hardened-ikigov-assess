@@ -26,7 +26,7 @@ jobs:
     # main (two-person reviewed) may be dispatched. Calls from publish.yml keep the
     # caller's event and are already gated by the `release` environment approval.
     if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write   # OIDC token for the registry's github-oidc login

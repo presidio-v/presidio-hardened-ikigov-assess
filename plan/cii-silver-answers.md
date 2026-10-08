@@ -85,7 +85,7 @@ These rendered files back the silver answers; confirm each is on `main`:
 |---|---|---|
 | `tests_documented_added` | **Met** | `REPO/blob/main/CONTRIBUTING.md#tests` states the policy that changes adding/modifying functionality ship with tests in the same PR. |
 | `test_policy_mandated` | **Met** | Formal written policy at `REPO/blob/main/CONTRIBUTING.md#tests`: functionality changes ship with tests; bug fixes include a regression test. Enforced in review and by the coverage gate. |
-| `automated_integration_testing` | **Met** | `REPO/blob/main/.github/workflows/pytest.yml` runs the full `pytest` suite on every push and pull request across a Python 3.10 / 3.11 / 3.12 matrix on `ubuntu-latest`. |
+| `automated_integration_testing` | **Met** | `REPO/blob/main/.github/workflows/pytest.yml` runs the full `pytest` suite on every push and pull request across a Python 3.10 / 3.11 / 3.12 matrix on `ubuntu-24.04`. |
 | `regression_tests_added50` | **Met** | Policy requires a regression test with every bug fix (`CONTRIBUTING.md#tests`), enforced in review and by the coverage gate. Worked example: `d2d73d8` (seal-key-off-argv fix, v0.16.1) shipped with its test. Bug-fix volume is low and each carried a test, so the >50% bar holds. |
 | `test_statement_coverage80` | **Met** | Enforced statement-coverage floor `--cov-fail-under=80` in `pyproject.toml` addopts and `.github/workflows/pytest.yml`; CI fails below 80%. |
 | `warnings_strict` | **Met** | `ruff` lint select `E, F, W, I, N, UP` (beyond the default `E,F`), ignores limited to `E501`/`UP045`; CI runs `ruff check .` + `ruff format --check .` and fails on any finding (`.github/workflows/pytest.yml`). |
