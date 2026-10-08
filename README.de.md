@@ -846,6 +846,12 @@ In das Werkzeug eingebaute Sicherheitskontrollen:
 - CVE-Prüfung beim Start via `pip-audit` (mit `--no-dep-check` unterdrückbar; `iga --version` überspringt sie, sodass die Versionsabfrage offline funktioniert)
 - Ratenbegrenzung je Sitzung (Standard: 100 Bewertungen; über `IGA_MAX_ASSESSMENTS` überschreibbar)
 
+Lieferkette des Projekts: OpenSSF Best Practices **Silver** und OpenSSF Scorecard (aktuelle
+Werte in den Badges oben). Änderungen an `main` brauchen die Freigabe einer zweiten Person;
+Release-Tags sind signiert; jedes Release wird per OIDC Trusted Publishing mit
+Provenance-Attestierung und CycloneDX-SBOM auf PyPI veröffentlicht; die Parser werden
+gefuzzt (Atheris).
+
 ---
 
 ## Roadmap
