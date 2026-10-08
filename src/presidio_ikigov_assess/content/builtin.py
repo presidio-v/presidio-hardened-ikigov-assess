@@ -32,10 +32,15 @@ def iso42001_pack() -> ContentPack:
     )
 
 
+# Bumped separately: the corrected book table (October 2026 proofs) moved G5 from
+# Art. 11 to Art. 18 and added Art. 72 at G4, so the pack content changed.
+EUAIACT_VERSION = "builtin-2"
+
+
 def euaiact_pack() -> ContentPack:
     return ContentPack(
         framework_id="euaiact",
-        version=BUILTIN_VERSION,
+        version=EUAIACT_VERSION,
         mapping_kind="gate",
         target_order=tuple(ARTICLE_ORDER),
         target_names={

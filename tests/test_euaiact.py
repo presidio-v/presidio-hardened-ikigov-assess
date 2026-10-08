@@ -13,6 +13,27 @@ from presidio_ikigov_assess.euaiact import (
 from presidio_ikigov_assess.gates import evaluate_all_gates
 from presidio_ikigov_assess.scoring import all_item_ids
 
+# The book's gate→article table (tab:framework-euaiact-gates) as corrected in the
+# October 2026 proofs, transcribed row by row. The engine stores the inverse, so
+# this pins the inversion against the printed source rather than against itself.
+BOOK_GATE_ARTICLES = {
+    "G0": {"9", "17"},
+    "G1": {"10", "9"},
+    "G2": {"9", "11", "15"},
+    "G3": {"11", "13", "14", "17"},
+    "G4": {"9", "72", "12", "15"},  # Art. 9 Abs. 2 lit. c i. V. m. Art. 72
+    "G5": {"18", "17"},  # Art. 18 Abs. 1, Art. 17 Abs. 1 lit. k
+}
+
+
+def test_mapping_matches_corrected_book_table():
+    inverted: dict[str, set[str]] = {g: set() for g in BOOK_GATE_ARTICLES}
+    for article, gates in EU_AI_ACT_ARTICLE_GATES.items():
+        for g in gates:
+            inverted[g].add(article)
+    assert inverted == BOOK_GATE_ARTICLES
+    assert set(ARTICLE_ORDER) == set(EU_AI_ACT_ARTICLE_GATES)
+
 
 def test_article_mapping_references_valid_gates():
     for article, gates in EU_AI_ACT_ARTICLE_GATES.items():

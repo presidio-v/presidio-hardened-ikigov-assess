@@ -85,3 +85,10 @@ The Anhang B item table gives *primary* gates per block. The tool maps each item
 which differs from the block view in three places: T4 and T5 map to G3 only (the table lists
 G2, G3), and O5 maps to G4 and G5 (the table lists G3, G4 for O1–O5). The per-item mapping is
 authoritative; see `src/presidio_ikigov_assess/checklist.py`.
+
+## EU AI Act mapping
+
+`iga euaiact-gap` follows the gate→article table of the framework chapter
+(`tab:framework-euaiact-gates`) in its corrected form: G4 cites Art. 9 in conjunction with
+Art. 72, and G5 cites Art. 18 and Art. 17 (the uncorrected draft had Art. 11 at G5). The tool
+reports Art. 9–15, 17, 18 and 72; `tests/test_euaiact.py` pins the mapping row by row.

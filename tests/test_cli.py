@@ -501,7 +501,7 @@ def test_euaiact_gap_quiet_json():
     result = invoke("euaiact-gap", "--affirm", "S1", "--quiet")
     assert result.exit_code == 0
     data = json.loads(result.output)
-    assert set(data["articles"]) == {"9", "10", "11", "12", "13", "14", "15", "17"}
+    assert set(data["articles"]) == {"9", "10", "11", "12", "13", "14", "15", "17", "18", "72"}
     # nothing meaningful affirmed at high/strict → articles blocked
     assert data["articles"]["13"]["status"] == "BLOCKED"
 

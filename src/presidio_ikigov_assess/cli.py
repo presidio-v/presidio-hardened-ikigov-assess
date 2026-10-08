@@ -7,7 +7,7 @@ Commands:
   iga gate     — check readiness for a specific gate G0–G5
   iga report   — render an assessment to Markdown or JSON (stdout or --output file)
   iga iso-gap  — map results to ISO/IEC 42001 clause coverage
-  iga euaiact-gap — map results to EU AI Act high-risk obligations (Art. 9–17)
+  iga euaiact-gap — map results to EU AI Act high-risk obligations (Art. 9–18, 72)
   iga list     — list saved assessments from the local store
   iga portfolio— aggregate saved assessments (M1–M6 + blocked gates)
   iga trend    — maturity delta between two saved assessments
@@ -1438,9 +1438,9 @@ def euaiact_gap(
     trust: Optional[str] = _trust_option(),
     require_evidence: bool = _require_evidence_option(),
 ) -> None:
-    """Map gate readiness to EU AI Act high-risk obligations (Art. 9–17).
+    """Map gate readiness to EU AI Act high-risk obligations (Art. 9–18, 72).
 
-    Each article (Art. 9–17) is shown OPEN / PARTIAL / BLOCKED based on the
+    Each article (Art. 9–18, 72) is shown OPEN / PARTIAL / BLOCKED based on the
     readiness of the gates that generate its evidence. Only meaningful for
     high-risk systems; exits with a warning for low/medium risk.
     """

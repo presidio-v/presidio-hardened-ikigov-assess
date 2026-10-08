@@ -324,6 +324,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Accuracy, robustness and cybersecurity",
     },
     "euaiact_art_17": {"de": "Qualitätsmanagementsystem", "en": "Quality management system"},
+    "euaiact_art_18": {"de": "Aufbewahrung der Dokumentation", "en": "Documentation keeping"},
+    "euaiact_art_72": {
+        "de": "Beobachtung nach dem Inverkehrbringen",
+        "en": "Post-market monitoring",
+    },
     "report_disclaimer": {
         "de": (
             "Erstellt mit dem IKI-Gov Assessment Tool. "

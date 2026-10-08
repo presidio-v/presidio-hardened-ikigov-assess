@@ -100,7 +100,7 @@ iga report --use-case "fraud-scoring" --affirm S1,S2 -f json -o fraud-scoring.js
 iga iso-gap --use-case "fraud-scoring" --risk-class high --affirm S1,S2,S3,I1,I2
 iga iso-gap --affirm S2,S3,I1,I2 --quiet   # machine-readable JSON
 
-# EU AI Act high-risk obligations (Art. 9–17) — high-risk systems only
+# EU AI Act high-risk obligations (Art. 9–18, 72) — high-risk systems only
 iga euaiact-gap --use-case "fraud-scoring" --affirm S1,S2,S3,S4,S5,D1,D5
 iga euaiact-gap --affirm S1,S2 --quiet
 
@@ -269,7 +269,7 @@ Use `--quiet` for machine-readable JSON.
 ## EU AI Act (High-Risk Systems)
 
 `iga euaiact-gap` maps gate readiness to the EU AI Act obligations for high-risk
-systems (Title III Ch. 2, Articles 9–17). Each article is reported OPEN / PARTIAL /
+systems (Articles 9–18, plus Art. 72 post-market monitoring). Each article is reported OPEN / PARTIAL /
 BLOCKED based on the readiness of the gates that generate its evidence:
 
 ```
@@ -277,11 +277,12 @@ EU AI Act High-Risk Compliance Gap — fraud-scoring  [risk: HIGH]
 
   Art. 9   Risk management system     G0, G1, G2, G4   PARTIAL  — G2 BLOCKED, G4 BLOCKED
   Art. 10  Data and data governance   G1               OPEN
-  Art. 11  Technical documentation    G2, G3, G5       BLOCKED  — G2/G3/G5 BLOCKED
+  Art. 11  Technical documentation    G2, G3           BLOCKED  — G2/G3 BLOCKED
 ```
 
 The gate→article mapping is transcribed verbatim from the IKI-Gov book
-(`tab:framework-euaiact-gates`) and lives in `euaiact.EU_AI_ACT_ARTICLE_GATES`.
+(`tab:framework-euaiact-gates`, as corrected in the October 2026 proofs: G4 cites Art. 9
+with Art. 72, G5 cites Art. 18 and 17) and lives in `euaiact.EU_AI_ACT_ARTICLE_GATES`.
 The command is for high-risk systems only (exits with a warning for low/medium
 risk); `--quiet` emits JSON.
 
@@ -532,7 +533,7 @@ Register it with an MCP client (e.g. Claude Desktop) by adding to the client's c
 | `iga_assess_with_evidence` | Score a use case from signed `EvidenceRef` documents, verifying signatures against a trust store (HMAC or Ed25519) |
 | `iga_check_gate` | Evaluate readiness for a single gate G0–G5 with blocking/skipped items |
 | `iga_iso_gap` | Map affirmed items to ISO/IEC 42001 clause coverage (covered / partial / gap) |
-| `iga_euaiact_gap` | Map to EU AI Act high-risk obligations Art. 9–17 (OPEN / PARTIAL / BLOCKED) |
+| `iga_euaiact_gap` | Map to EU AI Act high-risk obligations Art. 9–18, 72 (OPEN / PARTIAL / BLOCKED) |
 
 All tools share the CLI's input validation and output sanitisation, return the same
 structured JSON schema as `iga report --format json`, and respect the per-session

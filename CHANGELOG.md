@@ -17,6 +17,10 @@ Consistency with the printed book (Anhang B of *KI und IT-Governance*, ISBN 978-
   style tag; the German `[Risiko: HOCH]` survived). The bracket is now escaped.
 - Blocking-item texts were cut at a fixed width mid-word ("pipeline,"). They are now shortened at a
   word boundary, trailing separators dropped, with an ellipsis.
+- `euaiact-gap` followed the gate→article table from before the book's proof corrections. G5 now
+  maps to Art. 18 (documentation keeping) and Art. 17 instead of Art. 11, and G4 adds Art. 72
+  (post-market monitoring), as in the corrected `tab:framework-euaiact-gates`. The built-in
+  `euaiact` content pack moves to version `builtin-2`; its content hash changes accordingly.
 
 ### Security
 
@@ -28,6 +32,7 @@ Consistency with the printed book (Anhang B of *KI und IT-Governance*, ISBN 978-
 - `docs/book-compatibility.md`: claim-by-claim mapping of Anhang B to the current release.
 - `tests/test_book_example.py`: runs the book's commands verbatim and pins the worked example,
   the strict-at-high rule and the CI exit codes.
+- `tests/test_euaiact.py` pins the article mapping against the corrected book table, row by row.
 
 ### Changed
 

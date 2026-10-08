@@ -97,7 +97,7 @@ iga report --use-case "fraud-scoring" --affirm S1,S2 -f json -o fraud-scoring.js
 iga iso-gap --use-case "fraud-scoring" --risk-class high --affirm S1,S2,S3,I1,I2
 iga iso-gap --affirm S2,S3,I1,I2 --quiet   # maschinenlesbares JSON
 
-# EU-AI-Act-Pflichten für Hochrisiko-Systeme (Art. 9–17), nur Hochrisiko-Systeme
+# EU-AI-Act-Pflichten für Hochrisiko-Systeme (Art. 9–18, 72), nur Hochrisiko-Systeme
 iga euaiact-gap --use-case "fraud-scoring" --affirm S1,S2,S3,S4,S5,D1,D5
 iga euaiact-gap --affirm S1,S2 --quiet
 
@@ -269,7 +269,7 @@ maschinenlesbares JSON.
 ## EU AI Act (Hochrisiko-Systeme)
 
 `iga euaiact-gap` bildet die Gate-Bereitschaft auf die EU-AI-Act-Pflichten für Hochrisiko-Systeme ab
-(Titel III Kap. 2, Artikel 9–17). Jeder Artikel wird als OPEN / PARTIAL / BLOCKED ausgewiesen,
+(Artikel 9–18 sowie Art. 72 Beobachtung nach dem Inverkehrbringen). Jeder Artikel wird als OPEN / PARTIAL / BLOCKED ausgewiesen,
 abhängig von der Bereitschaft der Gates, die seinen Nachweis erzeugen:
 
 ```
@@ -277,11 +277,12 @@ EU AI Act High-Risk Compliance Gap — fraud-scoring  [risk: HIGH]
 
   Art. 9   Risk management system     G0, G1, G2, G4   PARTIAL  — G2 BLOCKED, G4 BLOCKED
   Art. 10  Data and data governance   G1               OPEN
-  Art. 11  Technical documentation    G2, G3, G5       BLOCKED  — G2/G3/G5 BLOCKED
+  Art. 11  Technical documentation    G2, G3           BLOCKED  — G2/G3 BLOCKED
 ```
 
 Die Gate→Artikel-Zuordnung ist wortgetreu aus dem IKI-Gov-Buch übernommen
-(`tab:framework-euaiact-gates`) und liegt in `euaiact.EU_AI_ACT_ARTICLE_GATES`. Der Befehl gilt nur
+(`tab:framework-euaiact-gates`, in der Fassung der Korrekturen vom Oktober 2026: G4 nennt Art. 9
+i. V. m. Art. 72, G5 nennt Art. 18 und 17) und liegt in `euaiact.EU_AI_ACT_ARTICLE_GATES`. Der Befehl gilt nur
 für Hochrisiko-Systeme (er beendet sich mit einer Warnung bei niedrigem/mittlerem Risiko); `--quiet`
 gibt JSON aus.
 
@@ -543,7 +544,7 @@ Registrieren Sie ihn bei einem MCP-Client (z. B. Claude Desktop) über dessen Ko
 | `iga_assess_with_evidence` | Bewertet einen Anwendungsfall aus signierten `EvidenceRef`-Dokumenten und prüft Signaturen gegen einen Trust Store (HMAC oder Ed25519) |
 | `iga_check_gate` | Bewertet die Bereitschaft eines einzelnen Gates G0–G5 mit blockierenden/übersprungenen Punkten |
 | `iga_iso_gap` | Bildet bestätigte Punkte auf die ISO/IEC-42001-Klauselabdeckung ab (covered / partial / gap) |
-| `iga_euaiact_gap` | Bildet auf EU-AI-Act-Hochrisikopflichten Art. 9–17 ab (OPEN / PARTIAL / BLOCKED) |
+| `iga_euaiact_gap` | Bildet auf EU-AI-Act-Hochrisikopflichten Art. 9–18, 72 ab (OPEN / PARTIAL / BLOCKED) |
 
 Alle Werkzeuge teilen sich die Eingabevalidierung und Ausgabe-Bereinigung der CLI, liefern dasselbe
 strukturierte JSON-Schema wie `iga report --format json` und respektieren den Missbrauchsschutz je
