@@ -919,6 +919,8 @@ This repository is on the **open-source baseline** of the PRESIDIO hardened-fami
 The controls measured for it, and any open gaps, are its row in the
 [applicability matrix](https://github.com/presidio-v/presidio-hardened-docs/blob/main/sdlc/applicability.md).
 
+---
+
 ## Governance, Architecture & Security
 
 - [Governance](GOVERNANCE.md) — roles, decision process, and project continuity.
