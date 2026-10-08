@@ -121,7 +121,7 @@ Shorthand below: `REPO` = `https://github.com/presidio-v/presidio-hardened-ikigo
 | `test` | **Met** | Assertion-based `pytest` suite under `tests/` (20 `test_*.py` modules, one per component: certificate, evidence, bundle, sovereignty, sanitize, security, gates, scoring, …), licensed with the project. How to run: `CONTRIBUTING.md#local-verification` and `.github/workflows/pytest.yml`. |
 | `test_invocation` | **Met** | `pytest` (configured in `pyproject.toml` `[tool.pytest.ini_options]`, `testpaths = ["tests"]`). |
 | `test_most` | **Met** | Enforced statement-coverage floor `--cov-fail-under=80` (`pyproject.toml` addopts and `.github/workflows/pytest.yml`); CI fails below 80%. |
-| `test_continuous_integration` | **Met** | GitHub Actions on every push and PR to `main` (`.github/workflows/pytest.yml`), matrix Python 3.10 / 3.11 / 3.12 on `ubuntu-latest`. |
+| `test_continuous_integration` | **Met** | GitHub Actions on every push and PR to `main` (`.github/workflows/pytest.yml`), matrix Python 3.10 / 3.11 / 3.12 on `ubuntu-24.04`. |
 
 ## Quality — new functionality testing
 

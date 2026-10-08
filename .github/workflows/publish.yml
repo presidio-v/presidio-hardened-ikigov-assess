@@ -23,7 +23,7 @@ permissions:
 jobs:
   build:
     name: Build distribution
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write # OIDC token for GitHub build-provenance attestation
@@ -60,7 +60,7 @@ jobs:
   sbom:
     name: Generate SBOM
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write # OIDC token for GitHub build-provenance attestation
@@ -98,7 +98,7 @@ jobs:
   publish:
     name: Publish to PyPI (Trusted Publishing)
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment:
       name: release
     permissions:
@@ -125,7 +125,7 @@ jobs:
   release-assets:
     name: Attach release assets
     needs: [build, sbom, publish]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:

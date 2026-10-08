@@ -21,7 +21,7 @@ permissions:
 jobs:
   publish:
     name: Build and publish iki-gov (Trusted Publishing)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment:
       name: release
     permissions:
