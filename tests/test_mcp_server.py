@@ -261,7 +261,7 @@ def test_euaiact_gap_payload_shape():
     g1 = [item.id for item in ITEMS_BY_GATE["G1"]]
     payload = euaiact_gap(affirmed=g1)
     assert payload["articles"]["10"]["status"] == "OPEN"
-    assert set(payload["articles"]) == {"9", "10", "11", "12", "13", "14", "15", "17"}
+    assert set(payload["articles"]) == {"9", "10", "11", "12", "13", "14", "15", "17", "18", "72"}
 
 
 def test_euaiact_gap_all_blocked_when_nothing_affirmed():

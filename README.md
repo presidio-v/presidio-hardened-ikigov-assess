@@ -100,7 +100,7 @@ iga report --use-case "fraud-scoring" --affirm S1,S2 -f json -o fraud-scoring.js
 iga iso-gap --use-case "fraud-scoring" --risk-class high --affirm S1,S2,S3,I1,I2
 iga iso-gap --affirm S2,S3,I1,I2 --quiet   # machine-readable JSON
 
-# EU AI Act high-risk obligations (Art. 9–17) — high-risk systems only
+# EU AI Act high-risk obligations (Art. 9–18, 72) — high-risk systems only
 iga euaiact-gap --use-case "fraud-scoring" --affirm S1,S2,S3,S4,S5,D1,D5
 iga euaiact-gap --affirm S1,S2 --quiet
 
@@ -117,27 +117,40 @@ iga list
 
 ### Example output
 
+The worked example from the book (Anhang B, corrected proof), at a 100-column terminal:
+
+```bash
+iga assess --use-case fraud-scoring --risk-class medium --lang en \
+  --affirm S1,S2,S3,S4,S5,D1,D2,D4,D5,T1,T2,T3,T4,O1,O2,O3,I1 --skip D3
 ```
-IKI-Gov Assessment — fraud-scoring  [risk: HIGH]
+
+```
+IKI-Gov Assessment — fraud-scoring  [risk: MEDIUM]
 
 Measurement Dimensions
-  M1  Strategie & Ownership          ████████░░   80.0 %
-  M2  Data Quality & Lineage         ██████░░░░   60.0 %
-  M3  Validation & Fairness          ████░░░░░░   40.0 %
-  M4  Security & Robustness          █████████░   90.0 %
-  M5  Compliance Evidence            ███░░░░░░░   30.0 %
-  M6  Operations, Drift & Incidents  ██████░░░░   60.0 %
-  ──────────────────────────────────────────────────────
-       Overall maturity                           60.0 %
+  M1  Strategie & Ownership                ██████████  100.0 %
+  M2  Data Quality & Lineage               ██████████  100.0 %
+  M3  Validation & Fairness                ██████████  100.0 %
+  M4  Security & Robustness                █████░░░░░   50.0 %
+  M5  Compliance Evidence                  ██░░░░░░░░   20.0 %
+  M6  Operations, Drift & Incidents        ██████░░░░   60.0 %
+────────────────────────────────────────────────────────────────────────────────────────────────────
+       Overall maturity                     ███████░░░   71.7 %
+       Evidence: 0 verified, 0 evidence-backed of 17 affirmed items; 0 asserted and not counted.
 
 Gate Readiness
   G0  OPEN
   G1  OPEN
-  G2  PARTIAL  [skipped: D3]
-  G3  BLOCKED  — blocking: T5 (A security review of the model pipeline…)
-  G4  BLOCKED
-  G5  BLOCKED
+  G2  PARTIAL  — skipped: D3
+  G3  BLOCKED  — blocking: T5 (A security review of the model…)
+  G4  BLOCKED  — blocking: O4 (An incident response and change…), O5 (An audit log — capturing
+model…), I2 (Roles and responsibilities for AI…)
+  G5  BLOCKED  — blocking: O5 (An audit log — capturing model…), I2 (Roles and responsibilities for
+AI…), I3 (An AI risk register per ISO/IEC 42001…), I4 (The AI system lifecycle is documented…), I5
+(An internal audit of AI governance…)
 ```
+
+The same answers at `--risk-class high` turn G2 into `BLOCKED — blocking (skips not permitted): D3`. `tests/test_book_example.py` pins this output; see [docs/book-compatibility.md](docs/book-compatibility.md).
 
 ---
 
@@ -256,7 +269,7 @@ Use `--quiet` for machine-readable JSON.
 ## EU AI Act (High-Risk Systems)
 
 `iga euaiact-gap` maps gate readiness to the EU AI Act obligations for high-risk
-systems (Title III Ch. 2, Articles 9–17). Each article is reported OPEN / PARTIAL /
+systems (Articles 9–18, plus Art. 72 post-market monitoring). Each article is reported OPEN / PARTIAL /
 BLOCKED based on the readiness of the gates that generate its evidence:
 
 ```
@@ -264,11 +277,12 @@ EU AI Act High-Risk Compliance Gap — fraud-scoring  [risk: HIGH]
 
   Art. 9   Risk management system     G0, G1, G2, G4   PARTIAL  — G2 BLOCKED, G4 BLOCKED
   Art. 10  Data and data governance   G1               OPEN
-  Art. 11  Technical documentation    G2, G3, G5       BLOCKED  — G2/G3/G5 BLOCKED
+  Art. 11  Technical documentation    G2, G3           BLOCKED  — G2/G3 BLOCKED
 ```
 
 The gate→article mapping is transcribed verbatim from the IKI-Gov book
-(`tab:framework-euaiact-gates`) and lives in `euaiact.EU_AI_ACT_ARTICLE_GATES`.
+(`tab:framework-euaiact-gates`, as corrected in the October 2026 proofs: G4 cites Art. 9
+with Art. 72, G5 cites Art. 18 and 17) and lives in `euaiact.EU_AI_ACT_ARTICLE_GATES`.
 The command is for high-risk systems only (exits with a warning for low/medium
 risk); `--quiet` emits JSON.
 
@@ -519,7 +533,7 @@ Register it with an MCP client (e.g. Claude Desktop) by adding to the client's c
 | `iga_assess_with_evidence` | Score a use case from signed `EvidenceRef` documents, verifying signatures against a trust store (HMAC or Ed25519) |
 | `iga_check_gate` | Evaluate readiness for a single gate G0–G5 with blocking/skipped items |
 | `iga_iso_gap` | Map affirmed items to ISO/IEC 42001 clause coverage (covered / partial / gap) |
-| `iga_euaiact_gap` | Map to EU AI Act high-risk obligations Art. 9–17 (OPEN / PARTIAL / BLOCKED) |
+| `iga_euaiact_gap` | Map to EU AI Act high-risk obligations Art. 9–18, 72 (OPEN / PARTIAL / BLOCKED) |
 
 All tools share the CLI's input validation and output sanitisation, return the same
 structured JSON schema as `iga report --format json`, and respect the per-session
@@ -851,8 +865,8 @@ Security controls built into the tool:
 | v0.23.0 T-B5 | Gate certificates: signed `gate-certificate@1`, `iga certify` / `iga verify-certificate`, issue-time and verify-time evidence-ref verification, named workshop delegation chains | Released |
 | v0.24.0 | Maintenance: coverage-guided fuzzing (`fuzz` extra, Atheris), fail-closed guards at the JSON boundaries, `mcp` capped below 2.0 to unbreak the `[mcp]` extra | Released |
 | v0.25.0 | `iga --version`; ported to the mcp 2.x SDK (`MCPServer`, extra now needs `mcp>=2,<3`); `OrgAuthMiddleware` refuses non-HTTP ASGI scopes instead of forwarding them | Released |
-| v0.26.0 S-1 | **Security:** `--require-evidence` is fail-closed everywhere; bare affirmations are `asserted`, shown, never counted; every output marks evidenced / asserted / open | Unreleased |
-| v0.26.0 T-B6 | Certificate lineage (`parents`, ADR-0002), validity (`not_after`), `grounding`, `evidence-ref@2` assurance tiers surfaced with verifier floors | Unreleased |
+| v0.26.0 S-1 | **Security:** `--require-evidence` is fail-closed everywhere; bare affirmations are `asserted`, shown, never counted; every output marks evidenced / asserted / open | Released |
+| v0.26.0 T-B6 | Certificate lineage (`parents`, ADR-0002), validity (`not_after`), `grounding`, `evidence-ref@2` assurance tiers surfaced with verifier floors | Released |
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

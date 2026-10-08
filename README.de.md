@@ -97,7 +97,7 @@ iga report --use-case "fraud-scoring" --affirm S1,S2 -f json -o fraud-scoring.js
 iga iso-gap --use-case "fraud-scoring" --risk-class high --affirm S1,S2,S3,I1,I2
 iga iso-gap --affirm S2,S3,I1,I2 --quiet   # maschinenlesbares JSON
 
-# EU-AI-Act-Pflichten für Hochrisiko-Systeme (Art. 9–17), nur Hochrisiko-Systeme
+# EU-AI-Act-Pflichten für Hochrisiko-Systeme (Art. 9–18, 72), nur Hochrisiko-Systeme
 iga euaiact-gap --use-case "fraud-scoring" --affirm S1,S2,S3,S4,S5,D1,D5
 iga euaiact-gap --affirm S1,S2 --quiet
 
@@ -114,27 +114,40 @@ iga list
 
 ### Beispielausgabe
 
+Das Rechenbeispiel aus dem Buch (Anhang B, korrigierter Abzug), bei 100 Spalten Terminalbreite:
+
+```bash
+iga assess --use-case fraud-scoring --risk-class medium --lang en \
+  --affirm S1,S2,S3,S4,S5,D1,D2,D4,D5,T1,T2,T3,T4,O1,O2,O3,I1 --skip D3
 ```
-IKI-Gov Assessment — fraud-scoring  [risk: HIGH]
+
+```
+IKI-Gov Assessment — fraud-scoring  [risk: MEDIUM]
 
 Measurement Dimensions
-  M1  Strategie & Ownership          ████████░░   80.0 %
-  M2  Data Quality & Lineage         ██████░░░░   60.0 %
-  M3  Validation & Fairness          ████░░░░░░   40.0 %
-  M4  Security & Robustness          █████████░   90.0 %
-  M5  Compliance Evidence            ███░░░░░░░   30.0 %
-  M6  Operations, Drift & Incidents  ██████░░░░   60.0 %
-  ──────────────────────────────────────────────────────
-       Overall maturity                           60.0 %
+  M1  Strategie & Ownership                ██████████  100.0 %
+  M2  Data Quality & Lineage               ██████████  100.0 %
+  M3  Validation & Fairness                ██████████  100.0 %
+  M4  Security & Robustness                █████░░░░░   50.0 %
+  M5  Compliance Evidence                  ██░░░░░░░░   20.0 %
+  M6  Operations, Drift & Incidents        ██████░░░░   60.0 %
+────────────────────────────────────────────────────────────────────────────────────────────────────
+       Overall maturity                     ███████░░░   71.7 %
+       Evidence: 0 verified, 0 evidence-backed of 17 affirmed items; 0 asserted and not counted.
 
 Gate Readiness
   G0  OPEN
   G1  OPEN
-  G2  PARTIAL  [skipped: D3]
-  G3  BLOCKED  — blocking: T5 (A security review of the model pipeline…)
-  G4  BLOCKED
-  G5  BLOCKED
+  G2  PARTIAL  — skipped: D3
+  G3  BLOCKED  — blocking: T5 (A security review of the model…)
+  G4  BLOCKED  — blocking: O4 (An incident response and change…), O5 (An audit log — capturing
+model…), I2 (Roles and responsibilities for AI…)
+  G5  BLOCKED  — blocking: O5 (An audit log — capturing model…), I2 (Roles and responsibilities for
+AI…), I3 (An AI risk register per ISO/IEC 42001…), I4 (The AI system lifecycle is documented…), I5
+(An internal audit of AI governance…)
 ```
+
+Dieselben Antworten mit `--risk-class high` machen G2 zu `BLOCKED — blocking (skips not permitted): D3`. `tests/test_book_example.py` hält diese Ausgabe fest; siehe [docs/book-compatibility.md](docs/book-compatibility.md).
 
 > Die Beispielausgabe zeigt den `--lang en`-Lauf. Unter `--lang de` sind alle Laufzeitausgaben
 > vollständig auf Deutsch.
@@ -256,7 +269,7 @@ maschinenlesbares JSON.
 ## EU AI Act (Hochrisiko-Systeme)
 
 `iga euaiact-gap` bildet die Gate-Bereitschaft auf die EU-AI-Act-Pflichten für Hochrisiko-Systeme ab
-(Titel III Kap. 2, Artikel 9–17). Jeder Artikel wird als OPEN / PARTIAL / BLOCKED ausgewiesen,
+(Artikel 9–18 sowie Art. 72 Beobachtung nach dem Inverkehrbringen). Jeder Artikel wird als OPEN / PARTIAL / BLOCKED ausgewiesen,
 abhängig von der Bereitschaft der Gates, die seinen Nachweis erzeugen:
 
 ```
@@ -264,11 +277,12 @@ EU AI Act High-Risk Compliance Gap — fraud-scoring  [risk: HIGH]
 
   Art. 9   Risk management system     G0, G1, G2, G4   PARTIAL  — G2 BLOCKED, G4 BLOCKED
   Art. 10  Data and data governance   G1               OPEN
-  Art. 11  Technical documentation    G2, G3, G5       BLOCKED  — G2/G3/G5 BLOCKED
+  Art. 11  Technical documentation    G2, G3           BLOCKED  — G2/G3 BLOCKED
 ```
 
 Die Gate→Artikel-Zuordnung ist wortgetreu aus dem IKI-Gov-Buch übernommen
-(`tab:framework-euaiact-gates`) und liegt in `euaiact.EU_AI_ACT_ARTICLE_GATES`. Der Befehl gilt nur
+(`tab:framework-euaiact-gates`, in der Fassung der Korrekturen vom Oktober 2026: G4 nennt Art. 9
+i. V. m. Art. 72, G5 nennt Art. 18 und 17) und liegt in `euaiact.EU_AI_ACT_ARTICLE_GATES`. Der Befehl gilt nur
 für Hochrisiko-Systeme (er beendet sich mit einer Warnung bei niedrigem/mittlerem Risiko); `--quiet`
 gibt JSON aus.
 
@@ -530,7 +544,7 @@ Registrieren Sie ihn bei einem MCP-Client (z. B. Claude Desktop) über dessen Ko
 | `iga_assess_with_evidence` | Bewertet einen Anwendungsfall aus signierten `EvidenceRef`-Dokumenten und prüft Signaturen gegen einen Trust Store (HMAC oder Ed25519) |
 | `iga_check_gate` | Bewertet die Bereitschaft eines einzelnen Gates G0–G5 mit blockierenden/übersprungenen Punkten |
 | `iga_iso_gap` | Bildet bestätigte Punkte auf die ISO/IEC-42001-Klauselabdeckung ab (covered / partial / gap) |
-| `iga_euaiact_gap` | Bildet auf EU-AI-Act-Hochrisikopflichten Art. 9–17 ab (OPEN / PARTIAL / BLOCKED) |
+| `iga_euaiact_gap` | Bildet auf EU-AI-Act-Hochrisikopflichten Art. 9–18, 72 ab (OPEN / PARTIAL / BLOCKED) |
 
 Alle Werkzeuge teilen sich die Eingabevalidierung und Ausgabe-Bereinigung der CLI, liefern dasselbe
 strukturierte JSON-Schema wie `iga report --format json` und respektieren den Missbrauchsschutz je
@@ -855,8 +869,8 @@ In das Werkzeug eingebaute Sicherheitskontrollen:
 | v0.23.0 T-B5 | Gate-Zertifikate: signiertes `gate-certificate@1`, `iga certify` / `iga verify-certificate`, Nachweisprüfung bei Ausstellung und Verifikation, benannte Workshop-Delegationsketten | Veröffentlicht |
 | v0.24.0 | Wartung: abdeckungsgeführtes Fuzzing (`fuzz`-Extra, Atheris), fail-closed-Prüfungen an den JSON-Grenzen, `mcp` unterhalb 2.0 begrenzt, um das `[mcp]`-Extra zu reparieren | Veröffentlicht |
 | v0.25.0 | `iga --version`; Portierung auf das mcp-2.x-SDK (`MCPServer`, Extra benötigt jetzt `mcp>=2,<3`); `OrgAuthMiddleware` weist Nicht-HTTP-ASGI-Scopes ab, statt sie durchzureichen | Veröffentlicht |
-| v0.26.0 S-1 | **Security:** `--require-evidence` ist überall fail-closed; nackte Bestätigungen sind `behauptet`, werden gezeigt, nie gewertet; jede Ausgabe kennzeichnet nachgewiesen / behauptet / offen | Unveröffentlicht |
-| v0.26.0 T-B6 | Zertifikat-Herkunft (`parents`, ADR-0002), Gültigkeit (`not_after`), `grounding`, `evidence-ref@2`-Assurance-Stufen mit Prüfer-Untergrenzen | Unveröffentlicht |
+| v0.26.0 S-1 | **Security:** `--require-evidence` ist überall fail-closed; nackte Bestätigungen sind `behauptet`, werden gezeigt, nie gewertet; jede Ausgabe kennzeichnet nachgewiesen / behauptet / offen | Veröffentlicht |
+| v0.26.0 T-B6 | Zertifikat-Herkunft (`parents`, ADR-0002), Gültigkeit (`not_after`), `grounding`, `evidence-ref@2`-Assurance-Stufen mit Prüfer-Untergrenzen | Veröffentlicht |
 
 Vollständiges Versions-Deliberationslog: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

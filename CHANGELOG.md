@@ -6,6 +6,41 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ---
 
+## [Unreleased]
+
+Consistency with the printed book (Anhang B of *KI und IT-Governance*, ISBN 978-3-662-74093-4).
+
+### Fixed
+
+- The `[risk: …]` tag in the `assess`, `iso-gap` and `euaiact-gap` headers was parsed as Rich
+  markup and vanished from English output (`[risk: HIGH]` starts lowercase, so Rich read it as a
+  style tag; the German `[Risiko: HOCH]` survived). The bracket is now escaped.
+- Blocking-item texts were cut at a fixed width mid-word ("pipeline,"). They are now shortened at a
+  word boundary, trailing separators dropped, with an ellipsis.
+- `euaiact-gap` followed the gate→article table from before the book's proof corrections. G5 now
+  maps to Art. 18 (documentation keeping) and Art. 17 instead of Art. 11, and G4 adds Art. 72
+  (post-market monitoring), as in the corrected `tab:framework-euaiact-gates`. The built-in
+  `euaiact` content pack moves to version `builtin-2`; its content hash changes accordingly.
+
+### Security
+
+- `urllib3` 2.7.0 → 2.8.0 in `uv.lock` and the hash-pinned `twine` constraints
+  (PYSEC-2026-4175, -4176, -4177). The on-startup dependency check no longer warns.
+
+### Added
+
+- `docs/book-compatibility.md`: claim-by-claim mapping of Anhang B to the current release.
+- `tests/test_book_example.py`: runs the book's commands verbatim and pins the worked example,
+  the strict-at-high rule and the CI exit codes.
+- `tests/test_euaiact.py` pins the article mapping against the corrected book table, row by row.
+
+### Changed
+
+- README example output replaced with a real run of the book's worked example; the previous
+  sample showed scores no input can produce.
+
+---
+
 ## [0.27.0] — 2026-09-30
 
 Remediation of an in-depth security audit (2026-09-30) across four surfaces: signing and

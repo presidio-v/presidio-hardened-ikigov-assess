@@ -92,7 +92,7 @@ _SERVER_INSTRUCTIONS = (
     "IDs the organisation affirms (and optionally skips) to obtain M1–M6 maturity "
     "scores and gate readiness. Use `iga_check_gate` to evaluate a single gate, and "
     "`iga_iso_gap` for ISO/IEC 42001 clause-level coverage, and `iga_euaiact_gap` "
-    "for EU AI Act high-risk obligations (Art. 9–17). Risk class is one of "
+    "for EU AI Act high-risk obligations (Art. 9–18, 72). Risk class is one of "
     "low|medium|high; language is de|en. This tool does not constitute legal advice "
     "or certification."
 )
@@ -356,7 +356,7 @@ def euaiact_gap(
     use_case: str = "unnamed",
     strict: bool = False,
 ) -> dict:
-    """Map gate readiness to EU AI Act high-risk obligations (Art. 9–17).
+    """Map gate readiness to EU AI Act high-risk obligations (Art. 9–18, 72).
 
     High-risk only: gates are evaluated at ``risk_class="high"`` (strict).
     """
@@ -526,7 +526,7 @@ def build_server(*, session_guard: bool = True):
         use_case: str = "unnamed",
         strict: bool = False,
     ) -> dict:
-        """Map an assessment to EU AI Act high-risk obligations (Art. 9–17).
+        """Map an assessment to EU AI Act high-risk obligations (Art. 9–18, 72).
 
         For high-risk systems only: returns each article (9, 10, 11, 12, 13, 14,
         15, 17) as OPEN / PARTIAL / BLOCKED based on the readiness of the gates

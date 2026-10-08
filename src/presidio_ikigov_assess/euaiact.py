@@ -1,7 +1,7 @@
 """EU AI Act gate-to-article coverage engine for high-risk systems (v0.8.0).
 
 For high-risk AI systems under Annex III, IKI-Gov gates G0–G5 generate the
-evidence required by EU AI Act Articles 9–17. The book's orientation matrix
+evidence required by EU AI Act Articles 9–18 and 72. The book's orientation matrix
 (``tab:framework-euaiact-gates``) maps each *gate* to its primary articles; this
 module inverts that to article→gates and derives each article's coverage from the
 current gate readiness:
@@ -11,7 +11,9 @@ current gate readiness:
   - PARTIAL  — a mix (some evidence in place, some outstanding).
 
 The article→gate mapping below is transcribed verbatim (inverted) from the book
-and verified against both editions; it is the authoritative source — do not derive.
+table as corrected in the October 2026 proofs (G4 cites Art. 9 in conjunction with
+Art. 72; G5 cites Art. 18 and 17, no longer Art. 11); it is the authoritative
+source — do not derive.
 """
 
 from __future__ import annotations
@@ -20,21 +22,24 @@ from dataclasses import dataclass
 
 from presidio_ikigov_assess.gates import GateResult
 
-# Articles in display order (EU AI Act Title III Chapter 2, high-risk obligations).
-ARTICLE_ORDER: tuple[str, ...] = ("9", "10", "11", "12", "13", "14", "15", "17")
+# Articles in display order: Chapter III Section 2–3 high-risk obligations, then
+# post-market monitoring (Chapter IX).
+ARTICLE_ORDER: tuple[str, ...] = ("9", "10", "11", "12", "13", "14", "15", "17", "18", "72")
 
 # Article → gates, inverted from the book gate→article table:
 #   G0: Art 9, 17     G1: Art 10, 9      G2: Art 9, 11, 15
-#   G3: Art 11, 13, 14, 17               G4: Art 9, 12, 15      G5: Art 11, 17
+#   G3: Art 11, 13, 14, 17               G4: Art 9 + 72, 12, 15 G5: Art 18, 17
 EU_AI_ACT_ARTICLE_GATES: dict[str, tuple[str, ...]] = {
     "9": ("G0", "G1", "G2", "G4"),
     "10": ("G1",),
-    "11": ("G2", "G3", "G5"),
+    "11": ("G2", "G3"),
     "12": ("G4",),
     "13": ("G3",),
     "14": ("G3",),
     "15": ("G2", "G4"),
     "17": ("G0", "G3", "G5"),
+    "18": ("G5",),
+    "72": ("G4",),
 }
 
 
