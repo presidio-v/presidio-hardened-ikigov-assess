@@ -886,7 +886,7 @@ wheels = [
 
 [[package]]
 name = "presidio-hardened-ikigov-assess"
-version = "0.27.0"
+version = "0.28.0"
 source = { editable = "." }
 dependencies = [
     { name = "prompt-toolkit" },

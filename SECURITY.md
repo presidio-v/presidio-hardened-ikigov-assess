@@ -4,6 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
+| 0.28.x  | Yes       |
 | 0.27.x  | Yes       |
 | 0.26.x  | Yes, but see the 0.27.0 audit note below |
 | 0.25.x  | Yes, but see both notes below |
@@ -45,6 +46,10 @@ installs on 3.9 are unaffected today), but to let the entire locked tree —
 including CI/audit tooling — resolve to patched releases, v0.9.0 raises
 `requires-python` to `>=3.10`. Python 3.9 is also upstream end-of-life as of
 October 2025.
+
+**`[audit]` installs:** the on-startup check pulls in `urllib3` via `pip-audit`. Use
+`urllib3` 2.8.0 or later (PYSEC-2026-4175, -4176, -4177); the check itself flags older
+versions. The tool's own lock and CI constraints pin 2.8.0 since 0.28.0.
 
 ## Reporting a Vulnerability
 

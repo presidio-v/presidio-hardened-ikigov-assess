@@ -6,9 +6,24 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ---
 
-## [Unreleased]
+## [0.28.0] — 2026-10-08
 
 Consistency with the printed book (Anhang B of *KI und IT-Governance*, ISBN 978-3-662-74093-4).
+Minor rather than patch: the EU AI Act table follows a revision of its source (SEMVER.md,
+"Schema/wire stability"), so `euaiact-gap` output changes for an existing input.
+
+### Upgrade notes
+
+- `euaiact-gap` (CLI JSON, MCP `iga_euaiact_gap`, `framework-gap euaiact`) now reports
+  articles 18 and 72; article 11 no longer lists G5, so its coverage can change for the same
+  assessment. Scripts that iterate a fixed article list need updating.
+- The built-in `euaiact` pack reports `version: builtin-2` with a new `content_hash`. Anything
+  pinned to `builtin-1` or the old hash must re-pin.
+- Evidence bundles exported by 0.28.0 record a different `framework_content_hash`. Bundles from
+  earlier releases still verify (`verify-bundle` does not compare it to the current tables).
+  Gate certificates are unaffected: their predicate hash covers gates and weights only.
+- Console and Markdown report text changes (`[risk: …]` now shown in English, item texts end
+  in "…"). JSON output is unchanged apart from the EU AI Act rows above.
 
 ### Fixed
 

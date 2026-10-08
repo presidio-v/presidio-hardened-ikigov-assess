@@ -871,6 +871,8 @@ In das Werkzeug eingebaute Sicherheitskontrollen:
 | v0.25.0 | `iga --version`; Portierung auf das mcp-2.x-SDK (`MCPServer`, Extra benötigt jetzt `mcp>=2,<3`); `OrgAuthMiddleware` weist Nicht-HTTP-ASGI-Scopes ab, statt sie durchzureichen | Veröffentlicht |
 | v0.26.0 S-1 | **Security:** `--require-evidence` ist überall fail-closed; nackte Bestätigungen sind `behauptet`, werden gezeigt, nie gewertet; jede Ausgabe kennzeichnet nachgewiesen / behauptet / offen | Veröffentlicht |
 | v0.26.0 T-B6 | Zertifikat-Herkunft (`parents`, ADR-0002), Gültigkeit (`not_after`), `grounding`, `evidence-ref@2`-Assurance-Stufen mit Prüfer-Untergrenzen | Veröffentlicht |
+| v0.27.0 | **Security:** Behebung des Audits 2026-09 (GHSA-376h-xg26-xf2j): eine Evidence-Ref gilt nur für einen Punkt, Zertifikat-Aussteller an den Signierer gebunden, Bundle-Pfade eingegrenzt, Ratenfenster je Organisation im Remote-Endpunkt | Veröffentlicht |
+| v0.28.0 | Buchkonsistenz (Anhang B): Rechenbeispiel durch Tests festgehalten, `[risk: …]`-Kopfzeile behoben, `euaiact-gap` folgt der korrigierten Gate→Artikel-Tabelle (Art. 18, 72); [docs/book-compatibility.md](docs/book-compatibility.md) | Veröffentlicht |
 
 Vollständiges Versions-Deliberationslog: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

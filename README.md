@@ -867,6 +867,8 @@ Security controls built into the tool:
 | v0.25.0 | `iga --version`; ported to the mcp 2.x SDK (`MCPServer`, extra now needs `mcp>=2,<3`); `OrgAuthMiddleware` refuses non-HTTP ASGI scopes instead of forwarding them | Released |
 | v0.26.0 S-1 | **Security:** `--require-evidence` is fail-closed everywhere; bare affirmations are `asserted`, shown, never counted; every output marks evidenced / asserted / open | Released |
 | v0.26.0 T-B6 | Certificate lineage (`parents`, ADR-0002), validity (`not_after`), `grounding`, `evidence-ref@2` assurance tiers surfaced with verifier floors | Released |
+| v0.27.0 | **Security:** 2026-09 audit remediation (GHSA-376h-xg26-xf2j): one evidence-ref verifies for one item only, certificate issuer bound to signer, bundle paths confined, per-org remote rate window | Released |
+| v0.28.0 | Book consistency (Anhang B): worked example pinned by tests, `[risk: …]` header fixed, `euaiact-gap` follows the corrected gate→article table (Art. 18, 72); [docs/book-compatibility.md](docs/book-compatibility.md) | Released |
 
 Full version deliberation log: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 
