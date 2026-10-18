@@ -501,6 +501,25 @@ v0.26 verifizieren unverändert:
   (`unsupported-assurance-tier`), damit ein künftiges ZK-Gate-Zertifikat nie für eines
   gehalten wird, das dieser Prüfer prüfen kann.
 
+### Identität eines Zertifikats (unveröffentlicht)
+
+`certificate_content_hash(cert)` liefert die Identität eines Zertifikats: SHA-256 über die
+kanonischen Bytes, die der Aussteller signiert (das Dokument ohne `signature`), in
+Kleinbuchstaben-Hex. Diesen Hash trägt eine nachgelagerte Nutzlast in `parents` ein, um die
+Gate-Entscheidung zu benennen, die sie zugelassen hat (Evidenzvertrag der Familie). Der
+Signaturblock zählt nicht mit, eine Neusignatur ändert die Identität also nicht; jede
+Änderung am signierten Inhalt schon. `framework_content_hash` benennt die Gate-Regel, die
+alle Zertifikate darunter teilen, und ist kein Parent. Über die Gültigkeit sagt die
+Identität nichts; zuerst das Zertifikat prüfen.
+
+```python
+from presidio_ikigov_assess.certificate import certificate_content_hash, verify_certificate
+
+result = verify_certificate(cert, trust)
+if result.ok:
+    parent = certificate_content_hash(cert)
+```
+
 ---
 
 ## MCP-Server

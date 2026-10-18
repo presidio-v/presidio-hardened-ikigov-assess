@@ -397,6 +397,31 @@ def signing_bytes(document: Mapping[str, object]) -> bytes:
     return canonical_bytes(stripped)
 
 
+def certificate_content_hash(document: Mapping[str, object]) -> str:
+    """Identity of a gate certificate: SHA-256 over :func:`signing_bytes`, lowercase hex.
+
+    This is the family evidence-contract identity of a ``gate-certificate@1``
+    (ADR-0006): exactly the bytes the issuer signs, so it is the same before
+    and after signing and does not change when the certificate is re-signed.
+    A downstream producer that names a gate decision in its ``parents``
+    (ADR-0002) uses this value. ``framework_content_hash`` identifies the gate
+    *rule* shared by every certificate under it and is never a parent.
+
+    Fails closed: a non-mapping or a document whose ``schema`` is not
+    ``gate-certificate@1`` raises :class:`CertificateError`. The hash says
+    nothing about validity; call :func:`verify_certificate` for that.
+    """
+    if not isinstance(document, Mapping):
+        raise CertificateError("certificate must be a JSON object")
+    if document.get("schema") != CERTIFICATE_SCHEMA:
+        raise CertificateError(f"not a {CERTIFICATE_SCHEMA} document")
+    try:
+        message = signing_bytes(document)
+    except (TypeError, ValueError) as exc:
+        raise CertificateError(f"certificate is not canonicalisable: {exc}") from exc
+    return hashlib.sha256(message).hexdigest()
+
+
 def _hmac_hex(key: str, message: bytes) -> str:
     return hmac.new(key.encode("utf-8"), message, hashlib.sha256).hexdigest()
 
@@ -808,6 +833,7 @@ __all__ = [
     "VerificationResult",
     "build_certificate",
     "canonical_bytes",
+    "certificate_content_hash",
     "gate_predicate_content_hash",
     "sha256_hex",
     "sign",
