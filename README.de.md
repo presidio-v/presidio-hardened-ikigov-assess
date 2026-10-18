@@ -898,6 +898,7 @@ gefuzzt (Atheris).
 | v0.26.0 T-B6 | Zertifikat-Herkunft (`parents`, ADR-0002), Gültigkeit (`not_after`), `grounding`, `evidence-ref@2`-Assurance-Stufen mit Prüfer-Untergrenzen | Veröffentlicht |
 | v0.27.0 | **Security:** Behebung des Audits 2026-09 (GHSA-376h-xg26-xf2j): eine Evidence-Ref gilt nur für einen Punkt, Zertifikat-Aussteller an den Signierer gebunden, Bundle-Pfade eingegrenzt, Ratenfenster je Organisation im Remote-Endpunkt | Veröffentlicht |
 | v0.28.0 | Buchkonsistenz (Anhang B): Rechenbeispiel durch Tests festgehalten, `[risk: …]`-Kopfzeile behoben, `euaiact-gap` folgt der korrigierten Gate→Artikel-Tabelle (Art. 18, 72); [docs/book-compatibility.md](docs/book-compatibility.md) | Veröffentlicht |
+| v0.29.0 | Identität des Gate-Zertifikats als `certificate_content_hash` (ADR-0006), damit Erzeuger die zulassende Gate-Entscheidung in `parents` benennen; `[mcp]` verlangt `mcp>=2.2` für den Remote-Server | Veröffentlicht |
 
 Vollständiges Versions-Deliberationslog: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 

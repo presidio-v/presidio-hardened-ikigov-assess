@@ -8,8 +8,20 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ## [Unreleased]
 
+---
+
+## [0.29.0] — 2026-10-18
+
 Exposes the gate-certificate identity so downstream producers compute it in one place
-(part of #74). Additive public API, so the next release is a minor (0.29.0).
+(part of #74), and raises the MCP SDK floor for the remote server. Additive public API,
+so a minor.
+
+### Security
+
+- The `[mcp]` extra now requires `mcp>=2.2,<3` (lock: 2.3.0). Earlier SDK releases keep
+  StreamableHTTP sessions without bound, so a client could exhaust the memory of the
+  org-scoped remote server (`remote.serve`), which runs exactly that transport behind the
+  org auth guard (#76). The stdio server is not affected.
 
 ### Added
 
