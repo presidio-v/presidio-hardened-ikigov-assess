@@ -40,7 +40,7 @@ audit = ["pip-audit>=2.6.0"]
 # module, so 1.x no longer works — hence a floor, not just a ceiling. The `<3` ceiling
 # stays: this is the second time an unbounded floor on this dependency broke an
 # install, and the surface build_server() touches lives on the major.
-mcp = ["mcp>=2,<3; python_version >= '3.10'"]
+mcp = ["mcp>=2.2,<3; python_version >= '3.10'"]
 # Public-key (Ed25519) evidence verification for v0.14.0 external evidence.
 crypto = ["cryptography>=42"]
 # Coverage-guided fuzzing (Atheris). Linux-only and Python 3.12-only: Atheris 3.x
@@ -53,7 +53,7 @@ dev = [
     "ruff>=0.15.10",
     "pip-audit>=2.6.0",
     # Keep in step with the `mcp` extra above, including the <3 ceiling.
-    "mcp>=2,<3; python_version >= '3.10'",
+    "mcp>=2.2,<3; python_version >= '3.10'",
     "cryptography>=42",
 ]
 
