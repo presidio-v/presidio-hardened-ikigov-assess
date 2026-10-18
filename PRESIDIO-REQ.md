@@ -109,8 +109,10 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.23.0 T-B5 | Gate certificates (`presidio-hardened/gate-certificate@1`) — signed, third-party-verifiable proof of a gate decision (`iga certify` / `iga verify-certificate`); recomputes the decision from embedded predicate inputs against a trust store, DB-free and fail-closed. Named workshop delegation chain (`--show-chain` / `--require-chain`) exposing the customer→manifest→assessor lineage as explicit walked links | Shipped v0.23.0 (2026-07-05); issue-time evidence verification requires `--trust`, verify-time independently re-verifies embedded refs |
 | v0.24.0 | Maintenance and supply chain — coverage-guided fuzzing (`fuzz` extra, Atheris) over the two untrusted-input boundaries, the fail-closed parser guards that harness found (`UnicodeError` / `RecursionError` no longer leak past `ClassificationError` / `EvidenceError`), and `mcp` capped to `>=1.2.0,<2` | Shipped v0.24.0 (2026-08-02); no new assessment surface. The cap is a hold, not a fix: mcp 2.0.0 relocated `mcp.server.fastmcp`, so `[mcp]` installs of v0.23.0 are broken and the 2.x port is deferred work |
 | v0.25.0 | `iga --version` / `-V` (eager, answers before the startup CVE check so it works offline); **mcp 2.x port** — `mcp.server.mcpserver.MCPServer` replaces `FastMCP`, extra moves from `>=1.2.0,<2` to `>=2,<3`; `OrgAuthMiddleware` refuses non-HTTP ASGI scopes instead of forwarding them | Shipped v0.25.0 (2026-08-02); the mcp floor rises, so 1.x no longer works with the extra — no compat shim by choice. The WebSocket passthrough was not exploitable in any shipped release (no WebSocket route is mounted), fixed because that was an accident of `streamable_http_app()` rather than a guarantee |
-| v0.26.0 S-1 | **Security:** `--require-evidence` fails closed everywhere — one merge point (`evidence.resolve_affirmations`); bare affirmations become `asserted` (shown, never counted); every output marks evidenced / asserted / open; evidence options on `gate` / `report` / `export` / gap commands | Fixed 2026-09-29, unreleased (0.26.0); affects 0.13.0–0.25.0; no published version touched |
-| v0.26.0 T-B6 | Certificate lineage (`parents`, ADR-0002), validity (`not_after`), `grounding`, `evidence-ref@2` assurance tiers surfaced with verifier floors | Unreleased (0.26.0) |
+| v0.26.0 S-1 | **Security:** `--require-evidence` fails closed everywhere — one merge point (`evidence.resolve_affirmations`); bare affirmations become `asserted` (shown, never counted); every output marks evidenced / asserted / open; evidence options on `gate` / `report` / `export` / gap commands | Shipped v0.26.0 (2026-09-29); affects 0.13.0–0.25.0 (GHSA-v5x3-w9rp-pfjx); no published version touched |
+| v0.26.0 T-B6 | Certificate lineage (`parents`, ADR-0002), validity (`not_after`), `grounding`, `evidence-ref@2` assurance tiers surfaced with verifier floors | Shipped v0.26.0 (2026-09-29) |
+| v0.27.0 | **Security:** 2026-09 audit remediation (GHSA-376h-xg26-xf2j) — one signed evidence-ref verifies for at most one item, certificate `issuer` bound to its signer, `--min-evidence-tier` fails closed without refs, bundle/leave-behind reads confined to plain members ≤ 8 MiB, no writer follows symlinks, unsigned leave-behinds fail `workshop verify`, built-in `framework_id` override gated, per-org remote rate window, hash-pinned release build | Shipped v0.27.0 (2026-09-30); several former passes now fail (CHANGELOG upgrade notes) |
+| v0.28.0 | Book consistency (Anhang B of *KI und IT-Governance*) — worked example pinned by tests, `[risk: …]` header no longer eaten by Rich, word-boundary truncation, `euaiact-gap` follows the corrected gate→article table (G5 → Art. 17/18, G4 adds Art. 72; pack `builtin-2`) | Shipped v0.28.0 (2026-10-08); minor, not patch: `euaiact-gap` output changes for an existing input |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -1739,8 +1741,8 @@ defect of this class in a tool with no network exposure; the founder decides.
   export manifest + report marking, bundle still verifies; three gap commands; certify;
   MCP; legacy behaviour unchanged; i18n. — **Delivered.**
 - R5 README (EN/DE), CHANGELOG (Security section), SECURITY.md (supported-version
-  note + control), this entry; version 0.26.0. — **Delivered.** Tag and publish are
-  founder-signed steps.
+  note + control), this entry; version 0.26.0. — **Delivered.** Shipped v0.26.0
+  (2026-09-29); advisory GHSA-v5x3-w9rp-pfjx.
 
 ## v0.26.0 T-B6 — Certificate Lineage, Validity, Grounding and Tiers
 
@@ -1860,8 +1862,75 @@ filing. Recorded so nobody attempts the import migration early.
   tier reported, floor applied, vacuous without refs; non-attested certificate
   tier rejected; pre-v0.26 shape verifies unchanged; CLI round-trips.
   — **Delivered: 558 passed (from 512), coverage 87.9%, ruff clean.**
-- R5 README, CHANGELOG, this entry. — **Delivered.** Version not bumped
-  (release mechanics are founder-signed).
+- R5 README, CHANGELOG, this entry. — **Delivered.** Shipped with S-1 as v0.26.0
+  (2026-09-29).
+
+## v0.27.0 — 2026-09 Security Audit Remediation
+
+**Audited:** 2026-09-30, four surfaces: signing and verification, the network and
+MCP surface, parsers and files, the supply chain. **Shipped:** v0.27.0
+(2026-09-30). Advisory GHSA-376h-xg26-xf2j. Each fix carries a regression test
+that reproduces the finding; the full list is the CHANGELOG `[0.27.0]` entry.
+
+### Decision — fail where the old release passed
+
+The evidence-ref signature covers `{content_hash, signer}` but not `item_id`, so one
+genuine ref copied under all 25 item ids verified 25 times and opened every gate
+under `--require-evidence`. A ref claimed for more than one item now verifies for
+none of them, in every command, the MCP tool and certificate-embedded refs. The same
+reasoning (an unproven claim must not pass) turns three more passes into failures:
+a certificate whose `issuer` is not its signer (`issuer-signer-mismatch`), a tier
+floor over a certificate with no refs (`no-evidence-for-tier-floor`), and an
+UNSIGNED leave-behind in `workshop verify` (opt back in with `--allow-unsigned`).
+These break pipelines that relied on them; the CHANGELOG upgrade notes name each.
+
+### Requirements
+
+- R1 Signing/verification: one-ref-one-item, issuer = signer, tier floor fails
+  closed without refs, unsigned leave-behind fails. — **Delivered.**
+- R2 Files and parsers: bundle and leave-behind members confined to plain regular
+  files ≤ 8 MiB; no writer follows a planted symlink; control characters and Rich
+  markup stripped from file-derived strings; built-in `framework_id` override only
+  with `--allow-builtin-override` / `IGA_ALLOW_BUILTIN_OVERRIDE=1`; pack files
+  ≤ 1 MB; allow-list patterns anchored with `\Z`. — **Delivered.**
+- R3 Remote endpoint: no process-wide assessment counter across orgs; per-org
+  window (`IGA_MCP_WINDOW_SECONDS`, `Retry-After`); non-loopback bind refused
+  without `--behind-tls-proxy`; MCP handshake reports the package version.
+  — **Delivered.**
+- R4 Supply chain: hash-pinned release backend, `dist/` attested before unpinned
+  installs, SBOM in its own job, `hatchling>=1.31,<2`, PR-time build + `twine check
+  --strict`, `persist-credentials: false`. — **Delivered.**
+- R5 SECURITY.md, CHANGELOG, README, this entry. — **Delivered.**
+
+## v0.28.0 — Consistency with the Printed Book (Anhang B)
+
+**Shipped:** v0.28.0 (2026-10-08). Aligns the tool with Anhang B of *KI und
+IT-Governance* (ISBN 978-3-662-74093-4); claim-by-claim mapping in
+`docs/book-compatibility.md`.
+
+### Decision — minor, not patch
+
+`euaiact-gap` follows the gate→article table as corrected in the book's proofs: G5
+maps to Art. 18 and Art. 17 instead of Art. 11, and G4 adds Art. 72. The table
+follows a revision of its source, so output changes for an existing input; under
+SEMVER.md ("Schema/wire stability") that is a minor bump. The built-in `euaiact`
+pack moves to `builtin-2` with a new `content_hash`; earlier evidence bundles still
+verify, and gate certificates are unaffected (their predicate hash covers gates
+and weights only).
+
+### Requirements
+
+- R1 `euaiact-gap` mapping pinned row by row against the corrected book table
+  (`tests/test_euaiact.py`). — **Delivered.**
+- R2 The book's commands run verbatim and pin the worked example, the
+  strict-at-high rule and the CI exit codes (`tests/test_book_example.py`).
+  — **Delivered.**
+- R3 Fixes: `[risk: …]` header escaped so Rich no longer drops it; blocking-item
+  texts shortened at a word boundary with an ellipsis. — **Delivered.**
+- R4 `urllib3` 2.8.0 in `uv.lock` and the twine constraints (PYSEC-2026-4175,
+  -4176, -4177). — **Delivered.**
+- R5 README example replaced by a real run; `docs/book-compatibility.md`;
+  CHANGELOG; this entry. — **Delivered.**
 
 ## SDLC
 
