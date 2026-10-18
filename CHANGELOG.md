@@ -6,6 +6,32 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ---
 
+## [Unreleased]
+
+Exposes the gate-certificate identity so downstream producers compute it in one place
+(part of #74). Additive public API, so the next release is a minor (0.29.0).
+
+### Added
+
+- `certificate.certificate_content_hash(doc)`: the identity of a `gate-certificate@1`,
+  SHA-256 (lowercase hex) over the canonical bytes the issuer signs (`signing_bytes`, the
+  document minus `signature`), as fixed by the family evidence contract (ADR-0006). It is
+  the same before and after signing and survives re-signing, so a training run or any
+  other ADR-0002 payload can name the gate decision that admitted it in `parents`.
+  `framework_content_hash` still names the gate rule, not the issuance, and is not a
+  parent. Fails closed (`CertificateError`) on a non-object, a foreign `schema` or
+  content that cannot be canonicalised; it does not verify the certificate.
+- Test vector `tests/fixtures/gate_certificate_identity_vector.json`, copied from the
+  family evidence contract vector: a certificate issued by this tool with its pinned
+  identity `dbb7c6a3…2a83ebd4a`, which also verifies against its trust store.
+
+### Not changed
+
+- Wire format, signing rule and verification of `gate-certificate@1`. The float
+  `framework_content_hash` encoding (the rest of #74) is still open.
+
+---
+
 ## [0.28.0] — 2026-10-08
 
 Consistency with the printed book (Anhang B of *KI und IT-Governance*, ISBN 978-3-662-74093-4).

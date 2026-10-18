@@ -1932,6 +1932,31 @@ and weights only).
 - R5 README example replaced by a real run; `docs/book-compatibility.md`;
   CHANGELOG; this entry. — **Delivered.**
 
+## Unreleased — Gate Certificate Identity (part of #74)
+
+**Status:** Unreleased (targets 0.29.0, minor: additive API).
+
+### Decision — the identity is the hash of the signed bytes
+
+The family evidence contract (ADR-0006) fixes the identity of a `gate-certificate@1`
+as SHA-256 over its canonical bytes minus `signature`, which are exactly the bytes
+`signing_bytes()` yields and the issuer signs. Consumers had to recompute that from
+`signing_bytes` themselves. `certificate_content_hash()` names it once. It binds one
+issuance (affirmation set, embedded refs, issuer, validity window) and does not move
+when the certificate is re-signed. `framework_content_hash` identifies the rule and
+stays out of `parents`.
+
+### Requirements
+
+- R1 `certificate_content_hash(doc) -> str`, lowercase hex, exported from
+  `certificate`; fails closed on a non-object, a foreign schema or a
+  non-canonicalisable document. — **Delivered.**
+- R2 Pinned against the family evidence contract vector
+  (`tests/fixtures/gate_certificate_identity_vector.json`, identity
+  `dbb7c6a36f0aea55bbe5dead3daf8f4f3d59116966e79bd4b78ecfe2a83ebd4a`); identical
+  before and after signing (`tests/test_certificate_identity.py`). — **Delivered.**
+- R3 The float-free `framework_content_hash` (#74) remains open. — **Open.**
+
 ## SDLC
 
 These requirements are delivered under the family-wide Presidio SDLC:

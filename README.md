@@ -491,6 +491,24 @@ verify unchanged:
   (`unsupported-assurance-tier`), which keeps a future zk gate certificate from being
   mistaken for one this verifier can check.
 
+### Certificate identity (Unreleased)
+
+`certificate_content_hash(cert)` returns the identity of a certificate: SHA-256 over the
+canonical bytes the issuer signs (the document minus `signature`), lowercase hex. It is
+the hash a downstream payload puts in its `parents` to name the gate decision that
+admitted it, per the family evidence contract. It ignores the signature block, so
+re-signing keeps it; any change to the signed content changes it. `framework_content_hash`
+names the gate rule shared by every certificate under it and is not a parent. The
+identity says nothing about validity; verify the certificate first.
+
+```python
+from presidio_ikigov_assess.certificate import certificate_content_hash, verify_certificate
+
+result = verify_certificate(cert, trust)
+if result.ok:
+    parent = certificate_content_hash(cert)
+```
+
 ---
 
 ## MCP Server
