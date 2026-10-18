@@ -4,12 +4,18 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.28.x  | Yes       |
+| 0.29.x  | Yes       |
+| 0.28.x  | Yes, but see the 0.29.0 remote-server note below |
 | 0.27.x  | Yes       |
 | 0.26.x  | Yes, but see the 0.27.0 audit note below |
 | 0.25.x  | Yes, but see both notes below |
 | 0.24.x  | Yes, but see both notes below |
 | < 0.24  | No        |
+
+> **0.28.x and earlier: the remote server (`remote.serve`) with `mcp` < 2.2.** Those
+> releases allow an MCP SDK that keeps StreamableHTTP sessions without bound, so a client
+> can exhaust the remote server's memory. 0.29.0 requires `mcp>=2.2`; on older releases, upgrade the SDK yourself.
+> The stdio server is not affected.
 
 > **0.26.x and earlier: fixed in 0.27.0 (2026-09 audit).** One genuine signed evidence-ref
 > copied under several item ids verified for each of them, so `--require-evidence` could
