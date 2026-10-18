@@ -113,6 +113,7 @@ Every deliberation about future versions and roadmap is persisted here.
 | v0.26.0 T-B6 | Certificate lineage (`parents`, ADR-0002), validity (`not_after`), `grounding`, `evidence-ref@2` assurance tiers surfaced with verifier floors | Shipped v0.26.0 (2026-09-29) |
 | v0.27.0 | **Security:** 2026-09 audit remediation (GHSA-376h-xg26-xf2j) — one signed evidence-ref verifies for at most one item, certificate `issuer` bound to its signer, `--min-evidence-tier` fails closed without refs, bundle/leave-behind reads confined to plain members ≤ 8 MiB, no writer follows symlinks, unsigned leave-behinds fail `workshop verify`, built-in `framework_id` override gated, per-org remote rate window, hash-pinned release build | Shipped v0.27.0 (2026-09-30); several former passes now fail (CHANGELOG upgrade notes) |
 | v0.28.0 | Book consistency (Anhang B of *KI und IT-Governance*) — worked example pinned by tests, `[risk: …]` header no longer eaten by Rich, word-boundary truncation, `euaiact-gap` follows the corrected gate→article table (G5 → Art. 17/18, G4 adds Art. 72; pack `builtin-2`) | Shipped v0.28.0 (2026-10-08); minor, not patch: `euaiact-gap` output changes for an existing input |
+| v0.29.0 | Gate-certificate identity — `certificate_content_hash()` (family ADR-0006: SHA-256 over the signed canonical bytes) so producers name the admitting gate decision in `parents`; `[mcp]` floor `mcp>=2.2,<3` for the remote server (unbounded StreamableHTTP sessions below 2.2) | Shipped v0.29.0 (2026-10-18); additive API, minor. The float-free `framework_content_hash` (#74) stays open |
 
 > **Sequencing note (v0.13.0).** Its only hard dependency is v0.9.0 (the signed
 > evidence-pack manifest + hash/signature baseline). It is independent of v0.10.0–v0.12.0
@@ -1932,9 +1933,9 @@ and weights only).
 - R5 README example replaced by a real run; `docs/book-compatibility.md`;
   CHANGELOG; this entry. — **Delivered.**
 
-## Unreleased — Gate Certificate Identity (part of #74)
+## v0.29.0 — Gate Certificate Identity (part of #74) and MCP Floor
 
-**Status:** Unreleased (targets 0.29.0, minor: additive API).
+**Shipped:** v0.29.0 (2026-10-18). Minor: additive API.
 
 ### Decision — the identity is the hash of the signed bytes
 
@@ -1956,6 +1957,9 @@ stays out of `parents`.
   `dbb7c6a36f0aea55bbe5dead3daf8f4f3d59116966e79bd4b78ecfe2a83ebd4a`); identical
   before and after signing (`tests/test_certificate_identity.py`). — **Delivered.**
 - R3 The float-free `framework_content_hash` (#74) remains open. — **Open.**
+- R4 `[mcp]` requires `mcp>=2.2,<3` (lock 2.3.0): older SDKs keep StreamableHTTP
+  sessions without bound, which the org-scoped remote server (`remote.serve`) exposes
+  (#76). — **Delivered.**
 
 ## SDLC
 
