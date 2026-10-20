@@ -73,8 +73,9 @@ Repository = "https://github.com/presidio-v/presidio-hardened-ikigov-assess"
 packages = ["src/presidio_ikigov_assess"]
 
 [tool.hatch.build.targets.sdist]
-# Keep the name-reservation placeholders out of the real distribution.
-exclude = ["pypi-reserve/"]
+# Keep the name-reservation placeholders and the marketing collateral (fonts, images)
+# out of the real distribution.
+exclude = ["pypi-reserve/", "docs/marketing/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

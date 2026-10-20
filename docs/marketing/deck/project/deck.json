@@ -1,0 +1,20 @@
+{
+  "v": 4,
+  "createdOnFiles": {"v": 1, "at": "2026-10-20T08:10:00Z"},
+  "lists": "css",
+  "title": "IKI-Gov Assess",
+  "cover": "cover",
+  "order": ["cover", "problem", "lifecycle", "scoring", "risk", "pipeline", "evidence", "certificate", "regulation", "workshop", "hardened", "book", "start"],
+  "sections": {
+    "why": {"description": "Why a policy is no answer to an auditor.", "start": "cover"},
+    "model": {"description": "How the IKI-Gov model turns answers into gate decisions.", "start": "lifecycle"},
+    "proof": {"description": "How evidence and certificates make a decision verifiable.", "start": "pipeline"},
+    "reach": {"description": "Regulatory views, workshops and the hardening behind the tool.", "start": "regulation"},
+    "close": {"description": "The book behind the model and how to start.", "start": "book"}
+  },
+  "faces": {
+    "inter": {"family": "Inter", "src": "/_blob/419a5e3339410b305af637f045edd042"},
+    "jetbrains-mono": {"family": "JetBrains Mono", "src": "/_blob/604b14e98d4b4316b8bfdd929760a33b"}
+  },
+  "designSystems": []
+}
