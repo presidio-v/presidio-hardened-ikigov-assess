@@ -9,7 +9,9 @@ Collateral for IKI-Gov Assess in the PRESIDIO design (tokens from `presidio-web`
 | `presidio.css` | Design tokens and manual styles. |
 | `assets/` | Logo, bridge motif and the vendored Inter and JetBrains Mono fonts (SIL OFL 1.1). |
 
-Build the self-contained HTML and the PDFs into `dist/` (ignored by git):
+The published PDFs are in `pdf/`; the PRESIDIO website links to them there.
+Rebuild them after any change to a source, and commit the result. The HTML goes to
+`dist/`, which git ignores:
 
 ```bash
 .venv/bin/python docs/marketing/build.py --pdf --lint ../vstantch-prose

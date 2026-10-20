@@ -32,6 +32,7 @@ from presidio_ikigov_assess.checklist import CHECKLIST
 
 HERE = Path(__file__).resolve().parent
 DIST = HERE / "dist"
+PDF = HERE / "pdf"  # tracked: the published PDFs
 ASSETS = HERE / "assets"
 DECK = HERE / "deck" / "project"
 
@@ -181,7 +182,8 @@ def find_chrome() -> str:
 
 
 def print_pdf(chrome: str, src: Path) -> Path:
-    out = src.with_suffix(".pdf")
+    PDF.mkdir(exist_ok=True)
+    out = PDF / f"iki-gov-assess-{src.stem}.pdf"
     with tempfile.TemporaryDirectory() as profile:
         cmd = [
             chrome,
