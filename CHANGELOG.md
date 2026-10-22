@@ -8,6 +8,15 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ## [Unreleased]
 
+### Security
+
+- `certifi` 2026.6.17 → 2026.10.19 in `uv.lock` (PYSEC-2026-4320). The new
+  bundle drops emSign ECC Root CA - G3, the root behind the eMudhra intermediates
+  with trivially recoverable keys (Mozilla bug 2083449). certifi is pulled in only
+  through the `audit` and `dev` extras (pip-audit); the core install has no certifi.
+- `opentelemetry-api` 1.44.0 → 1.45.1 in `uv.lock` (CVE-2026-114603), pulled in
+  by `mcp` through the `mcp` and `dev` extras.
+
 ---
 
 ## [0.29.0] — 2026-10-18
