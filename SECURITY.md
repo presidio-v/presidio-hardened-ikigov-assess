@@ -84,6 +84,8 @@ within 30 days of a confirmed vulnerability.
 - **Secure logging** — the security event log (`~/.iga/security.log`) records only structural
   metadata (event type, risk class, gate status, language). No use-case content, organisational
   data, or secrets are written to log output.
+- **Locked dependency audit (CI)** — every PR and push to `main` runs a blocking
+  `pip-audit` over `uv.lock` (all extras except the Linux-only `fuzz`).
 - **Dependency CVE check** — when `pip-audit` is installed (the `audit` or `dev` extra),
   the tool runs it on each invocation against the installed environment. The check is
   advisory: a *clean*, *unavailable* (pip-audit not installed), and *inconclusive*
