@@ -1,0 +1,25 @@
+<section id="pipeline" data-transition="fade" data-section="How evidence and certificates make a decision verifiable." style="background:#fbfbfa;color:#14171c;font-family:Inter, Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:56px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;font-weight:600;text-transform:uppercase;letter-spacing:3px;color:#2a58a6">CI/CD</p>
+<h2 style="font-size:72px;font-weight:700;line-height:1.1;letter-spacing:-2px;color:#14171c">A gate your pipeline can enforce.</h2>
+</div>
+<div style="display:flex;gap:64px;align-items:start">
+<div style="flex:3;display:flex;flex-direction:column;gap:32px">
+<div style="display:flex;flex-direction:column;gap:8px;background:#14171c;padding:40px 48px;border-radius:12px">
+<p style="font-family:'JetBrains Mono', 'Courier New', monospace;font-size:26px;line-height:1.6;color:#eaf0fa">$ iga gate --gate G2 --risk-class high \<br>&#160;&#160;&#160;&#160;--affirm S1,S2,D1,D2,D3,D4,D5,T1,T2,T3 \<br>&#160;&#160;&#160;&#160;--assert-gate G2<br>$ echo $?<br><span style="color:#8fb0e6">0</span></p>
+</div>
+<p style="font-size:36px;line-height:1.4;color:#5b6370">A build that ships a blocked model fails the way a build with a failing test fails.</p>
+</div>
+<div style="flex:2;display:flex;flex-direction:column">
+<table style="font-family:Inter, Arial, sans-serif;font-size:30px;color:#14171c;padding:20px 24px">
+<tr><th style="width:30%;text-align:left">Exit</th><th style="width:70%;text-align:left">Gate status</th></tr>
+<tr><td style="font-family:'JetBrains Mono', 'Courier New', monospace;color:#2a58a6">0</td><td>OPEN, build passes</td></tr>
+<tr><td style="font-family:'JetBrains Mono', 'Courier New', monospace;color:#2a58a6">2</td><td>PARTIAL</td></tr>
+<tr><td style="font-family:'JetBrains Mono', 'Courier New', monospace;color:#2a58a6">3</td><td>BLOCKED</td></tr>
+<tr><td style="font-family:'JetBrains Mono', 'Courier New', monospace;color:#2a58a6">1</td><td>invalid input</td></tr>
+</table>
+</div>
+</div>
+<img src="/_blob/5b2e150cbce7bc6f33d3c5b2dcd4bbcd" alt="PRESIDIO" style="position:absolute;left:128px;bottom:64px;width:140px;height:28px;object-fit:contain">
+<p style="position:absolute;right:128px;bottom:60px;width:400px;font-size:24px;color:#5b6370;text-align:right">IKI-Gov Assess · 06</p>
+</section>
