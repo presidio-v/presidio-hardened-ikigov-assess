@@ -199,15 +199,25 @@ def _normalise_entry(signer: str, value: object) -> dict[str, object]:
     algorithm and key material, which may be a single value **or a list** so a signer
     can have several active keys during rotation:
     ``{'alg': 'hmac-sha256'|'ed25519', 'key'|'public_key': '<hex>' | ['<hex>', ...]}``.
+
+    ``public_key`` is Ed25519 material only: an entry with ``public_key`` and no
+    ``alg`` is Ed25519, and ``public_key`` under ``hmac-sha256`` is rejected, so a
+    published public key can never act as a shared HMAC secret. HMAC secrets come
+    only from ``key``.
     """
     if isinstance(value, str):
         return {"alg": "hmac-sha256", "keys": [value]}
     if isinstance(value, Mapping):
-        alg = value.get("alg", "hmac-sha256")
+        alg = value.get("alg", "ed25519" if "public_key" in value else "hmac-sha256")
         if alg not in SIGNING_ALGORITHMS:
             raise EvidenceError(f"trust entry '{signer}': unknown alg {alg!r}")
-        raw = value.get("public_key") if alg == "ed25519" else value.get("key")
-        raw = raw if raw is not None else (value.get("key") or value.get("public_key"))
+        if alg == "hmac-sha256" and "public_key" in value:
+            raise EvidenceError(
+                f"trust entry '{signer}': public_key is Ed25519 material, not an HMAC secret"
+            )
+        raw = value.get("key") if alg == "hmac-sha256" else value.get("public_key")
+        if alg == "ed25519" and raw is None:
+            raw = value.get("key")  # back-compat: an Ed25519 public key under 'key'
         keys = [raw] if isinstance(raw, str) else raw
         if (
             not isinstance(keys, list)

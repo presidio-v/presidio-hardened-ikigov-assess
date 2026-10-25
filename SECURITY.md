@@ -139,7 +139,11 @@ controls in force:
   signed message needs a family-wide wire-format change and is tracked separately.
 - **Algorithm in the trust store (v0.14.0)** — a trust entry is either a bare HMAC-secret
   string (back-compat) or an object `{"alg": "hmac-sha256"|"ed25519",
-  "key"|"public_key": "<hex>"}`. `verify_ref` dispatches accordingly. **Ed25519**
+  "key"|"public_key": "<hex>"}`. `verify_ref` dispatches accordingly. Since v0.29.1,
+  `public_key` is Ed25519 material only: an entry with `public_key` and no `alg` is
+  Ed25519, and `public_key` under `hmac-sha256` is rejected, so a published public key
+  can never be used as an HMAC secret (before, it defaulted to HMAC with the public key
+  as the secret, and anyone holding that key could forge verified evidence). **Ed25519**
   (RFC 8032) public-key verification means a verifier holds only public keys — no shared
   secret with the producer. Ed25519 entries require the `[crypto]` extra; `load_trust_store`
   fails fast with a clear message if it is missing rather than failing verification silently.
