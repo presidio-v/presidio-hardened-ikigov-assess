@@ -22,6 +22,11 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
   through the `audit` and `dev` extras (pip-audit); the core install has no certifi.
 - `opentelemetry-api` 1.44.0 → 1.45.1 in `uv.lock` (CVE-2026-114603), pulled in
   by `mcp` through the `mcp` and `dev` extras.
+- `filelock` 3.29.4 → 4.2.4 in `uv.lock` for Python 3.11+ (CVE-2026-112907,
+  CVE-2026-112913, CVE-2026-112940). filelock comes in only through `pip-audit`
+  (`audit` and `dev` extras). Every fixed release needs Python 3.11, so the 3.10
+  split stays on 4.1.0; the core install does not depend on filelock. The `fuzz`
+  extra now carries a `python_version >= '3.12'` marker so uv can lock that split.
 
 ---
 
