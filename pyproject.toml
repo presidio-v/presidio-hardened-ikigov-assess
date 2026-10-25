@@ -32,7 +32,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-audit = ["pip-audit>=2.6.0"]
+# pip-audit pulls filelock (via cachecontrol[filecache]). Every filelock release
+# that still supports Python 3.10 (<= 4.2.0) carries open advisories; the fixed
+# 4.2.1+ needs 3.11. On 3.10 the extra installs nothing and the startup dep check
+# reports "unavailable" instead of running on a vulnerable tree.
+audit = ["pip-audit>=2.6.0; python_version >= '3.11'"]
 # MCP server extra. The official `mcp` SDK requires Python 3.10+, which is also the
 # package floor (requires-python); the marker below predates that floor.
 # Requires the 2.x SDK: mcp 2.0.0 (2026-07-28) removed `mcp.server.fastmcp` and
@@ -52,7 +56,8 @@ dev = [
     "pytest>=8.4.2",
     "pytest-cov>=4.0",
     "ruff>=0.15.10",
-    "pip-audit>=2.6.0",
+    # Same 3.11 floor as the `audit` extra (filelock advisories on 3.10).
+    "pip-audit>=2.6.0; python_version >= '3.11'",
     # Keep in step with the `mcp` extra above, including the <3 ceiling.
     "mcp>=2.2,<3; python_version >= '3.10'",
     "cryptography>=42",
