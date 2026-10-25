@@ -305,6 +305,27 @@ def test_verify_ref_ed25519_cross_validates_producer_golden():
     assert verify_ref(_ref(signature=ED_SIG, content_hash="ffff"), trust) is False
 
 
+def test_public_key_without_alg_is_ed25519_not_an_hmac_secret():
+    # Anyone holding the published public key could compute this HMAC; it must
+    # never verify against a public_key trust entry.
+    forged = expected_signature(GOLDEN_CH, GOLDEN_SIGNER, ED_PUB)
+    trust = load_trust_store(json.dumps({GOLDEN_SIGNER: {"public_key": ED_PUB}}))
+    assert trust[GOLDEN_SIGNER]["alg"] == "ed25519"
+    assert verify_ref(_ref(signature=forged), trust) is False
+    assert verify_ref(_ref(signature=forged), {GOLDEN_SIGNER: {"public_key": ED_PUB}}) is False
+    assert verify_ref(_ed_ref(), trust) is True
+
+
+def test_public_key_under_hmac_is_rejected():
+    with pytest.raises(EvidenceError, match="not an HMAC secret"):
+        load_trust_store(json.dumps({"s": {"alg": "hmac-sha256", "public_key": ED_PUB}}))
+
+
+def test_ed25519_public_key_under_key_still_loads():
+    trust = load_trust_store(json.dumps({GOLDEN_SIGNER: {"alg": "ed25519", "key": ED_PUB}}))
+    assert verify_ref(_ed_ref(), trust) is True
+
+
 def test_string_trust_entry_is_still_hmac():
     # Back-compat: a bare string entry verifies the HMAC golden vector.
     assert verify_ref(_ref(), {GOLDEN_SIGNER: GOLDEN_KEY}) is True
