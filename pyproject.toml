@@ -45,8 +45,9 @@ mcp = ["mcp>=2.2,<3; python_version >= '3.10'"]
 crypto = ["cryptography>=42"]
 # Coverage-guided fuzzing (Atheris). Linux-only and Python 3.12-only: Atheris 3.x
 # ships no cp310/cp311 wheel and no macOS/Windows wheel, so this extra is only ever
-# installed by the Linux/py3.12 fuzz CI job — kept a plain requirement (no marker).
-fuzz = ["atheris>=3.1.0"]
+# installed by the Linux/py3.12 fuzz CI job. The Python marker lets uv lock the
+# 3.10/3.11 splits that a dependency's own requires-python can force.
+fuzz = ["atheris>=3.1.0; python_version >= '3.12'"]
 dev = [
     "pytest>=8.4.2",
     "pytest-cov>=4.0",
