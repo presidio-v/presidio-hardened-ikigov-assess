@@ -62,7 +62,7 @@ Shorthand below: `REPO` = `https://github.com/presidio-v/presidio-hardened-ikigo
 | `sites_https` | **Met** | GitHub and PyPI (the project's homepage/download) are HTTPS. The tool ships no project-run website; the optional MCP endpoint's transport is operator-configured. |
 | `discussion` | **Met** | GitHub Issues: `REPO/issues` — searchable, URL-addressable, open, no proprietary client. |
 | `english` | **Met** | All docs and issue handling in English. |
-| `maintained` | **Met** | Actively maintained: latest release v0.29.0 (2026-10-18), a steady cadence (v0.20.0–v0.29.0 since June 2026), and green CI. |
+| `maintained` | **Met** | Actively maintained: latest release v0.29.1 (2026-10-25), a steady cadence (v0.20.0–v0.29.1 since June 2026), and green CI. |
 
 ## Change control — repository
 

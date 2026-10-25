@@ -12,6 +12,11 @@
 | 0.24.x  | Yes, but see both notes below |
 | < 0.24  | No        |
 
+> **0.29.0 and earlier: trust entries with `public_key` and no `alg` (fixed in 0.29.1,
+> GHSA-3c6h-3546-fqmm).** Such an entry defaulted to HMAC with the public key as the
+> secret, so anyone holding the key could forge evidence that verified. Upgrade, or add
+> `"alg": "ed25519"` to every trust entry that carries a `public_key`.
+
 > **0.28.x and earlier: the remote server (`remote.serve`) with `mcp` < 2.2.** Those
 > releases allow an MCP SDK that keeps StreamableHTTP sessions without bound, so a client
 > can exhaust the remote server's memory. 0.29.0 requires `mcp>=2.2`; on older releases, upgrade the SDK yourself.

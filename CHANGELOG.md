@@ -8,6 +8,13 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ## [Unreleased]
 
+---
+
+## [0.29.1] — 2026-10-25
+
+Security patch: a trust-store fix (GHSA-3c6h-3546-fqmm, low) and locked
+dependencies past new advisories. No API change.
+
 ### Security
 
 - Trust store: a `public_key` entry without `alg` defaulted to `hmac-sha256` and
