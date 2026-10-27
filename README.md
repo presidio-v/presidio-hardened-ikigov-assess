@@ -491,7 +491,7 @@ verify unchanged:
   (`unsupported-assurance-tier`), which keeps a future zk gate certificate from being
   mistaken for one this verifier can check.
 
-### Certificate identity (Unreleased)
+### Certificate identity (v0.29.0)
 
 `certificate_content_hash(cert)` returns the identity of a certificate: SHA-256 over the
 canonical bytes the issuer signs (the document minus `signature`), lowercase hex. It is
