@@ -18,7 +18,7 @@ import hashlib
 import hmac
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from presidio_ikigov_assess import __version__
@@ -84,7 +84,7 @@ def build_manifest(
         "tool_version": __version__,
         "use_case": escape_for_report(use_case),
         "risk_class": risk_class,
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "framework_content_hash": framework_content_hash(),
         "artifacts": {
             name: {"sha256": _sha256_hex(content)} for name, content in sorted(artifacts.items())

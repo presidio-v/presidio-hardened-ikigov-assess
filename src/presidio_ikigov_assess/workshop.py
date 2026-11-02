@@ -43,7 +43,7 @@ import hashlib
 import json
 import os
 import stat
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -274,7 +274,7 @@ def _build_workshop_manifest(
         "cell": cell,
         "risk_class": risk_class,
         "lang": lang,
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "pack": {
             "framework_id": pack_framework_id,
             "version": pack_version,
@@ -723,7 +723,7 @@ def workshop_run(
             _err_console.print(f"[red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
     else:
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        date_str = datetime.now(UTC).strftime("%Y-%m-%d")
         out_dir = Path("workshop-out") / date_str
 
     # Parse answers file if provided.

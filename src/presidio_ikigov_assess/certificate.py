@@ -87,7 +87,7 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Optional
 
 from presidio_ikigov_assess.checklist import (
@@ -192,7 +192,7 @@ class GateCertificate:
 
 
 def _iso_now() -> str:
-    return datetime.now(timezone.utc).strftime(_TIMESTAMP_FMT)
+    return datetime.now(UTC).strftime(_TIMESTAMP_FMT)
 
 
 def now_iso() -> str:
@@ -213,7 +213,7 @@ def parse_timestamp(value: object) -> Optional[datetime]:
     if not isinstance(value, str) or len(value) != 20:
         return None
     try:
-        return datetime.strptime(value, _TIMESTAMP_FMT).replace(tzinfo=timezone.utc)
+        return datetime.strptime(value, _TIMESTAMP_FMT).replace(tzinfo=UTC)
     except ValueError:
         return None
 
@@ -703,7 +703,7 @@ def verify_certificate(
         bound = parse_timestamp(not_after)
         if bound is None:
             return VerificationResult(False, REASON_MALFORMED, signer=signer)
-        moment = now if now is not None else datetime.now(timezone.utc)
+        moment = now if now is not None else datetime.now(UTC)
         if moment.tzinfo is None:
             raise CertificateError("now must be timezone-aware")
         if moment > bound:

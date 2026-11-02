@@ -11,7 +11,7 @@ version = "0.29.1"
 description = "IKI-Gov Assessment Tool — operationalises the Integrated KI-Governance Reference Model for AI use-case governance."
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 keywords = ["ai-governance", "iki-gov", "compliance", "iso42001"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -20,7 +20,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -32,34 +31,27 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# pip-audit pulls filelock (via cachecontrol[filecache]). Every filelock release
-# that still supports Python 3.10 (<= 4.2.0) carries open advisories; the fixed
-# 4.2.1+ needs 3.11. On 3.10 the extra installs nothing and the startup dep check
-# reports "unavailable" instead of running on a vulnerable tree.
-audit = ["pip-audit>=2.6.0; python_version >= '3.11'"]
-# MCP server extra. The official `mcp` SDK requires Python 3.10+, which is also the
-# package floor (requires-python); the marker below predates that floor.
-# Requires the 2.x SDK: mcp 2.0.0 (2026-07-28) removed `mcp.server.fastmcp` and
+audit = ["pip-audit>=2.6.0"]
+# MCP server extra (the official `mcp` SDK). Requires the 2.x SDK: mcp 2.0.0 (2026-07-28) removed `mcp.server.fastmcp` and
 # replaced it with `mcp.server.mcpserver.MCPServer`. build_server() targets the new
 # module, so 1.x no longer works — hence a floor, not just a ceiling. The `<3` ceiling
 # stays: this is the second time an unbounded floor on this dependency broke an
 # install, and the surface build_server() touches lives on the major.
-mcp = ["mcp>=2.2,<3; python_version >= '3.10'"]
+mcp = ["mcp>=2.2,<3"]
 # Public-key (Ed25519) evidence verification for v0.14.0 external evidence.
 crypto = ["cryptography>=42"]
 # Coverage-guided fuzzing (Atheris). Linux-only and Python 3.12-only: Atheris 3.x
 # ships no cp310/cp311 wheel and no macOS/Windows wheel, so this extra is only ever
 # installed by the Linux/py3.12 fuzz CI job. The Python marker lets uv lock the
-# 3.10/3.11 splits that a dependency's own requires-python can force.
+# 3.11 split that a dependency's own requires-python can force.
 fuzz = ["atheris>=3.1.0; python_version >= '3.12'"]
 dev = [
     "pytest>=8.4.2",
     "pytest-cov>=4.0",
     "ruff>=0.15.10",
-    # Same 3.11 floor as the `audit` extra (filelock advisories on 3.10).
-    "pip-audit>=2.6.0; python_version >= '3.11'",
+    "pip-audit>=2.6.0",
     # Keep in step with the `mcp` extra above, including the <3 ceiling.
-    "mcp>=2.2,<3; python_version >= '3.10'",
+    "mcp>=2.2,<3",
     "cryptography>=42",
 ]
 
@@ -89,11 +81,13 @@ addopts = "--cov=src/presidio_ikigov_assess --cov-report=term-missing --cov-fail
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP"]
-ignore = ["E501", "UP045"]
+# UP042 (str+Enum -> StrEnum) changes str(member) from "Cls.MEMBER" to the value,
+# which reaches rendered reports; keep the explicit mixins.
+ignore = ["E501", "UP045", "UP042"]
 
 [tool.coverage.run]
 source = ["src"]

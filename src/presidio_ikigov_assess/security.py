@@ -19,7 +19,7 @@ import subprocess  # nosec B404 — used only for the fixed-argv pip-audit call 
 import sys
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 
@@ -145,7 +145,7 @@ def log_security_event(event: dict[str, object]) -> None:
     try:
         ensure_iga_dir()
         entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             **event,
         }
         line = json.dumps(entry, ensure_ascii=False) + "\n"

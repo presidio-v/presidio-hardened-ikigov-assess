@@ -10,10 +10,8 @@ checks run here instead.
 from __future__ import annotations
 
 import json
-import sys
+import tomllib
 from pathlib import Path
-
-import pytest
 
 from presidio_ikigov_assess import __version__
 
@@ -39,10 +37,7 @@ def test_readme_carries_mcp_name_marker() -> None:
     assert f"<!-- mcp-name: {SERVER['name']} -->" in readme
 
 
-@pytest.mark.skipif(sys.version_info < (3, 11), reason="tomllib is 3.11+")
 def test_identifier_is_a_console_script_running_the_server() -> None:
-    import tomllib
-
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     scripts = pyproject["project"]["scripts"]
     assert PACKAGE["identifier"] == pyproject["project"]["name"]

@@ -20,7 +20,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from typer.testing import CliRunner
@@ -98,7 +98,7 @@ def _cert(*, gate="G0", evidence_for=None, tiers=None, **kw) -> dict:
 
 
 def _at(value: str) -> datetime:
-    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
 
 
 # ── parents (ADR-0002) ────────────────────────────────────────────────────────

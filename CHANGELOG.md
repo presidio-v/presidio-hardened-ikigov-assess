@@ -8,14 +8,19 @@ Earlier releases (v0.1.0–v0.19.2) are documented fully in `PRESIDIO-REQ.md`
 
 ## [Unreleased]
 
-### Security
+### Changed
 
-- `pip-audit` (the `audit` and `dev` extras) now installs only on Python 3.11+.
-  It pulls in `filelock`, and every `filelock` release that still supports
-  Python 3.10 (up to 4.2.0) carries open advisories (GHSA-v4x8-3wr5-3wq8 and
-  five others); the fix, 4.2.1, needs 3.11. `uv.lock` no longer contains
-  `filelock` 4.1.0. On Python 3.10 the startup dependency check reports
-  "unavailable", as it does whenever `pip-audit` is not installed.
+- **Breaking: Python 3.11 or newer is required** (`requires-python >=3.11`).
+  On Python 3.10, pip resolves to 0.29.x, the last line that supports it.
+  `pip-audit`, used by the `[audit]` extra and the startup dependency check,
+  pulls in `filelock`, and every `filelock` release that still supports 3.10
+  (up to 4.2.0) carries open advisories (GHSA-v4x8-3wr5-3wq8 and five others);
+  the fix, 4.2.1, needs 3.11. Python 3.10 is also upstream end-of-life as of
+  October 2026. The CI matrix is now 3.11–3.12, the hash-pinned CI constraints
+  are compiled for 3.11, and `uv.lock` has no 3.10 split.
+- This replaces the stopgap merged after 0.29.1, which installed `pip-audit`
+  only on Python 3.11+ and left the dependency check "unavailable" on 3.10.
+  The `audit` and `dev` extras now install `pip-audit` unconditionally again.
 
 ---
 

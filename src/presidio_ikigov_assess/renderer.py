@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from rich.console import Console
 
@@ -251,7 +251,7 @@ def render_markdown(
         coverage = _default_coverage(affirmed, provenance, asserted, require_evidence)
     risk_label = t(RISK_LABEL_KEY[risk_class], lang)
     title = t("assessment_title", lang)
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     lines: list[str] = [
         f"# {title} — {safe_use_case}",
@@ -348,7 +348,7 @@ def build_payload(
     produced it. Additive over the v0.13.0 schema: no key was removed or retyped.
     """
     safe_use_case = escape_for_report(use_case)
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     if coverage is None:
         coverage = _default_coverage(affirmed, provenance, asserted, require_evidence)
 
@@ -465,7 +465,7 @@ def build_iso_payload(
     evidence: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Build the structured ISO/IEC 42001 coverage payload."""
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     payload: dict[str, object] = {
         "use_case": escape_for_report(use_case),
         "risk_class": risk_class,
@@ -684,7 +684,7 @@ def build_euaiact_payload(
     evidence: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Build the structured EU AI Act coverage payload."""
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     payload: dict[str, object] = {
         "use_case": escape_for_report(use_case),
         "risk_class": risk_class,
