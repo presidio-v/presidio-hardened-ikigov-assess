@@ -14,7 +14,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -49,7 +49,7 @@ def test_identity_is_sha256_of_signing_bytes() -> None:
 def test_vector_certificate_verifies() -> None:
     pytest.importorskip("cryptography")
     trust = load_trust_store(json.dumps(VECTOR["trust_store"]))
-    at = datetime.strptime(VECTOR["verify_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    at = datetime.strptime(VECTOR["verify_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     result = cert_mod.verify_certificate(CERT, trust, now=at)
     assert result.ok, result.reason
 

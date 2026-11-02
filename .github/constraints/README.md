@@ -9,7 +9,7 @@ from substituting a build backend, publisher, or SBOM generator.
 
 | File | Tools | Used by |
 |---|---|---|
-| `ci-toolchain.txt` | pip, setuptools, wheel | `pytest.yml` (matrix 3.10–3.12) |
+| `ci-toolchain.txt` | pip, setuptools, wheel | `pytest.yml` (matrix 3.11–3.12) |
 | `release-build.txt` | pip, build | `publish.yml`, `reserve-iki-gov.yml` |
 | `twine.txt` | twine | `publish.yml` (metadata check) |
 | `cyclonedx.txt` | cyclonedx-bom | `publish.yml` (SBOM) |
@@ -20,12 +20,12 @@ hash-pinned: it installs the local project plus dev extras resolved from
 
 ## Regenerate
 
-Universal (cross-Python 3.10+) resolution with hashes, via `uv`:
+Universal (cross-Python 3.11+) resolution with hashes, via `uv`:
 
 ```bash
 cd .github/constraints
 for base in ci-toolchain release-build twine cyclonedx; do
-  uv pip compile --generate-hashes --universal --python-version 3.10 \
+  uv pip compile --generate-hashes --universal --python-version 3.11 \
     --annotation-style=line "$base.in" -o "$base.txt"
 done
 ```

@@ -44,6 +44,10 @@ The checklist content is drawn directly from the five appendix sections of the I
   the whole dependency tree can resolve to security-patched releases — the patched
   `urllib3` line dropped 3.9, leaving the dev/audit toolchain pinned to a
   vulnerable version on 3.9 only.
+- **Minimum rises to Python 3.11+ in v0.30.0.** Every `filelock` release that still
+  supports 3.10 carries open advisories and the fix needs 3.11 (`filelock` reaches
+  the tree through `pip-audit`); Python 3.10 is also upstream end-of-life as of
+  October 2026. 0.29.x is the last line that installs on 3.10.
 - Modern `pyproject.toml` + hatchling/uv + Typer CLI
 - `src/presidio_ikigov_assess/` layout
 - Commands:

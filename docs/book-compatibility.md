@@ -24,7 +24,9 @@ Every command printed in Anhang B runs unchanged:
 | `iga gate --gate G1 … --assert-gate G1` | unchanged; exit codes see below |
 | `--no-dep-check`, `IGA_MAX_ASSESSMENTS` (default 100), `~/.iga/security.log` | unchanged |
 
-Python 3.10 or newer is required (the printed text, after correction, says the same).
+Python 3.11 or newer is required since v0.30.0. The printed text, after correction, says
+3.10. On Python 3.10, `pip install presidio-hardened-ikigov-assess` resolves to 0.29.x, the
+last line that supports 3.10, and every command above runs unchanged there.
 
 ## Behaviour that changed after v0.1.0
 

@@ -46,10 +46,17 @@
 
 | Python | Supported |
 |--------|-----------|
-| 3.10 – 3.12 | Yes |
-| 3.9    | **No** — dropped (enforced in v0.19.2; `requires-python >=3.10`) |
+| 3.11 – 3.12 | Yes |
+| 3.10   | **No** — dropped in v0.30.0 (`requires-python >=3.11`); 0.29.x is the last line that installs on 3.10 |
+| 3.9    | **No** — dropped (enforced in v0.19.2) |
 
-**Enforced (v0.19.2): `requires-python = ">=3.10"`; the CI matrix tests 3.10–3.12.** The security-patched
+**Enforced (v0.30.0): `requires-python = ">=3.11"`; the CI matrix tests 3.11–3.12.**
+`pip-audit` pulls in `filelock`, and every `filelock` release that still supports
+Python 3.10 (up to 4.2.0) carries open advisories (GHSA-v4x8-3wr5-3wq8 and five
+others); the fix, 4.2.1, needs 3.11. Python 3.10 is also upstream end-of-life as of
+October 2026.
+
+**Earlier (v0.19.2): `requires-python = ">=3.10"`.** The security-patched
 `urllib3` line (2.7.0+) no longer supports Python 3.9, so on 3.9 the dev/audit
 dependency chain stays pinned to a vulnerable `urllib3` with no 3.9-compatible
 fix. `urllib3` is *not* a runtime dependency of the core package (so end-user

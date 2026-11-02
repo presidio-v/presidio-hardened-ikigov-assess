@@ -14,7 +14,7 @@ The score tells you how far you are. The gate tells you whether you may proceed.
 
 ## 2. Install
 
-The tool needs Python 3.10 or later.
+The tool needs Python 3.11 or later.
 
     pip install presidio-hardened-ikigov-assess
     pip install "presidio-hardened-ikigov-assess[crypto]"   # Ed25519 signatures

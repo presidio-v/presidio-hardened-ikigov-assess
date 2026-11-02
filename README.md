@@ -517,7 +517,7 @@ The assessment engine is also available as a [Model Context Protocol](https://mo
 server, so MCP-capable LLM agents and clients can run IKI-Gov assessments as tools.
 
 ```bash
-# Install with the MCP extra (requires Python 3.10+ and the mcp 2.x SDK)
+# Install with the MCP extra (requires Python 3.11+ and the mcp 2.x SDK)
 pip install "presidio-hardened-ikigov-assess[mcp]"
 
 # Run the server over stdio

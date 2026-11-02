@@ -31,7 +31,7 @@ import hashlib
 import json
 import re
 import string
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from presidio_ikigov_assess import __version__
@@ -160,7 +160,7 @@ def _date_field(value: object, name: str) -> str:
 
 
 def _utcnow_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 # ── Attestation (R2) — schema frozen by the family golden vector ─────────────

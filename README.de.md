@@ -529,7 +529,7 @@ zur Verfügung, sodass MCP-fähige LLM-Agenten und -Clients IKI-Gov-Bewertungen 
 können.
 
 ```bash
-# Installation mit dem MCP-Extra (erfordert Python 3.10+ und das mcp-2.x-SDK)
+# Installation mit dem MCP-Extra (erfordert Python 3.11+ und das mcp-2.x-SDK)
 pip install "presidio-hardened-ikigov-assess[mcp]"
 
 # Den Server über stdio starten

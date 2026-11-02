@@ -13,7 +13,7 @@ Run it over stdio::
 
     iga-mcp
 
-Requires the optional ``mcp`` extra (Python 3.10+)::
+Requires the optional ``mcp`` extra (Python 3.11+)::
 
     pip install "presidio-hardened-ikigov-assess[mcp]"
 
