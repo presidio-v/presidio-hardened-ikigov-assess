@@ -1837,14 +1837,18 @@ does not byte-match the x402 verifier is worse than no grant.
 
 ### Decision 7 — presidio-evidence conformance is by vectors, not imports
 
-`presidio-evidence` is `Private :: Do Not Upload` pending the non-provisional
-filing (its L-005, ~2027-04); this package ships on PyPI. MIGRATION.md step 1
-("add presidio-evidence as dependency") therefore cannot ship before the filing:
-a public wheel cannot depend on a private package. Until then the posture is
-**vector conformance only** — this repo keeps its local canonicalisation and
+When this decision was taken, `presidio-evidence` was not published, and a
+public wheel cannot depend on an unpublished package. MIGRATION.md step 1 ("add
+presidio-evidence as dependency") was therefore deferred, and the posture was
+**vector conformance only**: this repo keeps its local canonicalisation and
 signing mirror and pins the family golden vectors (already: `workshop-attestation`,
-`workshop-leavebehind`) — and the import migration is re-scheduled to after the
-filing. Recorded so nobody attempts the import migration early.
+`workshop-leavebehind`).
+
+**Amended 2026-11-03.** `presidio-evidence` is public and on PyPI since
+2026-11-02 (0.5.0, 0.5.1; Python 3.11+). The import migration is no longer
+blocked and is planned as its own change, after this package drops Python 3.10
+(`presidio-evidence` requires 3.11+). Until it lands, vector conformance remains
+the posture.
 
 ### Requirements
 
