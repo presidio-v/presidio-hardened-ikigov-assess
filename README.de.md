@@ -46,6 +46,9 @@ hier ergänzt, sobald sie verfügbar sind.
 
 ## Installation
 
+Ab v0.30.0 (noch nicht veröffentlicht) ist Python 3.11 oder neuer erforderlich. 0.29.x ist
+die letzte Linie mit Python 3.10; pip löst unter 3.10 auf diese auf.
+
 ```bash
 pip install presidio-hardened-ikigov-assess
 
@@ -529,7 +532,7 @@ zur Verfügung, sodass MCP-fähige LLM-Agenten und -Clients IKI-Gov-Bewertungen 
 können.
 
 ```bash
-# Installation mit dem MCP-Extra (erfordert Python 3.11+ und das mcp-2.x-SDK)
+# Installation mit dem MCP-Extra (erfordert das mcp-2.x-SDK, >=2.2)
 pip install "presidio-hardened-ikigov-assess[mcp]"
 
 # Den Server über stdio starten
@@ -900,6 +903,7 @@ gefuzzt (Atheris).
 | v0.28.0 | Buchkonsistenz (Anhang B): Rechenbeispiel durch Tests festgehalten, `[risk: …]`-Kopfzeile behoben, `euaiact-gap` folgt der korrigierten Gate→Artikel-Tabelle (Art. 18, 72); [docs/book-compatibility.md](docs/book-compatibility.md) | Veröffentlicht |
 | v0.29.0 | Identität des Gate-Zertifikats als `certificate_content_hash` (ADR-0006), damit Erzeuger die zulassende Gate-Entscheidung in `parents` benennen; `[mcp]` verlangt `mcp>=2.2` für den Remote-Server | Veröffentlicht |
 | v0.29.1 | **Sicherheit:** der `public_key` eines Trust-Eintrags ist nie ein HMAC-Geheimnis (GHSA-3c6h-3546-fqmm); `certifi`, `opentelemetry-api` und `filelock` im Lockfile über neue Advisories gehoben | Veröffentlicht |
+| v0.30.0 | **Breaking:** Python 3.11+ erforderlich (für die `filelock`-Advisories gibt es keinen 3.10-Fix; 3.10 ist End-of-Life) | Unveröffentlicht |
 
 Vollständiges Versions-Deliberationslog: [PRESIDIO-REQ.md](PRESIDIO-REQ.md)
 
