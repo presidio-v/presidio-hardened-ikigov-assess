@@ -1,0 +1,12 @@
+{
+  "title": "presidio-hardened-ikigov-assess: assessment tool for the IKI-Gov reference model",
+  "upload_type": "software",
+  "description": "Command-line tool that operationalises the IKI-Gov reference model (Integrated KI-Governance Reference Model) for assessing AI use cases: lifecycle, six domains, six measurement dimensions and six quality gates, with ISO/IEC 42001 and EU AI Act gap mappings. The model is introduced in V. Stantchev, AI and IT Governance (Springer, ISBN 978-3-662-74001-9) and KI und IT-Governance (Springer, ISBN 978-3-662-74093-4). Not legal advice and not a conformity assessment.",
+  "creators": [ { "name": "Stantchev, Vladimir", "orcid": "0000-0002-1551-419X", "affiliation": "SRH University Heidelberg" } ],
+  "license": "MIT",
+  "keywords": ["AI governance", "IKI-Gov", "ISO/IEC 42001", "EU AI Act", "compliance", "IT governance"],
+  "related_identifiers": [
+    { "identifier": "978-3-662-74001-9", "relation": "isDerivedFrom", "resource_type": "publication-book", "scheme": "isbn" },
+    { "identifier": "978-3-662-74093-4", "relation": "isDerivedFrom", "resource_type": "publication-book", "scheme": "isbn" }
+  ]
+}

@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "presidio-hardened-ikigov-assess: assessment tool for the IKI-Gov reference model"
+abstract: >-
+  Command-line tool that operationalises the IKI-Gov reference model
+  (Integrated KI-Governance Reference Model) for assessing AI use cases, with
+  ISO/IEC 42001 and EU AI Act gap mappings.
+type: software
+license: MIT
+repository-code: "https://github.com/presidio-v/presidio-hardened-ikigov-assess"
+keywords:
+  - AI governance
+  - IKI-Gov
+  - ISO/IEC 42001
+  - EU AI Act
+  - compliance
+authors:
+  - family-names: Stantchev
+    given-names: Vladimir
+    orcid: "https://orcid.org/0000-0002-1551-419X"
+    affiliation: "SRH University Heidelberg"
+references:
+  - type: book
+    title: "AI and IT Governance"
+    authors:
+      - family-names: Stantchev
+        given-names: Vladimir
+    publisher:
+      name: Springer
+    isbn: "978-3-662-74001-9"
+    year: 2027
+  - type: book
+    title: "KI und IT-Governance"
+    authors:
+      - family-names: Stantchev
+        given-names: Vladimir
+    publisher:
+      name: Springer
+    isbn: "978-3-662-74093-4"
+    year: 2026
